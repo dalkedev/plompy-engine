@@ -111,8 +111,26 @@ async function fixture(t) {
     message,
   };
 }
+async function withinDeadline(promise, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(label)), 10_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 async function drain(engine) {
-  for (let n = 0; n < 1000 && engine.isBusy(); n++) await yieldTurn();
+  // kick joins the current tick. Wait on its completion, not a count of event-loop
+  // turns: filesystem work may stay pending through many immediate callbacks.
+  await withinDeadline(
+    engine.kick(),
+    "fake engine did not settle within 10 seconds",
+  );
   assert.equal(
     engine.isBusy(),
     false,
@@ -421,18 +439,20 @@ test("an awaited concurrent tick joins in-flight execution instead of returning 
   const wait = new Promise((resolve) => {
     release = resolve;
   });
-  let entered = false;
+  let entered;
+  const started = new Promise((resolve) => {
+    entered = resolve;
+  });
   f.deps.run = async (_c, _p, session, save) => {
     f.calls.push({ session });
-    entered = true;
+    entered();
     if (!session) save(sid);
     await wait;
     return success();
   };
   const engine = f.make();
   const first = engine.kick();
-  for (let n = 0; n < 100 && !entered; n++) await yieldTurn();
-  assert.equal(entered, true);
+  await withinDeadline(started, "fake worker did not start within 10 seconds");
   let joined = false;
   const second = engine.kick().then(() => {
     joined = true;

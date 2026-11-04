@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setImmediate as yieldTurn } from "node:timers/promises";
 import { Engine } from "../dist/engine.js";
 import { Store } from "../dist/store.js";
 
@@ -48,6 +47,10 @@ test("owner cancellation after a committed continuation checkpoint prevents its 
     releaseNotice = resolve;
   });
   let reachedCheckpointNotice = false;
+  let signalCheckpointNotice;
+  const checkpointNotice = new Promise((resolve) => {
+    signalCheckpointNotice = resolve;
+  });
   const notices = [];
   let runs = 0;
   const engine = new Engine(
@@ -59,6 +62,7 @@ test("owner cancellation after a committed continuation checkpoint prevents its 
         notices.push(text);
         if (text.includes("checkpoint saved")) {
           reachedCheckpointNotice = true;
+          signalCheckpointNotice();
           await noticeWait;
         }
       },
@@ -92,7 +96,25 @@ test("owner cancellation after a committed continuation checkpoint prevents its 
   });
   store.enqueueWorkflow(job, thread, "Bounded synthetic goal", 60_000);
   const executing = engine.kick();
-  for (let n = 0; n < 100 && !reachedCheckpointNotice; n++) await yieldTurn();
+  let noticeTimeout;
+  try {
+    await Promise.race([
+      checkpointNotice,
+      new Promise((_, reject) => {
+        noticeTimeout = setTimeout(
+          () =>
+            reject(
+              new Error(
+                "The continuation checkpoint notice was not reached within 10 seconds",
+              ),
+            ),
+          10_000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(noticeTimeout);
+  }
   assert.equal(reachedCheckpointNotice, true);
   assert.equal(store.get(job).status, "queued");
   await engine.accept({
