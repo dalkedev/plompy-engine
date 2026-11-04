@@ -1,7 +1,14 @@
-import { authorized, redact, type Config, type Incoming } from "./config.js";
+import {
+  authorized,
+  redact,
+  SNOWFLAKE,
+  type Config,
+  type Incoming,
+} from "./config.js";
 import { assemblePrompt, saveTranscript, syncMemory } from "./workspace.js";
 import { loginReady, runCodex, type TurnResult } from "./codex.js";
 import { Store, type Job } from "./store.js";
+import { COMMAND_HELP, threadStatus } from "./status.js";
 export interface Transport {
   send(threadId: string, text: string): Promise<void>;
   typing(threadId: string): Promise<void>;
@@ -24,6 +31,14 @@ const defaults: Dependencies = {
   persist: saveTranscript,
   sync: syncMemory,
 };
+const commandUsage = new Map([
+  ["!status", "!status"],
+  ["!help", "!help"],
+  ["!cancel", "!cancel <task ID>"],
+  ["!recover", "!recover <task ID>"],
+  ["!new-session", "!new-session"],
+  ["!result", "!result [task ID]"],
+]);
 export class Engine {
   private busy = false;
   private stopping = false;
@@ -41,27 +56,36 @@ export class Engine {
     const text = message.content.trim(),
       thread = message.channelId;
     if (text.startsWith("!")) {
-      const [command, id] = text.split(/\s+/);
-      if (
-        ["!status", "!cancel", "!recover", "!new-session", "!result"].includes(
-          command ?? "",
-        )
-      ) {
+      const [command, id, ...extra] = text.split(/\s+/);
+      const usage = commandUsage.get(command ?? "");
+      if (usage) {
         if (!this.store.controlOnce(message.id)) return true;
+        const requiresId = command === "!cancel" || command === "!recover";
+        const acceptsId = requiresId || command === "!result";
+        const validArguments =
+          extra.length === 0 &&
+          (acceptsId
+            ? id
+              ? SNOWFLAKE.test(id)
+              : !requiresId
+            : id === undefined);
+        if (!validArguments) {
+          await this.send(
+            thread,
+            `Usage: ${usage}. Use !help for command syntax. No action was taken and nothing was queued.`,
+          );
+          return true;
+        }
         try {
           if (command === "!status") {
-            const rows = this.store.recent(thread),
-              session = this.store.session(thread);
             await this.send(
               thread,
-              `Codex: ${this.authReady ? "authenticated" : "login unverified; tasks queued"}.\nSession: ${session ?? "not started"}.\n` +
-                (rows
-                  .map(
-                    (job) =>
-                      `${job.id}: ${job.status}${job.error_code ? ` (${job.error_code})` : ""}`,
-                  )
-                  .join("\n") || "No tasks."),
+              threadStatus(this.store, thread, this.authReady),
             );
+            return true;
+          }
+          if (command === "!help") {
+            await this.send(thread, COMMAND_HELP);
             return true;
           }
           if (command === "!cancel") {
@@ -121,6 +145,12 @@ export class Engine {
           return true;
         }
       }
+      if (this.store.controlOnce(message.id))
+        await this.send(
+          thread,
+          "Unknown command. Use !help for command syntax. Nothing was queued.",
+        );
+      return true;
     }
     const prompt = redact(message.content, this.config.token);
     let inserted: boolean;

@@ -152,18 +152,25 @@ export class Store {
     result: string,
     error: string | null = null,
   ): void {
-    const changed = this.db
-      .prepare(
-        "UPDATE jobs SET status=?,result=?,error_code=?,finished_at=? WHERE id=? AND status='running'",
-      )
-      .run(status, result, error, Date.now(), id);
-    if (Number(changed.changes) !== 1) throw new Error("Job ownership lost");
-    if (status !== "succeeded")
-      this.db
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const changed = this.db
         .prepare(
-          "UPDATE conversations SET blocked_reason=? WHERE thread_id=(SELECT thread_id FROM jobs WHERE id=?)",
+          "UPDATE jobs SET status=?,result=?,error_code=?,finished_at=? WHERE id=? AND status='running'",
         )
-        .run(status, id);
+        .run(status, result, error, Date.now(), id);
+      if (Number(changed.changes) !== 1) throw new Error("Job ownership lost");
+      if (status !== "succeeded")
+        this.db
+          .prepare(
+            "UPDATE conversations SET blocked_reason=? WHERE thread_id=(SELECT thread_id FROM jobs WHERE id=?)",
+          )
+          .run(status, id);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
   recover(id: string, threadId: string, newId: string): boolean {
     if (!SNOWFLAKE.test(newId) || !SNOWFLAKE.test(threadId))
@@ -183,6 +190,26 @@ export class Store {
         this.db.exec("COMMIT");
         return false;
       }
+      if (
+        this.db
+          .prepare(
+            "SELECT id FROM jobs WHERE thread_id=? AND (status='running' OR (status='queued' AND recovery_of IS NOT NULL)) LIMIT 1",
+          )
+          .get(threadId)
+      )
+        throw new Error("A turn or recovery is already pending in this thread");
+      if (
+        this.db
+          .prepare(
+            `WITH RECURSIVE recoveries(id,status) AS (
+              SELECT id,status FROM jobs WHERE recovery_of=? AND thread_id=?
+              UNION
+              SELECT j.id,j.status FROM jobs j JOIN recoveries r ON j.recovery_of=r.id WHERE j.thread_id=?
+            ) SELECT id FROM recoveries WHERE status='succeeded' LIMIT 1`,
+          )
+          .get(id, threadId, threadId)
+      )
+        throw new Error("This job has already been successfully recovered");
       this.db
         .prepare(
           "UPDATE jobs SET status='cancelled',error_code='superseded_by_recovery',finished_at=? WHERE thread_id=? AND status='queued'",
@@ -207,20 +234,27 @@ export class Store {
     }
   }
   resetSession(threadId: string): void {
-    const running = this.db
-      .prepare("SELECT id FROM jobs WHERE thread_id=? AND status='running'")
-      .get(threadId);
-    if (running) throw new Error("A turn is still running");
-    this.db
-      .prepare(
-        "UPDATE jobs SET status='cancelled',error_code='owner_started_new_session',finished_at=? WHERE thread_id=? AND status='queued'",
-      )
-      .run(Date.now(), threadId);
-    this.db
-      .prepare(
-        "UPDATE conversations SET session_id=NULL,blocked_reason=NULL WHERE thread_id=?",
-      )
-      .run(threadId);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const running = this.db
+        .prepare("SELECT id FROM jobs WHERE thread_id=? AND status='running'")
+        .get(threadId);
+      if (running) throw new Error("A turn is still running");
+      this.db
+        .prepare(
+          "UPDATE jobs SET status='cancelled',error_code='owner_started_new_session',finished_at=? WHERE thread_id=? AND status='queued'",
+        )
+        .run(Date.now(), threadId);
+      this.db
+        .prepare(
+          "UPDATE conversations SET session_id=NULL,blocked_reason=NULL WHERE thread_id=?",
+        )
+        .run(threadId);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
   cancel(id: string, threadId: string): boolean {
     return (

@@ -1,0 +1,5 @@
+# Use only on an AppArmor host after its administrator installs scripts/docker-apparmor.
+services:
+  engine:
+    security_opt:
+      - apparmor=szpont-engine-container

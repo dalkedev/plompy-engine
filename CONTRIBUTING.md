@@ -13,7 +13,7 @@ npm --prefix apps/discord-agent ci --ignore-scripts
 npm test
 ```
 
-The Node suite builds the engine and checks it offline. For browser changes, run the locked
+The Node suite builds the engine and checks runtime, diagnostics, and release metadata offline. For browser changes, run the locked
 Python suite in the [browser guide](packages/browser/README.md#manual-login-and-verification).
 The repository's [CI workflow](.github/workflows/checks.yml) runs both offline suites.
 

@@ -12,6 +12,7 @@ Codex CLI sessions, a durable SQLite queue, and a private Markdown workspace.
 [![Offline checks](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml/badge.svg)](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml)
 [![Node.js 24](https://img.shields.io/badge/Node.js-24-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
 [![MIT license](https://img.shields.io/badge/license-MIT-FF6B35?labelColor=111315)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/dalkedev/szpont-engine?color=FF6B35&labelColor=111315)](https://github.com/dalkedev/szpont-engine/releases)
 
 [Quick start](#quick-start) · [Documentation](docs/index.md) · [Architecture](docs/architecture.md) · [Contributing](CONTRIBUTING.md)
 
@@ -32,6 +33,8 @@ interrupted job.
 - **Keeps conversations continuous.** Each Discord thread maps to its own stored Codex session.
 - **Records accepted work.** SQLite WAL, unique message IDs, bounded queues, and atomic claims.
 - **Makes recovery explicit.** Interrupted and failed turns block that conversation until you act.
+- **Explains waiting work.** `!status` shows queue activity, blocked threads, and uncertain result delivery.
+- **Checks setup locally.** `npm run doctor` reports configuration and filesystem problems without contacting Discord.
 - **Checks deployment identity.** Intake is limited to the configured owner, guild, bot identity, and private forum.
 - **Keeps memory readable.** Selected Markdown is committed locally in a separate private Git workspace.
 - **Adds browsing when you need it.** An optional Camoufox bridge exposes browser tools over local stdio MCP.
@@ -59,6 +62,9 @@ not prove an external website action succeeded. Read the [architecture](docs/arc
 for state transitions, session handling, and recovery boundaries.
 
 ## Quick start
+
+Prefer containers? The [Docker guide](docs/docker.md) provides a non-root image, private volumes,
+and an offline sandbox check. [Releases](docs/releases.md) cover version tags and immutable image digests.
 
 You need Linux, **Node.js 24.x**, Git, `flock`, and an authenticated Codex CLI. The process
 adapter targets **Codex CLI 0.166.0** and its JSON event format. Configure your own model/account
@@ -104,9 +110,10 @@ load `.env` automatically. Load only your own trusted configuration, then start 
 set -a
 . "$HOME/.config/szpont/agent.env"
 set +a
-mkdir -p "$CODEX_HOME" "$SZPONT_STATE_DIR"
-chmod 700 "$CODEX_HOME" "$SZPONT_STATE_DIR"
+mkdir -p "$CODEX_HOME" "$SZPONT_STATE_DIR" "$SZPONT_ARTIFACTS_DIR" "$SZPONT_BROWSER_DIR"
+chmod 700 "$CODEX_HOME" "$SZPONT_STATE_DIR" "$SZPONT_ARTIFACTS_DIR" "$SZPONT_BROWSER_DIR"
 codex login
+npm run doctor -- --check-login
 flock -n -E 75 "$SZPONT_STATE_DIR/engine.lock" npm --prefix apps/discord-agent start
 ```
 
@@ -120,7 +127,8 @@ the [optional browser guide](packages/browser/README.md) for Camoufox setup.
 | Input | Effect |
 | --- | --- |
 | A normal message | Queue a task and continue this thread's session |
-| `!status` | Show accepted jobs and authentication state |
+| `!help` | Show commands without starting a task |
+| `!status` | Show queue activity, authentication, blocked work, and delivery state |
 | `!cancel MESSAGE_ID` | Cancel queued work or interrupt a running task in this thread |
 | `!recover MESSAGE_ID` | Queue deliberate recovery of a failed or interrupted task |
 | `!new-session` | Cancel queued work, keep history, and start a fresh session on the next message |
@@ -128,6 +136,8 @@ the [optional browser guide](packages/browser/README.md) for Camoufox setup.
 
 Attachments are rejected. Messages sent during a long outage may never have entered the queue;
 use `!status` to inspect what was actually accepted.
+Unknown commands and invalid command arguments show usage instead of becoming model tasks.
+For setup failures, run the [local doctor](docs/doctor.md); it does not create directories or repair state.
 
 ## Keep source public and memory private
 

@@ -31,6 +31,10 @@ identity, and requires a completed turn. Cancellation and timeout stop the proce
 A task transitions from queued to running, then succeeded, failed or interrupted. Non-success
 blocks further work in that conversation until deliberate recovery. Restarted running work is
 interrupted, not queued. Recovery creates a new job with a reference to the original request.
+Terminal state and conversation blocking commit in one transaction; a failed write preserves
+the running state for reconciliation. Session reset and queued cancellation are also atomic.
+Recovery refuses overlap with queued recovery or running work in that thread and refuses to
+replay an ancestor already recovered successfully. A failed recovery can itself be recovered.
 
 Notification delivery separately records pending, sending, sent or ambiguous. A process crash
 after reserving delivery cannot safely establish whether Discord accepted it. The reservation
@@ -38,6 +42,10 @@ becomes ambiguous on startup; the engine does not automatically resend it. `!res
 the saved answer without rerunning the task.
 
 These are local guarantees. They do not form a transaction with an external website.
+
+`!status` reports the current thread's queue, block reason, session presence, and delivery
+state. Global worker occupancy is only a boolean: another thread's identifiers, prompts,
+results, and session IDs are not included. `!help` and invalid controls never enqueue work.
 
 ## Private memory
 

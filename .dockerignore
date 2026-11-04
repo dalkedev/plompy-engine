@@ -1,0 +1,20 @@
+# Build-context allowlist: local auth, conversations, state and Git history never enter it.
+**
+!Dockerfile
+!.dockerignore
+!LICENSE
+!apps/
+!apps/discord-agent/
+!apps/discord-agent/package.json
+!apps/discord-agent/package-lock.json
+!apps/discord-agent/tsconfig.json
+!apps/discord-agent/src/
+!apps/discord-agent/src/**
+!scripts/
+!scripts/init-workspace.mjs
+!scripts/docker-entrypoint.sh
+!scripts/docker-smoke.mjs
+!scripts/docker-sandbox-check.mjs
+!examples/
+!examples/workspace/
+!examples/workspace/**

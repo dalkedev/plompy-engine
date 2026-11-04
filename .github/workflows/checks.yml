@@ -69,3 +69,42 @@ jobs:
           package-manager-cache: false
       - name: Reject tracked private runtime state
         run: node .github/scripts/check-public-tree.mjs
+
+  container:
+    name: Container / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Load the container sandbox profile on this ephemeral runner
+        run: |
+          if docker info --format '{{json .SecurityOptions}}' | grep -q 'name=apparmor'; then
+            sudo install -m 0644 scripts/docker-apparmor /etc/apparmor.d/szpont-engine-container
+            sudo apparmor_parser -r -W /etc/apparmor.d/szpont-engine-container
+            printf 'SZPONT_DOCKER_APPARMOR_PROFILE=szpont-engine-container\n' >> "$GITHUB_ENV"
+          fi
+      - name: Build without registry credentials
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          push: false
+          platforms: linux/${{ matrix.arch }}
+          tags: szpont-engine:ci
+          build-args: |
+            REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=checks-container-${{ matrix.arch }}
+          cache-to: type=gha,scope=checks-container-${{ matrix.arch }},mode=max
+      - name: Test the real Codex sandbox and isolated persistent state offline
+        run: sh scripts/docker-smoke.sh szpont-engine:ci
