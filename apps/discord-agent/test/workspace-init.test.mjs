@@ -7,6 +7,7 @@ import {
   writeFile,
   access,
   symlink,
+  stat,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,8 +29,8 @@ test("workspace initialization creates private Git memory outside the public che
   assert.equal(stdout, "");
   const { stdout: tracked } = await exec("git", ["ls-files"], { cwd: target });
   assert.match(tracked, /agent\/POLICY.md/);
-  const { stdout: mode } = await exec("stat", ["-c", "%a", target]);
-  assert.equal(mode.trim(), "700");
+  const mode = (await stat(target)).mode & 0o777;
+  assert.equal(mode, 0o700);
 });
 test("workspace initialization refuses to overwrite existing owner memory", async () => {
   const temp = await mkdtemp(join(tmpdir(), "szpont-init-"));

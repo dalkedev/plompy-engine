@@ -30,6 +30,7 @@ def verify_archive(archive: Path, manifest: dict) -> None:
 
 def extract_archive(archive: Path, destination: Path) -> None:
     destination.mkdir(mode=0o755)
+    destination.chmod(0o755)
     with zipfile.ZipFile(archive) as source:
         for entry in source.infolist():
             target = (destination / entry.filename).resolve()
@@ -46,6 +47,21 @@ def extract_archive(archive: Path, destination: Path) -> None:
         raise BrowserError("browser_archive_invalid: expected Camoufox executable and metadata are absent")
 
 
+def _create_install_parents(directory: Path) -> None:
+    try:
+        directory.mkdir(mode=0o755)
+    except FileNotFoundError:
+        _create_install_parents(directory.parent)
+        _create_install_parents(directory)
+    except FileExistsError:
+        if not directory.is_dir():
+            raise
+    else:
+        # mkdir's mode is filtered by root's umask. Only change directories this
+        # invocation created; existing ancestors may intentionally be private.
+        directory.chmod(0o755)
+
+
 def install(manifest_path: Path, destination: Path, existing_archive: Path | None = None) -> dict:
     if sys.platform != "linux" or platform.machine() not in {"x86_64", "AMD64"}:
         raise BrowserError("unsupported_platform: pinned archive requires Linux x86_64")
@@ -59,7 +75,7 @@ def install(manifest_path: Path, destination: Path, existing_archive: Path | Non
         raise BrowserError("browser_manifest_invalid: expected the reviewed official build manifest")
     if not destination.is_absolute() or destination == Path("/") or destination.exists():
         raise BrowserError("destination_exists: choose a new absolute browser version directory")
-    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    _create_install_parents(destination.parent)
     with tempfile.TemporaryDirectory(prefix=".szpont-browser-", dir=destination.parent) as temporary:
         stage = Path(temporary)
         archive = existing_archive or stage / "browser.zip"

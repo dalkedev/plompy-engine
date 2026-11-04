@@ -90,6 +90,14 @@ async function fixture() {
   };
   return { root, config, store: new Store(join(root, "state/agent.sqlite")) };
 }
+function queueState(store) {
+  return {
+    jobs: store.db.prepare("SELECT * FROM jobs ORDER BY id").all(),
+    conversations: store.db
+      .prepare("SELECT * FROM conversations ORDER BY thread_id")
+      .all(),
+  };
+}
 test("authorization accepts only verified owner messages in configured private forum threads", () => {
   assert.equal(authorized(message(), identity), true);
   for (const patch of [
@@ -202,6 +210,182 @@ test("explicit recovery supersedes old queued messages and does not reblock on a
   } finally {
     store.close();
   }
+});
+test("recovery replaces all eight queued followups in a full blocked thread", async () => {
+  const { store } = await fixture();
+  try {
+    store.enqueue(mid(1), thread, "original request");
+    store.claim();
+    store.finish(mid(1), "failed", "partial", "turn_failed");
+    store.setSession(thread, sid);
+    for (let i = 2; i <= 9; i++)
+      store.enqueue(mid(i), thread, `stale followup ${i}`);
+    assert.throws(
+      () => store.enqueue(mid(10), thread, "overflow"),
+      /Queue is full/,
+    );
+    assert.equal(store.claim(), undefined);
+
+    assert.equal(store.recover(mid(1), thread, mid(11)), true);
+    for (let i = 2; i <= 9; i++) {
+      const superseded = store.get(mid(i));
+      assert.equal(superseded.status, "cancelled");
+      assert.equal(superseded.error_code, "superseded_by_recovery");
+      assert.equal(typeof superseded.finished_at, "number");
+    }
+    assert.equal(store.session(thread), sid);
+    assert.equal(store.get(mid(1)).status, "failed");
+    const recovery = store.claim();
+    assert.equal(recovery.id, mid(11));
+    assert.equal(recovery.recovery_of, mid(1));
+    assert.match(recovery.prompt, /Original request:\n\noriginal request$/);
+  } finally {
+    store.close();
+  }
+});
+test("recovery at global capacity reuses its superseded slots and preserves other threads", async () => {
+  const { store } = await fixture();
+  try {
+    store.enqueue(mid(1), thread, "original request");
+    store.claim();
+    store.finish(mid(1), "interrupted", "partial", "task_timeout");
+    for (let i = 2; i <= 9; i++)
+      store.enqueue(mid(i), thread, `stale followup ${i}`);
+    for (let i = 0; i < 22; i++)
+      store.enqueue(
+        mid(100 + i),
+        String(BigInt(otherThread) + BigInt(Math.floor(i / 8))),
+        `other thread request ${i}`,
+      );
+    const unrelatedBefore = {
+      jobs: store.db
+        .prepare("SELECT * FROM jobs WHERE thread_id<>? ORDER BY id")
+        .all(thread),
+      conversations: store.db
+        .prepare(
+          "SELECT * FROM conversations WHERE thread_id<>? ORDER BY thread_id",
+        )
+        .all(thread),
+    };
+    assert.throws(
+      () => store.enqueue(mid(200), otherThread, "overflow"),
+      /Queue is full/,
+    );
+
+    assert.equal(store.recover(mid(1), thread, mid(201)), true);
+    assert.equal(
+      store.db
+        .prepare(
+          "SELECT COUNT(*) n FROM jobs WHERE status IN('queued','running')",
+        )
+        .get().n,
+      23,
+    );
+    assert.deepEqual(
+      {
+        jobs: store.db
+          .prepare("SELECT * FROM jobs WHERE thread_id<>? ORDER BY id")
+          .all(thread),
+        conversations: store.db
+          .prepare(
+            "SELECT * FROM conversations WHERE thread_id<>? ORDER BY thread_id",
+          )
+          .all(thread),
+      },
+      unrelatedBefore,
+    );
+    assert.equal(store.get(mid(201)).status, "queued");
+    assert.equal(
+      store.db
+        .prepare("SELECT blocked_reason FROM conversations WHERE thread_id=?")
+        .get(thread).blocked_reason,
+      null,
+    );
+  } finally {
+    store.close();
+  }
+});
+test("invalid and duplicate recovery requests preserve queued work and the blocked state", async () => {
+  const { store } = await fixture();
+  try {
+    store.enqueue(mid(1), thread, "original request");
+    store.claim();
+    store.finish(mid(1), "failed", "partial", "turn_failed");
+    store.enqueue(mid(2), thread, "keep this followup");
+    store.enqueue(mid(3), otherThread, "keep this other thread");
+    const before = queueState(store);
+
+    for (const [target, targetThread, newId, error] of [
+      [mid(99), thread, mid(4), /Only an interrupted\/failed job/],
+      [mid(1), otherThread, mid(4), /Only an interrupted\/failed job/],
+      [mid(2), thread, mid(4), /Only an interrupted\/failed job/],
+      [mid(1), thread, "invalid", /Invalid queue identity/],
+    ]) {
+      assert.throws(() => store.recover(target, targetThread, newId), error);
+      assert.deepEqual(queueState(store), before);
+    }
+    for (const duplicate of [mid(1), mid(2), mid(3)]) {
+      assert.equal(store.recover(mid(1), thread, duplicate), false);
+      assert.deepEqual(queueState(store), before);
+    }
+    assert.equal(store.claim().id, mid(3));
+  } finally {
+    store.close();
+  }
+});
+test("recovery cannot exceed global capacity occupied entirely by other threads", async () => {
+  const { store } = await fixture();
+  try {
+    store.enqueue(mid(1), thread, "original request");
+    store.claim();
+    store.finish(mid(1), "failed", "partial", "turn_failed");
+    for (let i = 0; i < 30; i++)
+      store.enqueue(
+        mid(100 + i),
+        String(BigInt(otherThread) + BigInt(Math.floor(i / 8))),
+        `other thread request ${i}`,
+      );
+    const before = queueState(store);
+    assert.throws(
+      () => store.recover(mid(1), thread, mid(200)),
+      /Queue is full/,
+    );
+    assert.deepEqual(queueState(store), before);
+  } finally {
+    store.close();
+  }
+});
+test("recovery rolls back cancellation, insertion and unblocking when a write fails", async (t) => {
+  for (const [phase, trigger] of [
+    ["insertion", "BEFORE INSERT ON jobs WHEN NEW.recovery_of IS NOT NULL"],
+    [
+      "unblocking",
+      "BEFORE UPDATE OF blocked_reason ON conversations WHEN NEW.blocked_reason IS NULL",
+    ],
+  ])
+    await t.test(phase, async () => {
+      const { store } = await fixture();
+      try {
+        store.enqueue(mid(1), thread, "original request");
+        store.claim();
+        store.finish(mid(1), "failed", "partial", "turn_failed");
+        store.enqueue(mid(2), thread, "keep this followup");
+        store.enqueue(mid(3), otherThread, "keep this other thread");
+        const before = queueState(store);
+        store.db.exec(
+          `CREATE TEMP TRIGGER reject_recovery ${trigger} BEGIN SELECT RAISE(ABORT,'injected recovery failure'); END`,
+        );
+        assert.throws(
+          () => store.recover(mid(1), thread, mid(4)),
+          /injected recovery failure/,
+        );
+        assert.deepEqual(queueState(store), before);
+        store.db.exec("DROP TRIGGER reject_recovery");
+        assert.equal(store.recover(mid(1), thread, mid(4)), true);
+      } finally {
+        store.close();
+      }
+    });
 });
 test("thread session mapping is independent and refuses accidental cross-thread reuse", async () => {
   const { store } = await fixture();

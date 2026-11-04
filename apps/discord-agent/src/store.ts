@@ -81,29 +81,37 @@ export class Store {
         this.db.exec("COMMIT");
         return false;
       }
-      const counts = this.db
-        .prepare(
-          "SELECT COUNT(*) n,SUM(CASE WHEN thread_id=? THEN 1 ELSE 0 END) t FROM jobs WHERE status IN('queued','running')",
-        )
-        .get(threadId) as { n: number; t: number | null };
-      if (counts.n >= 30 || (counts.t ?? 0) >= 8)
-        throw new Error("Queue is full");
-      this.db
-        .prepare(
-          "INSERT OR IGNORE INTO conversations(thread_id,created_at) VALUES(?,?)",
-        )
-        .run(threadId, Date.now());
-      this.db
-        .prepare(
-          "INSERT INTO jobs(id,thread_id,prompt,status,created_at,recovery_of) VALUES(?,?,?,'queued',?,?)",
-        )
-        .run(id, threadId, prompt, Date.now(), recoveryOf);
+      this.insertQueuedJob(id, threadId, prompt, recoveryOf);
       this.db.exec("COMMIT");
       return true;
     } catch (error) {
       this.db.exec("ROLLBACK");
       throw error;
     }
+  }
+  private insertQueuedJob(
+    id: string,
+    threadId: string,
+    prompt: string,
+    recoveryOf: string | null,
+  ): void {
+    const counts = this.db
+      .prepare(
+        "SELECT COUNT(*) n,SUM(CASE WHEN thread_id=? THEN 1 ELSE 0 END) t FROM jobs WHERE status IN('queued','running')",
+      )
+      .get(threadId) as { n: number; t: number | null };
+    if (counts.n >= 30 || (counts.t ?? 0) >= 8)
+      throw new Error("Queue is full");
+    this.db
+      .prepare(
+        "INSERT OR IGNORE INTO conversations(thread_id,created_at) VALUES(?,?)",
+      )
+      .run(threadId, Date.now());
+    this.db
+      .prepare(
+        "INSERT INTO jobs(id,thread_id,prompt,status,created_at,recovery_of) VALUES(?,?,?,'queued',?,?)",
+      )
+      .run(id, threadId, prompt, Date.now(), recoveryOf);
   }
   get(id: string): Job | undefined {
     return this.db.prepare("SELECT * FROM jobs WHERE id=?").get(id) as
@@ -158,34 +166,45 @@ export class Store {
         .run(status, id);
   }
   recover(id: string, threadId: string, newId: string): boolean {
-    const old = this.get(id);
-    if (
-      !old ||
-      old.thread_id !== threadId ||
-      !["interrupted", "failed"].includes(old.status)
-    )
-      throw new Error(
-        "Only an interrupted/failed job in this thread can be recovered",
-      );
-    const created = this.enqueue(
-      newId,
-      threadId,
-      `Manual recovery of message ${id}. The previous turn may have changed files or published content. Inspect the saved session, transcript, journal and external publication receipts before taking any action. Never blindly repeat a publication. Original request:\n\n${old.prompt}`,
-      id,
-    );
-    if (created) {
+    if (!SNOWFLAKE.test(newId) || !SNOWFLAKE.test(threadId))
+      throw new Error("Invalid queue identity");
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const old = this.get(id);
+      if (
+        !old ||
+        old.thread_id !== threadId ||
+        !["interrupted", "failed"].includes(old.status)
+      )
+        throw new Error(
+          "Only an interrupted/failed job in this thread can be recovered",
+        );
+      if (this.get(newId)) {
+        this.db.exec("COMMIT");
+        return false;
+      }
       this.db
         .prepare(
-          "UPDATE jobs SET status='cancelled',error_code='superseded_by_recovery',finished_at=? WHERE thread_id=? AND status='queued' AND id<>?",
+          "UPDATE jobs SET status='cancelled',error_code='superseded_by_recovery',finished_at=? WHERE thread_id=? AND status='queued'",
         )
-        .run(Date.now(), threadId, newId);
+        .run(Date.now(), threadId);
+      this.insertQueuedJob(
+        newId,
+        threadId,
+        `Manual recovery of message ${id}. The previous turn may have changed files or published content. Inspect the saved session, transcript, journal and external publication receipts before taking any action. Never blindly repeat a publication. Original request:\n\n${old.prompt}`,
+        id,
+      );
       this.db
         .prepare(
           "UPDATE conversations SET blocked_reason=NULL WHERE thread_id=?",
         )
         .run(threadId);
+      this.db.exec("COMMIT");
+      return true;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
     }
-    return created;
   }
   resetSession(threadId: string): void {
     const running = this.db
