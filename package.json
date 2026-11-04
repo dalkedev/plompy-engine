@@ -1,0 +1,15 @@
+{
+  "name": "szpont-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A self-hosted personal agent with Discord conversations and Git-backed memory",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "npm --prefix apps/discord-agent run build",
+    "test": "npm --prefix apps/discord-agent test",
+    "init:workspace": "node scripts/init-workspace.mjs"
+  },
+  "license": "MIT"
+}

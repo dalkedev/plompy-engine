@@ -1,0 +1,24 @@
+{
+  "name": "@szpont/discord-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "format": "prettier --write src test README.md package.json tsconfig.json",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "discord.js": "14.28.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "typescript": "7.0.2",
+    "prettier": "3.6.2"
+  },
+  "license": "MIT"
+}
