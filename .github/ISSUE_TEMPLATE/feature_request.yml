@@ -1,0 +1,22 @@
+name: Feature request
+description: Propose a focused improvement and its observable result.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe a concrete situation without including private conversations or account data.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired behavior
+      description: Explain the result you want and how you would verify it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or tradeoffs
+      description: Optional context about other approaches, permissions or deployment constraints.
