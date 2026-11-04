@@ -32,14 +32,17 @@ interrupted job.
 
 - **Keeps conversations continuous.** Each Discord thread maps to its own stored Codex session.
 - **Records accepted work.** SQLite WAL, unique message IDs, bounded queues, and atomic claims.
+- **Continues bounded goals.** `!work 30m <goal>` saves typed checkpoints and continues the same session, yielding to other threads between steps.
 - **Makes recovery explicit.** Interrupted and failed turns block that conversation until you act.
 - **Explains waiting work.** `!status` shows queue activity, blocked threads, and uncertain result delivery.
 - **Checks setup locally.** `npm run doctor` reports configuration and filesystem problems without contacting Discord.
 - **Checks deployment identity.** Intake is limited to the configured owner, guild, bot identity, and private forum.
 - **Keeps memory readable.** Selected Markdown is committed locally in a separate private Git workspace.
+- **Repairs delayed exports.** Durable transcript and memory retries survive restarts without rerunning the model.
+- **Protects upgrades.** Versioned SQLite migration and verified, no-overwrite state snapshots retain existing sessions and results.
 - **Adds browsing when you need it.** An optional Camoufox bridge exposes browser tools over local stdio MCP.
 
-The public edition runs **one global worker** with text-only intake and manual recovery.
+The public edition runs **one global worker** with text-only intake, bounded work sessions and manual recovery of uncertain turns.
 It has no message-history catch-up after a full outage, scheduler, or built-in publication broker.
 This is a small, inspectable engine for one owner.
 
@@ -124,20 +127,31 @@ the [optional browser guide](packages/browser/README.md) for Camoufox setup.
 
 ## Use it from Discord
 
-| Input | Effect |
-| --- | --- |
-| A normal message | Queue a task and continue this thread's session |
-| `!help` | Show commands without starting a task |
-| `!status` | Show queue activity, authentication, blocked work, and delivery state |
-| `!cancel MESSAGE_ID` | Cancel queued work or interrupt a running task in this thread |
-| `!recover MESSAGE_ID` | Queue deliberate recovery of a failed or interrupted task |
-| `!new-session` | Cancel queued work, keep history, and start a fresh session on the next message |
-| `!result MESSAGE_ID` | Read the stored result without rerunning work |
+| Input                 | Effect                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| A normal message      | Queue a task and continue this thread's session                                       |
+| `!work 30m <goal>`    | Continue a bounded goal across verified steps; 1–120 active minutes, at most 32 steps |
+| `!help`               | Show commands without starting a task                                                 |
+| `!status`             | Show queue activity, authentication, blocked work, and delivery state                 |
+| `!cancel MESSAGE_ID`  | Cancel queued work or interrupt a running task in this thread                         |
+| `!recover MESSAGE_ID` | Queue deliberate recovery of a failed or interrupted task                             |
+| `!new-session`        | Cancel queued work, keep history, and start a fresh session on the next message       |
+| `!result MESSAGE_ID`  | Read the stored result without rerunning work                                         |
 
 Attachments are rejected. Messages sent during a long outage may never have entered the queue;
 use `!status` to inspect what was actually accepted.
 Unknown commands and invalid command arguments show usage instead of becoming model tasks.
 For setup failures, run the [local doctor](docs/doctor.md); it does not create directories or repair state.
+
+Work sessions use a fixed goal and an active execution budget. Verified checkpoints yield to
+other threads; ordinary follow-ups in the same thread wait until that work session ends.
+A verified budget pause keeps the session available for a fresh explicit `!work` budget.
+Crashes, timeouts and malformed outcomes require inspection and manual recovery. Read the
+[work session guide](docs/work-sessions.md) for examples and exact stop conditions.
+
+Before upgrading from 0.2, make a [state backup](docs/state-backups.md). Version 0.3 introduces
+schema version 1; rolling back to older code requires restoring its compatible pre-upgrade state.
+The [1.0 roadmap](ROADMAP.md) lists the remaining stability gates.
 
 ## Keep source public and memory private
 
@@ -158,15 +172,16 @@ artifacts as private data.
 
 ## Explore the code
 
-| Path | Responsibility |
-| --- | --- |
-| [`config.ts`](apps/discord-agent/src/config.ts) | Deployment identity, intake authorization, child environment |
-| [`store.ts`](apps/discord-agent/src/store.ts) | Job state, deduplication, sessions, recovery |
-| [`engine.ts`](apps/discord-agent/src/engine.ts) | Execution and notification lifecycle |
-| [`codex.ts`](apps/discord-agent/src/codex.ts) | Bounded subprocess protocol and cancellation |
-| [`workspace.ts`](apps/discord-agent/src/workspace.ts) | Context, transcripts, scoped local memory commits |
-| [`packages/browser/`](packages/browser/) | Optional Camoufox MCP tools and offline checks |
-| [`examples/workspace/`](examples/workspace/) | Synthetic starting instructions |
+| Path                                                  | Responsibility                                               |
+| ----------------------------------------------------- | ------------------------------------------------------------ |
+| [`config.ts`](apps/discord-agent/src/config.ts)       | Deployment identity, intake authorization, child environment |
+| [`store.ts`](apps/discord-agent/src/store.ts)         | Job state, deduplication, sessions, recovery                 |
+| [`engine.ts`](apps/discord-agent/src/engine.ts)       | Execution and notification lifecycle                         |
+| [`codex.ts`](apps/discord-agent/src/codex.ts)         | Bounded subprocess protocol and cancellation                 |
+| [`workflow.ts`](apps/discord-agent/src/workflow.ts)   | Explicit work budgets, fixed goals and typed checkpoints     |
+| [`workspace.ts`](apps/discord-agent/src/workspace.ts) | Context, transcripts, scoped local memory commits            |
+| [`packages/browser/`](packages/browser/)              | Optional Camoufox MCP tools and offline checks               |
+| [`examples/workspace/`](examples/workspace/)          | Synthetic starting instructions                              |
 
 ## Trust and limits
 

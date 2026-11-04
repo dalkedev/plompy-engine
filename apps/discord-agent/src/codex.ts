@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
+import { fileURLToPath } from "node:url";
 import {
   childEnvironment,
   MAX_OUTPUT,
@@ -13,7 +14,17 @@ export interface TurnResult {
   error: string | null;
   sessionId: string | null;
 }
-export function codexArgs(config: Config, sessionId: string | null): string[] {
+export interface CodexOptions {
+  workflow?: boolean;
+}
+const workflowSchema = fileURLToPath(
+  new URL("../schemas/workflow-output.schema.json", import.meta.url),
+);
+export function codexArgs(
+  config: Config,
+  sessionId: string | null,
+  options: CodexOptions = {},
+): string[] {
   if (sessionId && !SESSION_ID.test(sessionId))
     throw new Error("Invalid resume session");
   const flags = [
@@ -33,9 +44,10 @@ export function codexArgs(config: Config, sessionId: string | null): string[] {
     config.browserDir,
     "exec",
   ];
+  const schema = options.workflow ? ["--output-schema", workflowSchema] : [];
   return sessionId
-    ? [...flags, "resume", "--json", sessionId, "-"]
-    : [...flags, "--json", "--color", "never", "-"];
+    ? [...flags, "resume", "--json", ...schema, sessionId, "-"]
+    : [...flags, "--json", "--color", "never", ...schema, "-"];
 }
 function terminate(child: ChildProcessWithoutNullStreams): void {
   if (child.exitCode !== null) return;
@@ -73,16 +85,21 @@ export function runCodex(
   sessionId: string | null,
   onSession: (id: string) => void,
   signal?: AbortSignal,
+  options: CodexOptions = {},
 ): Promise<TurnResult> {
   if (Buffer.byteLength(prompt) > 65_536)
     throw new Error("Assembled prompt exceeds limit");
   return new Promise((resolve) => {
-    const child = spawn(config.codexBin, codexArgs(config, sessionId), {
-      cwd: config.workspace,
-      env: childEnvironment(config),
-      stdio: ["pipe", "pipe", "pipe"],
-      detached: process.platform !== "win32",
-    });
+    const child = spawn(
+      config.codexBin,
+      codexArgs(config, sessionId, options),
+      {
+        cwd: config.workspace,
+        env: childEnvironment(config),
+        stdio: ["pipe", "pipe", "pipe"],
+        detached: process.platform !== "win32",
+      },
+    );
     const decoder = new StringDecoder("utf8");
     let buffer = "",
       bytes = 0,

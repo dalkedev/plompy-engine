@@ -2,20 +2,20 @@
 
 All identities below belong to **your own deployment**. No author account or channel is a default.
 
-| Variable | Required | Meaning |
-| --- | --- | --- |
-| `DISCORD_BOT_TOKEN` | yes | Your bot token; never passed to Codex children |
-| `SZPONT_DISCORD_GUILD_ID` | yes | Your Discord server ID |
-| `SZPONT_DISCORD_OWNER_ID` | yes | That server's owner ID |
-| `SZPONT_DISCORD_BOT_ID` | yes | Your bot user ID |
-| `SZPONT_DISCORD_PARENT_CHANNEL_ID` | yes | Private forum channel ID |
-| `SZPONT_WORKSPACE` | yes | Absolute path to your separate private Git workspace |
-| `SZPONT_STATE_DIR` | yes | Absolute path for SQLite and singleton lock |
-| `SZPONT_ARTIFACTS_DIR` | yes | Absolute path for task output |
-| `CODEX_HOME` | yes | Absolute private Codex configuration/login/session directory |
-| `SZPONT_BROWSER_DIR` | no | Optional browser state; defaults to `/var/lib/szpont/browser` |
-| `SZPONT_CODEX_BIN` | no | Executable path/name; default `codex` |
-| `SZPONT_TASK_TIMEOUT_MS` | no | 1,000–3,600,000 ms; default 1,200,000 |
+| Variable                           | Required | Meaning                                                       |
+| ---------------------------------- | -------- | ------------------------------------------------------------- |
+| `DISCORD_BOT_TOKEN`                | yes      | Your bot token; never passed to Codex children                |
+| `SZPONT_DISCORD_GUILD_ID`          | yes      | Your Discord server ID                                        |
+| `SZPONT_DISCORD_OWNER_ID`          | yes      | That server's owner ID                                        |
+| `SZPONT_DISCORD_BOT_ID`            | yes      | Your bot user ID                                              |
+| `SZPONT_DISCORD_PARENT_CHANNEL_ID` | yes      | Private forum channel ID                                      |
+| `SZPONT_WORKSPACE`                 | yes      | Absolute path to your separate private Git workspace          |
+| `SZPONT_STATE_DIR`                 | yes      | Absolute path for SQLite and singleton lock                   |
+| `SZPONT_ARTIFACTS_DIR`             | yes      | Absolute path for task output                                 |
+| `CODEX_HOME`                       | yes      | Absolute private Codex configuration/login/session directory  |
+| `SZPONT_BROWSER_DIR`               | no       | Optional browser state; defaults to `/var/lib/szpont/browser` |
+| `SZPONT_CODEX_BIN`                 | no       | Executable path/name; default `codex`                         |
+| `SZPONT_TASK_TIMEOUT_MS`           | no       | 1,000–3,600,000 ms; default 1,200,000                         |
 
 IDs must be 17–20 decimal digits. Enable Discord Developer Mode to copy IDs. Create a bot
 application and enable its privileged Message Content Intent. Authorize it for your server
@@ -36,3 +36,17 @@ or use your service manager's environment-file support. Do not paste tokens into
 
 For optional browsing, map the engine profile path explicitly into the MCP server environment,
 as shown in [the browser guide](../packages/browser/README.md#connect-the-public-engine-to-this-bridge).
+
+## Work budgets and maintenance
+
+Work sessions are opt-in owner commands, not environment configuration: `!work 30m <goal>`
+or `!work 2h <goal>`. The fixed limits are 1–120 minutes of active Codex execution and 32
+completed steps. Each process also respects `SZPONT_TASK_TIMEOUT_MS`; it cannot exceed the
+remaining work budget. Queue, authentication and export waits do not consume active time.
+The CLI 0.166.0 adapter passes the bundled JSON output schema for new and resumed work turns.
+
+Transcript export and local memory commits run independently of model authentication.
+A pass services at most two due threads; failures back off from one second to five minutes.
+The engine's regular 30-second tick determines when a due retry is attempted while idle.
+`!status` separates delayed exports/commits from execution and final delivery state.
+See [work sessions](work-sessions.md) and [state backups](state-backups.md) before upgrading.

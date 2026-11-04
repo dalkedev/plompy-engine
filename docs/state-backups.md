@@ -1,0 +1,115 @@
+# State backups and restore
+
+Use the standalone Node 24 tool to create a consistent SQLite snapshot, including
+committed WAL pages. It opens the source read-only, verifies database integrity and
+foreign keys, and publishes a complete standalone database at a **new** path. No bot
+token, engine configuration, Discord connection or model call is needed.
+
+The tool supports legacy schema 0 and schema 1. It does not migrate either one, and
+refuses a newer schema. Both `backup` and `restore` preserve jobs, sessions, workflow
+checkpoints, notification receipts and pending transcript/memory effects.
+
+## Create a snapshot
+
+Run as the dedicated service account, using its Node 24 runtime. Provision the source
+and destination directories outside the public checkout, owned by that account with
+mode `0700`. The destination parent must already exist; the tool does not change
+permissions on existing directories. For example, with an already owned `/srv/szpont`:
+
+```sh
+install -d -m 700 /srv/szpont/backups
+node /absolute/source/scripts/state-snapshot.mjs backup \
+  --source /srv/szpont/state/agent.sqlite \
+  --destination /srv/szpont/backups/pre-0.3.0.sqlite
+```
+
+The engine may keep running during an online backup. SQLite copies a consistent
+database, rather than copying a main file without its live WAL. A busy writer may
+extend backup time. For a coordinated upgrade checkpoint, stop the service and hold
+its existing instance lock before backing up the database and private workspace.
+
+Success prints only the operation, schema version, byte count and SHA-256 digest.
+It does not print database rows, paths or secrets. Exit code `1` indicates failure;
+diagnostics contain a fixed error code. Use a new destination filename for every
+snapshot: an existing file, dangling symlink or SQLite sidecar is never overwritten.
+
+Files are staged in an owned `0700` directory beside the destination, verified with
+SQLite `integrity_check` and `foreign_key_check`, normalized to DELETE journal mode,
+flushed and atomically published without replacement. The published file has mode
+`0600`. The source database is never checkpointed, migrated or opened for writing.
+SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL.
+
+## Restore into a new state directory
+
+1. Stop the service and keep its instance lock held. Retain the current state folder;
+   restoration never overwrites it. Use the same service account and Node 24 runtime.
+2. Create a fresh owned private directory and restore into a new file:
+
+   ```sh
+   install -d -m 700 /srv/szpont/restored-state
+   node /absolute/source/scripts/state-snapshot.mjs restore \
+     --source /srv/szpont/backups/pre-0.3.0.sqlite \
+     --destination /srv/szpont/restored-state/agent.sqlite
+   ```
+
+3. Inspect the restored database before enabling the engine. A snapshot restores
+   the queue and receipts **as they were at snapshot time**. Reconcile queued/running
+   jobs with journals and actual external results, including actions completed after
+   the snapshot. Starting an old queue without that review can repeat external work.
+   A successful integrity check establishes database consistency, not whether a post,
+   payment or deployment already happened.
+4. Point `SZPONT_STATE_DIR` and the service's instance-lock path to the new directory.
+   Configure the matching private workspace separately. Keep only one engine instance.
+   With Docker, use a separately restored state volume and stop the previous container
+   before switching; a host path example is not a command to modify a container volume.
+5. Start the chosen engine version under its instance lock. Version 0.3 migrates a
+   legacy schema 0 database to schema 1 at startup. Inspect `!status`, interrupted jobs,
+   workflow checkpoints and maintenance health. Recover uncertain work only after
+   reconciling its action receipts; restoration itself never resumes a job.
+
+Restore uses the same verified online-backup mechanism as backup. It creates a new
+database and never starts the engine, changes service configuration, alters queue
+statuses, resets a session or grants permission to repeat an action.
+
+## Upgrade and rollback
+
+Before upgrading from 0.2, retain a verified **schema 0** snapshot and a matching private
+workspace checkpoint. Version 0.3 adds durable workflows, effect generations and queue
+ordering metadata. Do not point the old 0.2 engine at a database already migrated to
+schema 1: that engine predates the version guard and cannot preserve the new semantics.
+
+To roll back, stop 0.3, restore the pre-upgrade schema 0 snapshot into a new state
+directory, reconcile intervening external actions and switch the old service to that
+directory and its matching workspace. Keep the migrated database for investigation.
+Do not lower `PRAGMA user_version`, delete tables or copy a running main database as a
+shortcut. A state snapshot does not roll back files or external side effects.
+
+## Scope and failure handling
+
+- The snapshot contains private prompts, results and identifiers. Keep it outside the
+  public source, Docker build context, public Git remote and public CI artifacts.
+  File permissions are access control, not encryption; encrypt off-host backups with
+  your own backup system and check its destination permissions.
+- Back up private Markdown memory, Git history and artifacts separately, using a
+  coordinated stopped checkpoint when you need them to match SQLite exactly. Codex
+  authentication and browser profiles are separate credentials and are not included.
+- Absolute paths are required. Direct paths and directory aliases into this public
+  checkout are rejected. Source files and existing source sidecars must be owned
+  regular files with a single hard link. Source-file symlinks and all existing
+  destination entries/sidecars are rejected. Private parents must be owned by the
+  current account with no group/other permissions. Run on a local POSIX filesystem
+  supporting SQLite locking, hard links and directory `fsync`.
+- The boundary assumes a trusted service account controlling its private directories;
+  it does not isolate a malicious process running as that same account or root.
+- Normal failures remove staging files. A forced kill or power loss can leave a private
+  `.szpont-snapshot-*` staging directory. After confirming no snapshot process is running,
+  remove only that abandoned staging directory. A complete published file can survive
+  an interruption just before success is reported; the next invocation refuses to
+  replace it. Inspect and verify it, or use a new destination filename.
+- An integrity failure, unsupported future schema or existing destination is a stop
+  condition. Preserve the originals and investigate; there is no `--force` option.
+
+The offline test suite covers legacy backup/restore and migration, current workflow
+and effect state, live WAL contents, private permissions, concurrent publication,
+aliases, existing sidecars, future schemas, corrupt inputs and sanitized CLI output.
+Actual power-loss durability and every network filesystem are not simulated.

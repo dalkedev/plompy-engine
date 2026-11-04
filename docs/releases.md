@@ -5,11 +5,11 @@ A release is a versioned public source snapshot and a container image. It does n
 ## Pull a release
 
 ```sh
-docker pull ghcr.io/dalkedev/szpont-engine:0.2.0
-docker buildx imagetools inspect ghcr.io/dalkedev/szpont-engine:0.2.0
+docker pull ghcr.io/dalkedev/szpont-engine:0.3.0
+docker buildx imagetools inspect ghcr.io/dalkedev/szpont-engine:0.3.0
 ```
 
-The release workflow publishes Linux `amd64` and `arm64` variants. A stable release publishes an exact version tag, a minor-series tag, `latest`, and `sha-<first 12 characters of commit>`. For example, `v0.2.0` produces `0.2.0`, `0.2`, `latest`, and its revision tag. A prerelease such as `v0.3.0-rc.1` publishes only its exact prerelease and revision tags; it cannot move `latest` or a stable minor-series tag.
+The release workflow publishes Linux `amd64` and `arm64` variants. A stable release publishes an exact version tag, a minor-series tag, `latest`, and `sha-<first 12 characters of commit>`. For example, `v0.3.0` produces `0.3.0`, `0.3`, `latest`, and its revision tag. A prerelease such as `v0.4.0-rc.1` publishes only its exact prerelease and revision tags; it cannot move `latest` or a stable minor-series tag.
 
 Tags are convenient aliases. For repeatable deployments, copy the full `ghcr.io/dalkedev/szpont-engine@sha256:...` reference from the successful workflow summary or manifest inspection and pin that digest in your deployment. The OCI labels identify the source repository, exact revision, version, and MIT license. The published image also includes BuildKit provenance and an SBOM.
 
@@ -25,8 +25,8 @@ The engine image contains no browser profile or real account session. It include
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.2.0 -m 'Szpont Engine 0.2.0'
-git push origin refs/tags/v0.2.0
+git tag -a v0.3.0 -m 'Szpont Engine 0.3.0'
+git push origin refs/tags/v0.3.0
 ```
 
 The [release workflow](../.github/workflows/release.yml) runs only on `v*` tag pushes. It first requires the tagged commit to be reachable from `main`, validates all package and project-lock versions, checks the public tree, and runs the locked engine and browser suites. Each native amd64/arm64 runner then builds its OCI archive once, including provenance and an SBOM, and loads that archive's runtime for the offline smoke test. A configuration-digest check binds the loaded runtime (including its filesystem layer identities) to the OCI archive. Runtime state is created in throwaway volumes and is never included in the archive.
@@ -47,4 +47,4 @@ Official references: [Docker OCI exports](https://docs.docker.com/build/exporter
 
 Record the current image digest and stop the engine before backing up its private volumes. Keep Codex authentication backups private. Start the desired pinned image with the same configured volumes, then check its logs and queue status before sending a synthetic owner task. A successful image build or offline smoke test does not establish that a Discord bot token or real Codex login is valid.
 
-Do not run two engine instances against the same SQLite state at once. To roll back, stop the new instance and return to the previous pinned digest. If a future release introduces a state schema migration, follow that release's compatibility instructions and restore a compatible backup when required; do not assume every database change is reversible.
+Do not run two engine instances against the same SQLite state at once. Version 0.3 introduces SQLite schema version 1. Before upgrading from 0.2, take a verified pre-upgrade snapshot using the [state backup guide](state-backups.md). To roll back, stop the new instance, restore its compatible pre-upgrade state to a new private path and switch to that state with the previous pinned image digest. Never point 0.2 code at a migrated 0.3 database. A rollback restores the earlier snapshot, so later accepted jobs must be reconciled separately before any replay.

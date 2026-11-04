@@ -9,16 +9,19 @@ The [quick start](../README.md#quick-start) walks through installing dependencie
 offline checks, creating a private workspace, and starting one instance. You need your own
 Discord bot and server, Codex authentication, and model/account access.
 
-| Guide | What you will find |
-| --- | --- |
-| [Architecture](architecture.md) | Intake, one-worker execution, session identity, job and delivery state, recovery |
-| [Configuration](configuration.md) | Required deployment identities, environment variables, private forum permissions, Codex setup |
-| [Deployment](deployment.md) | Linux hosting, the singleton lock, private state, backups, acceptance checks |
-| [Docker](docker.md) | Non-root container setup, sandbox prerequisites, private volumes, offline smoke test |
-| [Doctor](doctor.md) | Read-only local configuration and filesystem diagnostics |
-| [Releases](releases.md) | Versioned images, verification gates, upgrades, and rollback |
-| [Security](../SECURITY.md) | Trust boundaries, credential handling, sensitive reports |
-| [Contributing](../CONTRIBUTING.md) | Local checks, test expectations, pull request guidance |
+| Guide                              | What you will find                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- |
+| [Architecture](architecture.md)    | Intake, one-worker execution, session identity, job and delivery state, recovery              |
+| [Work sessions](work-sessions.md)  | Explicit budgets, typed checkpoints, fair scheduling, pause and recovery                      |
+| [State backups](state-backups.md)  | Verified SQLite snapshots, restore and migration rollback                                     |
+| [Configuration](configuration.md)  | Required deployment identities, environment variables, private forum permissions, Codex setup |
+| [Deployment](deployment.md)        | Linux hosting, the singleton lock, private state, backups, acceptance checks                  |
+| [Docker](docker.md)                | Non-root container setup, sandbox prerequisites, private volumes, offline smoke test          |
+| [Doctor](doctor.md)                | Read-only local configuration and filesystem diagnostics                                      |
+| [Releases](releases.md)            | Versioned images, verification gates, upgrades, and rollback                                  |
+| [Security](../SECURITY.md)         | Trust boundaries, credential handling, sensitive reports                                      |
+| [Contributing](../CONTRIBUTING.md) | Local checks, test expectations, pull request guidance                                        |
+| [Road to 1.0](../ROADMAP.md)       | Evidence required before promising a stable engine contract                                   |
 
 ## Optional browser
 

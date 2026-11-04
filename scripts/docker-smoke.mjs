@@ -12,7 +12,10 @@ import {
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { join } from "node:path";
-import { Store } from "../apps/discord-agent/dist/store.js";
+import { Store, SCHEMA_VERSION } from "../apps/discord-agent/dist/store.js";
+import { codexArgs } from "../apps/discord-agent/dist/codex.js";
+import { validateWorkOutcome } from "../apps/discord-agent/dist/workflow.js";
+import { snapshotState } from "./state-snapshot.mjs";
 
 assert.notEqual(process.getuid(), 0, "runtime must be non-root");
 assert.match(process.version, /^v24\./, "runtime must use Node 24");
@@ -59,6 +62,24 @@ assert.match(
   ),
   /Usage:/,
 );
+const workflowConfig = {
+  workspace: process.env.SZPONT_WORKSPACE,
+  artifactsDir: process.env.SZPONT_ARTIFACTS_DIR,
+  browserDir: process.env.SZPONT_BROWSER_DIR,
+};
+for (const session of [null, "11111111-1111-4111-8111-111111111111"]) {
+  const args = codexArgs(workflowConfig, session, { workflow: true });
+  const schemaPath = args[args.indexOf("--output-schema") + 1];
+  const schema = JSON.parse(await readFile(schemaPath, "utf8"));
+  assert.equal(schema.additionalProperties, false);
+  assert.match(
+    execFileSync("codex", [...args, "--help"], {
+      encoding: "utf8",
+      timeout: 10_000,
+    }),
+    /--output-schema/,
+  );
+}
 assert.match(
   execFileSync(
     "codex",
@@ -156,11 +177,76 @@ store.close();
 const reopened = new Store(path);
 assert.equal(reopened.get(id)?.prompt, "Synthetic offline container smoke");
 reopened.close();
+// Exercise the shipped workflow/store/snapshot modules on fresh synthetic state.
+const workflowRoot = await mkdtemp(
+  join(process.env.SZPONT_STATE_DIR, "work-smoke-"),
+);
+let workStore;
+try {
+  const source = join(workflowRoot, "source.sqlite");
+  workStore = new Store(source);
+  assert.equal(
+    workStore.db.prepare("PRAGMA user_version").get().user_version,
+    SCHEMA_VERSION,
+  );
+  workStore.enqueueWorkflow(id, thread, "Synthetic bounded goal", 60_000);
+  workStore.claim();
+  workStore.setSession(thread, "11111111-1111-4111-8111-111111111111");
+  assert.equal(
+    workStore.checkpoint(
+      id,
+      validateWorkOutcome(
+        JSON.stringify({
+          outcome: "continue",
+          summary: "First verified step",
+          nextAction: "Inspect synthetic result",
+        }),
+      ),
+      10,
+    ).continued,
+    true,
+  );
+  workStore.close();
+  workStore = new Store(source);
+  assert.equal(workStore.workflow(id).step_count, 1);
+  assert.equal(
+    workStore.session(thread),
+    "11111111-1111-4111-8111-111111111111",
+  );
+  workStore.claim();
+  workStore.checkpoint(
+    id,
+    {
+      outcome: "completed",
+      summary: "Synthetic goal completed",
+      nextAction: "",
+    },
+    10,
+  );
+  const generation = workStore.effect(thread).generation;
+  workStore.completeEffect(thread, generation, "transcript");
+  workStore.completeEffect(thread, generation, "memory");
+  assert.equal(workStore.pendingEffects().length, 0);
+  const destination = join(workflowRoot, "snapshot.sqlite");
+  const snapshot = await snapshotState({
+    operation: "backup",
+    source,
+    destination,
+  });
+  assert.equal(snapshot.schemaVersion, SCHEMA_VERSION);
+  workStore.close();
+  workStore = new Store(destination);
+  assert.equal(workStore.get(id).status, "succeeded");
+  assert.equal(workStore.workflowSteps(id).length, 2);
+} finally {
+  workStore?.close();
+  await rm(workflowRoot, { recursive: true, force: true });
+}
 await writeFile(
   join(process.env.SZPONT_ARTIFACTS_DIR, "container-smoke.txt"),
   "synthetic\n",
   { mode: 0o600 },
 );
 console.log(
-  "PASS: non-root Node/Codex image, writable private npm cache, private workspace, read-only source, SQLite persistence, separate artifacts and no baked authentication.",
+  "PASS: non-root Node/Codex image, private cache/workspace, read-only source, SQLite persistence, bundled workflow schema, resumed checkpoints, consistent state snapshot, separate artifacts and no baked authentication.",
 );

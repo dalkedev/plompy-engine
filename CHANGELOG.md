@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-04
+
+### Durable work sessions
+
+- Add explicit `!work 30m <goal>` and `!work 2h <goal>` sessions with a fixed owner goal, active execution budget and 32-step cap.
+- Validate typed JSON checkpoints against a shipped schema; resume the exact session only after a successful, completed process turn.
+- Requeue verified steps fairly between threads while retaining per-thread ordering and one global worker.
+- Distinguish verified budget pauses from uncertain failures, and retain charged time across manual recovery chains.
+- Conservatively consume a crashed running workflow's uncheckpointed allowance instead of silently refunding unknown execution time on restart.
+
+### Reliable state and memory
+
+- Retry transcript export and scoped local Git commits durably, independently of model execution and authentication.
+- Keep committed intake and task results authoritative when progress messages or export operations fail.
+- Add transactional versioned SQLite migration preserving existing jobs, results, controls and sessions.
+- Add verified online state backup and no-overwrite restore tooling, with upgrade and rollback documentation.
+- Show current-thread workflow checkpoints and maintenance health without exposing other threads.
+
+### Release scope
+
+- Include the work output schema and state snapshot CLI in the non-root container image.
+- Keep uncertain external actions subject to manual reconciliation; no automatic replay, parallel browser workers or private-deployment upgrade is introduced.
+- Publish explicit 1.0 readiness criteria instead of treating a version number as evidence of production stability.
+
 ## 0.2.0 — 2026-11-04
 
 ### Distribution and project experience

@@ -10,11 +10,14 @@
 !apps/discord-agent/tsconfig.json
 !apps/discord-agent/src/
 !apps/discord-agent/src/**
+!apps/discord-agent/schemas/
+!apps/discord-agent/schemas/**
 !scripts/
 !scripts/init-workspace.mjs
 !scripts/docker-entrypoint.sh
 !scripts/docker-smoke.mjs
 !scripts/docker-sandbox-check.mjs
+!scripts/state-snapshot.mjs
 !examples/
 !examples/workspace/
 !examples/workspace/**

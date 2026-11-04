@@ -1,5 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
 import { SESSION_ID, SNOWFLAKE } from "./config.js";
+import type { WorkOutcome } from "./workflow.js";
+
+export const SCHEMA_VERSION = 1;
 export type JobStatus =
   | "queued"
   | "running"
@@ -13,6 +16,7 @@ export interface Job {
   prompt: string;
   status: JobStatus;
   created_at: number;
+  queued_at: number;
   started_at: number | null;
   finished_at: number | null;
   result: string | null;
@@ -20,26 +24,156 @@ export interface Job {
   notification: string;
   recovery_of: string | null;
 }
+export interface Workflow {
+  job_id: string;
+  goal: string;
+  budget_ms: number;
+  elapsed_ms: number;
+  max_steps: number;
+  step_count: number;
+  last_summary: string | null;
+  next_action: string | null;
+  state: "active" | "completed" | "paused" | "blocked" | "cancelled";
+}
+export interface WorkflowStep {
+  job_id: string;
+  step: number;
+  outcome: WorkOutcome["outcome"];
+  summary: string;
+  next_action: string;
+  elapsed_ms: number;
+  created_at: number;
+}
+export interface Effect {
+  thread_id: string;
+  generation: number;
+  exported_generation: number;
+  synced_generation: number;
+  attempts: number;
+  retry_at: number;
+  last_error: EffectError | null;
+}
+export type EffectError =
+  | "transcript_export_failed"
+  | "memory_sync_failed"
+  | "memory_sync_blocked";
+
 export class Store {
   readonly db: DatabaseSync;
   constructor(path: string) {
     this.db = new DatabaseSync(path);
+    try {
+      // Inspect before PRAGMAs or DDL: a newer engine's database is not ours to alter.
+      const version = (
+        this.db.prepare("PRAGMA user_version").get() as {
+          user_version: number;
+        }
+      ).user_version;
+      if (version > SCHEMA_VERSION)
+        throw new Error(`Unsupported database schema version ${version}`);
+      this.db.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000");
+      if (version === 0) this.migrate();
+      this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL");
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
+  }
+  private migrate(): void {
+    this.transaction(() => {
+      // Another process may have migrated while this connection waited for the write lock.
+      const lockedVersion = (
+        this.db.prepare("PRAGMA user_version").get() as {
+          user_version: number;
+        }
+      ).user_version;
+      if (lockedVersion === SCHEMA_VERSION) return;
+      if (lockedVersion !== 0)
+        throw new Error(`Unsupported database schema version ${lockedVersion}`);
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS conversations(thread_id TEXT PRIMARY KEY,session_id TEXT UNIQUE,blocked_reason TEXT,created_at INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL REFERENCES conversations(thread_id),prompt TEXT NOT NULL,
+          status TEXT NOT NULL CHECK(status IN('queued','running','succeeded','failed','interrupted','cancelled')),created_at INTEGER NOT NULL,
+          started_at INTEGER,finished_at INTEGER,result TEXT,error_code TEXT,notification TEXT NOT NULL DEFAULT 'pending',recovery_of TEXT);
+        CREATE INDEX IF NOT EXISTS job_status ON jobs(status,created_at);
+        CREATE TABLE IF NOT EXISTS controls(message_id TEXT PRIMARY KEY);
+      `);
+      const columns = this.db.prepare("PRAGMA table_info(jobs)").all() as {
+        name: string;
+      }[];
+      if (!columns.some((column) => column.name === "queued_at")) {
+        this.db.exec(
+          "ALTER TABLE jobs ADD COLUMN queued_at INTEGER NOT NULL DEFAULT 0",
+        );
+        this.db.exec("UPDATE jobs SET queued_at=created_at");
+      }
+      this.db.exec(`
+        CREATE INDEX job_fair_queue ON jobs(status,queued_at,id);
+        CREATE TABLE workflows(
+          job_id TEXT PRIMARY KEY REFERENCES jobs(id),goal TEXT NOT NULL,
+          budget_ms INTEGER NOT NULL CHECK(budget_ms BETWEEN 60000 AND 7200000),
+          elapsed_ms INTEGER NOT NULL DEFAULT 0 CHECK(elapsed_ms>=0),
+          max_steps INTEGER NOT NULL CHECK(max_steps BETWEEN 1 AND 32),
+          step_count INTEGER NOT NULL DEFAULT 0 CHECK(step_count BETWEEN 0 AND max_steps),
+          last_summary TEXT,next_action TEXT,
+          state TEXT NOT NULL CHECK(state IN('active','completed','paused','blocked','cancelled')));
+        CREATE TABLE workflow_steps(
+          job_id TEXT NOT NULL REFERENCES workflows(job_id),step INTEGER NOT NULL,
+          outcome TEXT NOT NULL CHECK(outcome IN('continue','completed','blocked')),
+          summary TEXT NOT NULL,next_action TEXT NOT NULL,elapsed_ms INTEGER NOT NULL CHECK(elapsed_ms>=1),
+          created_at INTEGER NOT NULL,PRIMARY KEY(job_id,step));
+        CREATE TABLE effects(
+          thread_id TEXT PRIMARY KEY REFERENCES conversations(thread_id),
+          generation INTEGER NOT NULL CHECK(generation>=1),
+          exported_generation INTEGER NOT NULL DEFAULT 0 CHECK(exported_generation>=0 AND exported_generation<=generation),
+          synced_generation INTEGER NOT NULL DEFAULT 0 CHECK(synced_generation>=0 AND synced_generation<=exported_generation),
+          attempts INTEGER NOT NULL DEFAULT 0,retry_at INTEGER NOT NULL DEFAULT 0,last_error TEXT
+            CHECK(last_error IS NULL OR last_error IN('transcript_export_failed','memory_sync_failed','memory_sync_blocked')));
+        INSERT INTO effects(thread_id,generation) SELECT thread_id,1 FROM conversations;
+        PRAGMA user_version=1;
+      `);
+    });
+  }
+  private transaction<T>(operation: () => T): T {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = operation();
+      this.db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  private dirty(threadId: string): void {
     this.db
-      .exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS conversations(thread_id TEXT PRIMARY KEY,session_id TEXT UNIQUE,blocked_reason TEXT,created_at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL REFERENCES conversations(thread_id),prompt TEXT NOT NULL,
-        status TEXT NOT NULL CHECK(status IN('queued','running','succeeded','failed','interrupted','cancelled')),created_at INTEGER NOT NULL,
-        started_at INTEGER,finished_at INTEGER,result TEXT,error_code TEXT,notification TEXT NOT NULL DEFAULT 'pending',recovery_of TEXT);
-      CREATE INDEX IF NOT EXISTS job_status ON jobs(status,created_at);
-      CREATE TABLE IF NOT EXISTS controls(message_id TEXT PRIMARY KEY);
-    `);
+      .prepare(
+        `INSERT INTO effects(thread_id,generation) VALUES(?,1)
+      ON CONFLICT(thread_id) DO UPDATE SET generation=generation+1,attempts=0,retry_at=0`,
+      )
+      .run(threadId);
+  }
+  private nextQueueTime(): number {
+    const latest = this.db
+      .prepare("SELECT MAX(queued_at) latest FROM jobs")
+      .get() as {
+      latest: number | null;
+    };
+    return Math.max(Date.now(), (latest.latest ?? 0) + 1);
   }
   close(): void {
     this.db.close();
   }
   recoverStartup(): number {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
+    return this.transaction(() => {
+      const threads = this.db
+        .prepare("SELECT DISTINCT thread_id FROM jobs WHERE status='running'")
+        .all() as { thread_id: string }[];
+      // A host crash loses the active execution clock. Consume the remaining
+      // allowance rather than refunding unknown work through manual recovery.
+      this.db.exec(
+        "UPDATE workflows SET state='blocked',elapsed_ms=MAX(elapsed_ms,budget_ms) WHERE job_id IN(SELECT id FROM jobs WHERE status='running')",
+      );
       this.db.exec(
         "UPDATE conversations SET blocked_reason='interrupted' WHERE thread_id IN(SELECT thread_id FROM jobs WHERE status='running')",
       );
@@ -51,13 +185,11 @@ export class Store {
           .run(Date.now()).changes,
       );
       this.db.exec(
-        "UPDATE jobs SET notification='ambiguous' WHERE notification='sending'; COMMIT",
+        "UPDATE jobs SET notification='ambiguous' WHERE notification='sending'",
       );
+      for (const thread of threads) this.dirty(thread.thread_id);
       return count;
-    } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
-    }
+    });
   }
   controlOnce(id: string): boolean {
     return (
@@ -73,21 +205,47 @@ export class Store {
     prompt: string,
     recoveryOf: string | null = null,
   ): boolean {
+    this.validateIdentity(id, threadId);
+    return this.transaction(() => {
+      if (this.get(id)) return false;
+      this.insertQueuedJob(id, threadId, prompt, recoveryOf);
+      this.dirty(threadId);
+      return true;
+    });
+  }
+  enqueueWorkflow(
+    id: string,
+    threadId: string,
+    goal: string,
+    budgetMs: number,
+    maxSteps = 32,
+  ): boolean {
+    this.validateIdentity(id, threadId);
+    if (
+      !goal.trim() ||
+      !Number.isSafeInteger(budgetMs) ||
+      budgetMs < 60_000 ||
+      budgetMs > 7_200_000 ||
+      !Number.isSafeInteger(maxSteps) ||
+      maxSteps < 1 ||
+      maxSteps > 32
+    )
+      throw new Error("Invalid work budget, goal or step limit");
+    return this.transaction(() => {
+      if (this.get(id)) return false;
+      this.insertQueuedJob(id, threadId, goal, null);
+      this.db
+        .prepare(
+          "INSERT INTO workflows(job_id,goal,budget_ms,max_steps,state) VALUES(?,?,?,?,'active')",
+        )
+        .run(id, goal, budgetMs, maxSteps);
+      this.dirty(threadId);
+      return true;
+    });
+  }
+  private validateIdentity(id: string, threadId: string): void {
     if (!SNOWFLAKE.test(id) || !SNOWFLAKE.test(threadId))
       throw new Error("Invalid queue identity");
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
-      if (this.get(id)) {
-        this.db.exec("COMMIT");
-        return false;
-      }
-      this.insertQueuedJob(id, threadId, prompt, recoveryOf);
-      this.db.exec("COMMIT");
-      return true;
-    } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
-    }
   }
   private insertQueuedJob(
     id: string,
@@ -109,14 +267,24 @@ export class Store {
       .run(threadId, Date.now());
     this.db
       .prepare(
-        "INSERT INTO jobs(id,thread_id,prompt,status,created_at,recovery_of) VALUES(?,?,?,'queued',?,?)",
+        "INSERT INTO jobs(id,thread_id,prompt,status,created_at,queued_at,recovery_of) VALUES(?,?,?,'queued',?,?,?)",
       )
-      .run(id, threadId, prompt, Date.now(), recoveryOf);
+      .run(id, threadId, prompt, Date.now(), this.nextQueueTime(), recoveryOf);
   }
   get(id: string): Job | undefined {
     return this.db.prepare("SELECT * FROM jobs WHERE id=?").get(id) as
       | Job
       | undefined;
+  }
+  workflow(id: string): Workflow | undefined {
+    return this.db.prepare("SELECT * FROM workflows WHERE job_id=?").get(id) as
+      | Workflow
+      | undefined;
+  }
+  workflowSteps(id: string): WorkflowStep[] {
+    return this.db
+      .prepare("SELECT * FROM workflow_steps WHERE job_id=? ORDER BY step")
+      .all(id) as unknown as WorkflowStep[];
   }
   session(threadId: string): string | null {
     return (
@@ -130,53 +298,182 @@ export class Store {
   setSession(threadId: string, sessionId: string): void {
     if (!SESSION_ID.test(sessionId))
       throw new Error("Invalid Codex session ID");
-    const old = this.session(threadId);
-    if (old && old !== sessionId)
-      throw new Error("Codex session changed unexpectedly");
-    this.db
-      .prepare("UPDATE conversations SET session_id=? WHERE thread_id=?")
-      .run(sessionId, threadId);
+    this.transaction(() => {
+      const old = this.session(threadId);
+      if (old && old !== sessionId)
+        throw new Error("Codex session changed unexpectedly");
+      if (old === sessionId) return;
+      if (
+        Number(
+          this.db
+            .prepare("UPDATE conversations SET session_id=? WHERE thread_id=?")
+            .run(sessionId, threadId).changes,
+        )
+      )
+        this.dirty(threadId);
+    });
   }
   claim(): Job | undefined {
-    return this.db
-      .prepare(
-        `UPDATE jobs SET status='running',started_at=? WHERE id=(SELECT j.id FROM jobs j JOIN conversations c ON c.thread_id=j.thread_id
-      WHERE j.status='queued' AND c.blocked_reason IS NULL ORDER BY j.created_at,j.id LIMIT 1)
-      AND status='queued' AND NOT EXISTS(SELECT 1 FROM jobs WHERE status='running') RETURNING *`,
+    return this.transaction(() => {
+      const job = this.db
+        .prepare(
+          `UPDATE jobs SET status='running',started_at=? WHERE id=(
+        SELECT j.id FROM jobs j JOIN conversations c ON c.thread_id=j.thread_id
+        WHERE j.status='queued' AND c.blocked_reason IS NULL
+          AND NOT EXISTS(SELECT 1 FROM jobs earlier WHERE earlier.thread_id=j.thread_id AND earlier.status='queued'
+            AND (earlier.created_at<j.created_at OR (earlier.created_at=j.created_at AND earlier.id<j.id)))
+        ORDER BY j.queued_at,j.id LIMIT 1)
+        AND status='queued' AND NOT EXISTS(SELECT 1 FROM jobs WHERE status='running') RETURNING *`,
+        )
+        .get(Date.now()) as Job | undefined;
+      if (job) this.dirty(job.thread_id);
+      return job;
+    });
+  }
+  checkpoint(
+    id: string,
+    outcome: WorkOutcome,
+    elapsedMs: number,
+  ): { continued: boolean; status: JobStatus; reason: string | null } {
+    const spent = this.spent(elapsedMs);
+    if (
+      !outcome ||
+      Object.keys(outcome).sort().join(",") !== "nextAction,outcome,summary" ||
+      !["continue", "completed", "blocked"].includes(outcome.outcome) ||
+      typeof outcome.summary !== "string" ||
+      !outcome.summary.trim() ||
+      Buffer.byteLength(outcome.summary) > 4000 ||
+      typeof outcome.nextAction !== "string" ||
+      Buffer.byteLength(outcome.nextAction) > 4000 ||
+      (outcome.outcome === "continue" && !outcome.nextAction.trim())
+    )
+      throw new Error("Invalid workflow checkpoint");
+    return this.transaction(() => {
+      const job = this.get(id),
+        workflow = this.workflow(id);
+      if (
+        !job ||
+        job.status !== "running" ||
+        !workflow ||
+        workflow.state !== "active"
       )
-      .get(Date.now()) as Job | undefined;
+        throw new Error("Workflow ownership lost");
+      const elapsed = this.totalSpent(workflow.elapsed_ms, spent),
+        step = workflow.step_count + 1;
+      if (step > workflow.max_steps)
+        throw new Error("Workflow step limit exceeded");
+      let state: Workflow["state"],
+        status: JobStatus,
+        reason: string | null = null;
+      if (outcome.outcome === "completed") {
+        state = "completed";
+        status = "succeeded";
+      } else if (outcome.outcome === "blocked") {
+        state = "blocked";
+        status = "interrupted";
+        reason = "workflow_blocked";
+      } else if (elapsed >= workflow.budget_ms) {
+        state = "paused";
+        status = "interrupted";
+        reason = "workflow_budget_exhausted";
+      } else if (step >= workflow.max_steps) {
+        state = "paused";
+        status = "interrupted";
+        reason = "workflow_step_limit";
+      } else {
+        state = "active";
+        status = "queued";
+      }
+      this.db
+        .prepare(
+          "INSERT INTO workflow_steps(job_id,step,outcome,summary,next_action,elapsed_ms,created_at) VALUES(?,?,?,?,?,?,?)",
+        )
+        .run(
+          id,
+          step,
+          outcome.outcome,
+          outcome.summary,
+          outcome.nextAction,
+          spent,
+          Date.now(),
+        );
+      this.db
+        .prepare(
+          "UPDATE workflows SET elapsed_ms=?,step_count=?,last_summary=?,next_action=?,state=? WHERE job_id=?",
+        )
+        .run(elapsed, step, outcome.summary, outcome.nextAction, state, id);
+      this.db
+        .prepare(
+          "UPDATE jobs SET status=?,result=?,error_code=?,finished_at=?,queued_at=?,notification='pending' WHERE id=?",
+        )
+        .run(
+          status,
+          outcome.summary,
+          reason,
+          status === "queued" ? null : Date.now(),
+          status === "queued" ? this.nextQueueTime() : job.queued_at,
+          id,
+        );
+      if (state === "blocked")
+        this.db
+          .prepare(
+            "UPDATE conversations SET blocked_reason='workflow_blocked' WHERE thread_id=?",
+          )
+          .run(job.thread_id);
+      this.dirty(job.thread_id);
+      return { continued: status === "queued", status, reason };
+    });
+  }
+  private spent(elapsedMs: number): number {
+    if (!Number.isSafeInteger(elapsedMs) || elapsedMs < 0)
+      throw new Error("Invalid elapsed execution time");
+    return Math.max(1, elapsedMs);
+  }
+  private totalSpent(before: number, spent: number): number {
+    if (!Number.isSafeInteger(before + spent))
+      throw new Error("Elapsed execution time overflow");
+    return before + spent;
   }
   finish(
     id: string,
     status: "succeeded" | "failed" | "interrupted",
     result: string,
     error: string | null = null,
+    elapsedMs = 0,
   ): void {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
-      const changed = this.db
+    if (!Number.isSafeInteger(elapsedMs) || elapsedMs < 0)
+      throw new Error("Invalid elapsed execution time");
+    this.transaction(() => {
+      const job = this.get(id),
+        workflow = this.workflow(id);
+      if (!job || job.status !== "running")
+        throw new Error("Job ownership lost");
+      if (workflow) {
+        if (status === "succeeded")
+          throw new Error("Workflow completion requires a checkpoint");
+        this.db
+          .prepare(
+            "UPDATE workflows SET elapsed_ms=?,state='blocked' WHERE job_id=?",
+          )
+          .run(this.totalSpent(workflow.elapsed_ms, this.spent(elapsedMs)), id);
+      }
+      this.db
         .prepare(
-          "UPDATE jobs SET status=?,result=?,error_code=?,finished_at=? WHERE id=? AND status='running'",
+          "UPDATE jobs SET status=?,result=?,error_code=?,finished_at=? WHERE id=?",
         )
         .run(status, result, error, Date.now(), id);
-      if (Number(changed.changes) !== 1) throw new Error("Job ownership lost");
       if (status !== "succeeded")
         this.db
           .prepare(
-            "UPDATE conversations SET blocked_reason=? WHERE thread_id=(SELECT thread_id FROM jobs WHERE id=?)",
+            "UPDATE conversations SET blocked_reason=? WHERE thread_id=?",
           )
-          .run(status, id);
-      this.db.exec("COMMIT");
-    } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
-    }
+          .run(status, job.thread_id);
+      this.dirty(job.thread_id);
+    });
   }
   recover(id: string, threadId: string, newId: string): boolean {
-    if (!SNOWFLAKE.test(newId) || !SNOWFLAKE.test(threadId))
-      throw new Error("Invalid queue identity");
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
+    this.validateIdentity(newId, threadId);
+    return this.transaction(() => {
       const old = this.get(id);
       if (
         !old ||
@@ -186,10 +483,7 @@ export class Store {
         throw new Error(
           "Only an interrupted/failed job in this thread can be recovered",
         );
-      if (this.get(newId)) {
-        this.db.exec("COMMIT");
-        return false;
-      }
+      if (this.get(newId)) return false;
       if (
         this.db
           .prepare(
@@ -202,70 +496,122 @@ export class Store {
         this.db
           .prepare(
             `WITH RECURSIVE recoveries(id,status) AS (
-              SELECT id,status FROM jobs WHERE recovery_of=? AND thread_id=?
-              UNION
-              SELECT j.id,j.status FROM jobs j JOIN recoveries r ON j.recovery_of=r.id WHERE j.thread_id=?
-            ) SELECT id FROM recoveries WHERE status='succeeded' LIMIT 1`,
+        SELECT id,status FROM jobs WHERE recovery_of=? AND thread_id=? UNION
+        SELECT j.id,j.status FROM jobs j JOIN recoveries r ON j.recovery_of=r.id WHERE j.thread_id=?
+      ) SELECT id FROM recoveries WHERE status='succeeded' LIMIT 1`,
           )
           .get(id, threadId, threadId)
       )
         throw new Error("This job has already been successfully recovered");
-      this.db
-        .prepare(
-          "UPDATE jobs SET status='cancelled',error_code='superseded_by_recovery',finished_at=? WHERE thread_id=? AND status='queued'",
-        )
-        .run(Date.now(), threadId);
+      const originalWorkflow = this.workflow(id);
+      // Recovering an ancestor must not reset execution charged to a later failed recovery.
+      const workflow = originalWorkflow
+        ? (this.db
+            .prepare(
+              `WITH RECURSIVE chain(id) AS (
+        SELECT ? UNION SELECT j.id FROM jobs j JOIN chain c ON j.recovery_of=c.id WHERE j.thread_id=?
+      ) SELECT w.* FROM workflows w JOIN chain c ON c.id=w.job_id
+        JOIN jobs j ON j.id=w.job_id ORDER BY w.elapsed_ms DESC,w.step_count DESC,j.created_at DESC,j.id DESC LIMIT 1`,
+            )
+            .get(id, threadId) as unknown as Workflow)
+        : undefined;
+      if (
+        workflow &&
+        (workflow.state === "paused" ||
+          workflow.elapsed_ms >= workflow.budget_ms ||
+          workflow.step_count >= workflow.max_steps)
+      )
+        throw new Error(
+          "Workflow budget is exhausted or paused; start a new explicit !work budget",
+        );
+      this.cancelQueued(threadId, "superseded_by_recovery");
       this.insertQueuedJob(
         newId,
         threadId,
         `Manual recovery of message ${id}. The previous turn may have changed files or published content. Inspect the saved session, transcript, journal and external publication receipts before taking any action. Never blindly repeat a publication. Original request:\n\n${old.prompt}`,
         id,
       );
+      if (workflow) {
+        this.db
+          .prepare(
+            "INSERT INTO workflows(job_id,goal,budget_ms,elapsed_ms,max_steps,step_count,last_summary,next_action,state) VALUES(?,?,?,?,?,?,?,?,'active')",
+          )
+          .run(
+            newId,
+            workflow.goal,
+            workflow.budget_ms,
+            workflow.elapsed_ms,
+            workflow.max_steps,
+            workflow.step_count,
+            workflow.last_summary,
+            workflow.next_action,
+          );
+        this.db
+          .prepare(
+            "INSERT INTO workflow_steps SELECT ?,step,outcome,summary,next_action,elapsed_ms,created_at FROM workflow_steps WHERE job_id=?",
+          )
+          .run(newId, workflow.job_id);
+      }
       this.db
         .prepare(
           "UPDATE conversations SET blocked_reason=NULL WHERE thread_id=?",
         )
         .run(threadId);
-      this.db.exec("COMMIT");
+      this.dirty(threadId);
       return true;
-    } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
-    }
+    });
+  }
+  private cancelQueued(threadId: string, reason: string): void {
+    this.db
+      .prepare(
+        "UPDATE workflows SET state='cancelled' WHERE job_id IN(SELECT id FROM jobs WHERE thread_id=? AND status='queued')",
+      )
+      .run(threadId);
+    this.db
+      .prepare(
+        "UPDATE jobs SET status='cancelled',error_code=?,finished_at=? WHERE thread_id=? AND status='queued'",
+      )
+      .run(reason, Date.now(), threadId);
   }
   resetSession(threadId: string): void {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
-      const running = this.db
-        .prepare("SELECT id FROM jobs WHERE thread_id=? AND status='running'")
-        .get(threadId);
-      if (running) throw new Error("A turn is still running");
-      this.db
-        .prepare(
-          "UPDATE jobs SET status='cancelled',error_code='owner_started_new_session',finished_at=? WHERE thread_id=? AND status='queued'",
+    this.transaction(() => {
+      if (
+        this.db
+          .prepare("SELECT id FROM jobs WHERE thread_id=? AND status='running'")
+          .get(threadId)
+      )
+        throw new Error("A turn is still running");
+      this.cancelQueued(threadId, "owner_started_new_session");
+      if (
+        Number(
+          this.db
+            .prepare(
+              "UPDATE conversations SET session_id=NULL,blocked_reason=NULL WHERE thread_id=?",
+            )
+            .run(threadId).changes,
         )
-        .run(Date.now(), threadId);
-      this.db
-        .prepare(
-          "UPDATE conversations SET session_id=NULL,blocked_reason=NULL WHERE thread_id=?",
-        )
-        .run(threadId);
-      this.db.exec("COMMIT");
-    } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
-    }
+      )
+        this.dirty(threadId);
+    });
   }
   cancel(id: string, threadId: string): boolean {
-    return (
-      Number(
+    return this.transaction(() => {
+      const changed =
+        Number(
+          this.db
+            .prepare(
+              "UPDATE jobs SET status='cancelled',error_code='owner_cancelled',finished_at=? WHERE id=? AND thread_id=? AND status='queued'",
+            )
+            .run(Date.now(), id, threadId).changes,
+        ) === 1;
+      if (changed) {
         this.db
-          .prepare(
-            "UPDATE jobs SET status='cancelled',error_code='owner_cancelled',finished_at=? WHERE id=? AND thread_id=? AND status='queued'",
-          )
-          .run(Date.now(), id, threadId).changes,
-      ) === 1
-    );
+          .prepare("UPDATE workflows SET state='cancelled' WHERE job_id=?")
+          .run(id);
+        this.dirty(threadId);
+      }
+      return changed;
+    });
   }
   recent(threadId: string): Job[] {
     return this.db
@@ -283,5 +629,91 @@ export class Store {
   }
   notification(id: string, state: "sending" | "sent" | "ambiguous"): void {
     this.db.prepare("UPDATE jobs SET notification=? WHERE id=?").run(state, id);
+  }
+  effect(threadId: string): Effect | undefined {
+    return this.db
+      .prepare("SELECT * FROM effects WHERE thread_id=?")
+      .get(threadId) as Effect | undefined;
+  }
+  pendingEffects(now = Date.now(), limit = 2): Effect[] {
+    if (
+      !Number.isSafeInteger(now) ||
+      now < 0 ||
+      !Number.isSafeInteger(limit) ||
+      limit < 0 ||
+      limit > 100
+    )
+      throw new Error("Invalid effect query");
+    return this.db
+      .prepare(
+        "SELECT * FROM effects WHERE (exported_generation<generation OR synced_generation<generation) AND retry_at<=? ORDER BY retry_at,thread_id LIMIT ?",
+      )
+      .all(now, limit) as unknown as Effect[];
+  }
+  completeEffect(
+    threadId: string,
+    generation: number,
+    kind: "transcript" | "memory",
+  ): void {
+    this.transaction(() => {
+      const effect = this.checkedEffect(threadId, generation);
+      if (kind !== "transcript" && kind !== "memory")
+        throw new Error("Invalid effect kind");
+      if (kind === "memory" && effect.exported_generation < generation)
+        throw new Error("Transcript must be exported before memory sync");
+      const column =
+        kind === "transcript" ? "exported_generation" : "synced_generation";
+      this.db
+        .prepare(
+          `UPDATE effects SET ${column}=MAX(${column},?) WHERE thread_id=?`,
+        )
+        .run(generation, threadId);
+      this.db
+        .prepare(
+          "UPDATE effects SET attempts=0,retry_at=0,last_error=NULL WHERE thread_id=? AND exported_generation=generation AND synced_generation=generation",
+        )
+        .run(threadId);
+    });
+  }
+  failEffect(
+    threadId: string,
+    generation: number,
+    error: EffectError,
+    now = Date.now(),
+  ): void {
+    if (
+      ![
+        "transcript_export_failed",
+        "memory_sync_failed",
+        "memory_sync_blocked",
+      ].includes(error)
+    )
+      throw new Error("Invalid effect error");
+    if (!Number.isSafeInteger(now) || now < 0)
+      throw new Error("Invalid effect retry time");
+    this.transaction(() => {
+      const effect = this.checkedEffect(threadId, generation);
+      if (generation < effect.generation) return;
+      const attempts = Math.min(effect.attempts + 1, 20);
+      const delay = Math.min(1000 * 2 ** (attempts - 1), 300_000);
+      if (!Number.isSafeInteger(now + delay))
+        throw new Error("Effect retry time overflow");
+      this.db
+        .prepare(
+          "UPDATE effects SET attempts=?,retry_at=?,last_error=? WHERE thread_id=?",
+        )
+        .run(attempts, now + delay, error, threadId);
+    });
+  }
+  private checkedEffect(threadId: string, generation: number): Effect {
+    const effect = this.effect(threadId);
+    if (
+      !effect ||
+      !Number.isSafeInteger(generation) ||
+      generation < 1 ||
+      generation > effect.generation
+    )
+      throw new Error("Invalid effect generation");
+    return effect;
   }
 }
