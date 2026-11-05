@@ -13,6 +13,7 @@ Discord bot and server, Codex authentication, and model/account access.
 | ---------------------------------- | --------------------------------------------------------------------------------------------- |
 | [Offline demo](demo.md)          | Reproducible synthetic Engine/Store scenarios and README capture tooling                       |
 | [Architecture](architecture.md)    | Intake, one-worker execution, session identity, job and delivery state, recovery              |
+| [Image input](image-input.md) | Private Discord images, Codex resume, limits and attachment persistence |
 | [Work sessions](work-sessions.md)  | Explicit budgets, typed checkpoints, fair scheduling, pause and recovery                      |
 | [State backups](state-backups.md)  | Verified SQLite snapshots, restore and migration rollback                                     |
 | [Runners](runners.md)             | Tool choice, version pins, provider-bound sessions and experimental host adapters             |

@@ -1,8 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 import { isSessionId, SNOWFLAKE, type ProviderId } from "./config.js";
+import { validateSavedImages, type SavedImage } from "./images.js";
 import type { WorkOutcome } from "./workflow.js";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 export type JobStatus =
   | "queued"
   | "running"
@@ -92,7 +93,7 @@ export class Store {
         throw new Error(
           "Invalid database schema: acceptance ordering is missing",
         );
-      if (version === SCHEMA_VERSION) {
+      if (version >= 3) {
         const conversationColumns = this.db
           .prepare("PRAGMA table_info(conversations)")
           .all() as { name: string }[];
@@ -104,10 +105,20 @@ export class Store {
             "Invalid database schema: runner bindings are missing",
           );
       }
+      if (
+        version >= 4 &&
+        !this.db
+          .prepare(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_images'",
+          )
+          .get()
+      )
+        throw new Error("Invalid database schema: image storage is missing");
       this.db.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000");
       if (version === 0) this.migrate();
       if (version < 2) this.migrateAcceptance();
       if (version < 3) this.migrateProviders();
+      if (version < 4) this.migrateImages();
       this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL");
     } catch (error) {
       this.db.close();
@@ -200,7 +211,7 @@ export class Store {
       const version = (
         this.db.prepare("PRAGMA user_version").get() as { user_version: number }
       ).user_version;
-      if (version === SCHEMA_VERSION) return;
+      if (version >= 3 && version <= SCHEMA_VERSION) return;
       if (version !== 2)
         throw new Error(`Unsupported database schema version ${version}`);
       // Legacy sessions and queued work always belong to Codex, independent
@@ -219,6 +230,26 @@ export class Store {
           SELECT RAISE(ABORT,'Job runner snapshot is immutable');
         END;
         PRAGMA user_version=3;
+      `);
+    });
+  }
+  private migrateImages(): void {
+    this.transaction(() => {
+      const version = (
+        this.db.prepare("PRAGMA user_version").get() as { user_version: number }
+      ).user_version;
+      if (version === SCHEMA_VERSION) return;
+      if (version !== 3)
+        throw new Error(`Unsupported database schema version ${version}`);
+      this.db.exec(`
+        CREATE TABLE job_images(
+          job_id TEXT NOT NULL REFERENCES jobs(id),
+          ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 3),
+          media_type TEXT NOT NULL CHECK(media_type IN('image/png','image/jpeg','image/webp')),
+          sha256 TEXT NOT NULL CHECK(length(sha256)=64),
+          data BLOB NOT NULL CHECK(length(data) BETWEEN 1 AND 8388608),
+          PRIMARY KEY(job_id,ordinal));
+        PRAGMA user_version=4;
       `);
     });
   }
@@ -300,11 +331,14 @@ export class Store {
     prompt: string,
     recoveryOf: string | null = null,
     defaultProvider: ProviderId = "codex",
+    images: readonly SavedImage[] = [],
   ): boolean {
     this.validateIdentity(id, threadId);
+    validateSavedImages(images);
     return this.transaction(() => {
       if (this.get(id)) return false;
       this.insertQueuedJob(id, threadId, prompt, recoveryOf, defaultProvider);
+      this.insertImages(id, images);
       this.dirty(threadId);
       return true;
     });
@@ -316,8 +350,10 @@ export class Store {
     budgetMs: number,
     maxSteps = 32,
     defaultProvider: ProviderId = "codex",
+    images: readonly SavedImage[] = [],
   ): boolean {
     this.validateIdentity(id, threadId);
+    validateSavedImages(images);
     if (
       !goal.trim() ||
       !Number.isSafeInteger(budgetMs) ||
@@ -331,6 +367,7 @@ export class Store {
     return this.transaction(() => {
       if (this.get(id)) return false;
       this.insertQueuedJob(id, threadId, goal, null, defaultProvider);
+      this.insertImages(id, images);
       this.db
         .prepare(
           "INSERT INTO workflows(job_id,goal,budget_ms,max_steps,state) VALUES(?,?,?,?,'active')",
@@ -382,6 +419,39 @@ export class Store {
         recoveryOf,
         provider,
       );
+  }
+  private insertImages(id: string, images: readonly SavedImage[]): void {
+    if (images.length && this.get(id)?.provider !== "codex")
+      throw new Error("Runner does not support images");
+    const insert = this.db.prepare(
+      "INSERT INTO job_images(job_id,ordinal,media_type,sha256,data) VALUES(?,?,?,?,?)",
+    );
+    for (const [index, image] of images.entries())
+      insert.run(id, index, image.mediaType, image.sha256, image.data);
+  }
+  imageCount(id: string): number {
+    return (
+      this.db
+        .prepare("SELECT COUNT(*) count FROM job_images WHERE job_id=?")
+        .get(id) as { count: number }
+    ).count;
+  }
+  images(id: string): SavedImage[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT media_type,sha256,data FROM job_images WHERE job_id=? ORDER BY ordinal",
+        )
+        .all(id) as unknown as {
+        media_type: string;
+        sha256: string;
+        data: Uint8Array;
+      }[]
+    ).map((image) => ({
+      mediaType: image.media_type,
+      sha256: image.sha256,
+      data: image.data,
+    }));
   }
   get(id: string): Job | undefined {
     return this.db.prepare("SELECT * FROM jobs WHERE id=?").get(id) as
@@ -681,6 +751,11 @@ export class Store {
         id,
         old.provider,
       );
+      this.db
+        .prepare(
+          "INSERT INTO job_images SELECT ?,ordinal,media_type,sha256,data FROM job_images WHERE job_id=?",
+        )
+        .run(newId, id);
       if (workflow) {
         this.db
           .prepare(

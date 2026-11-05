@@ -224,6 +224,12 @@ export function redact(value: string, token: string): string {
     )
     .replace(/\b[\w-]{23,28}\.[\w-]{6}\.[\w-]{25,}\b/g, "[redacted]");
 }
+export interface IncomingImage {
+  id: string;
+  url: string;
+  contentType: string | null;
+  size: number;
+}
 export interface Incoming {
   id: string;
   guildId: string | null;
@@ -235,6 +241,7 @@ export interface Incoming {
   thread: boolean;
   content: string;
   attachments: number;
+  images?: IncomingImage[];
 }
 export function authorized(
   message: Incoming,
@@ -246,11 +253,16 @@ export function authorized(
     !message.bot &&
     !message.webhook &&
     SNOWFLAKE.test(message.id) &&
+    SNOWFLAKE.test(message.channelId) &&
     message.thread &&
     message.parentId === config.parentId &&
-    message.content.trim().length > 0 &&
+    (message.content.trim().length > 0 || message.attachments > 0) &&
     message.content.length <= MAX_MESSAGE &&
     Buffer.byteLength(message.content, "utf8") <= 32_000 &&
-    message.attachments === 0
+    Number.isSafeInteger(message.attachments) &&
+    message.attachments >= 0 &&
+    (message.images === undefined
+      ? message.attachments === 0
+      : message.images.length === message.attachments)
   );
 }

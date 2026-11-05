@@ -56,7 +56,7 @@ test("fresh database receives current version and durable workflow/effect tables
   const path = pathFor(t),
     store = new Store(path);
   t.after(() => store.close());
-  assert.equal(SCHEMA_VERSION, 3);
+  assert.equal(SCHEMA_VERSION, 4);
   assert.equal(
     store.db.prepare("PRAGMA user_version").get().user_version,
     SCHEMA_VERSION,

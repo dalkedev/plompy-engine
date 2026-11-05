@@ -1,6 +1,7 @@
 import { mkdir, chmod, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig, runnerHome } from "./config.js";
+import { cleanupStaleImages } from "./images.js";
 import { Store } from "./store.js";
 import { Engine } from "./engine.js";
 import { DiscordTransport } from "./discord.js";
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
     await chmod(path, 0o700);
   }
   await realpath(config.workspace);
+  await cleanupStaleImages(config.stateDir);
   const store = new Store(join(config.stateDir, "agent.sqlite"));
   const recovered = store.recoverStartup();
   const transport = new DiscordTransport(config),

@@ -195,6 +195,12 @@ A verified work-session pause retains its session and checkpoint. A fresh explic
 budget can continue it. Crashes, timeouts and malformed outcomes require inspection and manual
 recovery. See [work sessions](docs/work-sessions.md).
 
+Codex threads also accept up to four still PNG, JPEG or WebP attachments, with a
+caption, without text, or alongside an explicit `!work` goal. Images are passed as
+native inputs on initial and resumed turns and retained privately with the durable
+job. Claude Code and OpenCode image requests are explicitly rejected by these
+adapters. See [image input, limits and privacy](docs/image-input.md).
+
 ## Public code. Private memory.
 
 ```text
@@ -202,7 +208,7 @@ szpont-engine/                 # Public source and synthetic templates
 ~/.config/szpont/agent.env     # Private credentials and deployment IDs
 ~/.local/share/szpont/
   workspace/                  # Instructions, notes, transcripts and Git history
-  state/                      # SQLite queue and provider/session mappings
+  state/                      # SQLite queue, private images and provider/session mappings
   codex/                      # Private Codex login and configuration
   browser/                    # Optional browser profile
   artifacts/                  # Task output
@@ -212,7 +218,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.4.0 uses SQLite schema 3**. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
+Version **0.5.0 uses SQLite schema 4**. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
 

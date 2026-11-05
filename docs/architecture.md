@@ -13,7 +13,7 @@ flowchart LR
     Result --> Discord
 ```
 
-Authorization occurs before enqueue. The adapter verifies the bot identity, configured guild
+Authorization occurs before any attachment download or enqueue. The adapter verifies the bot identity, configured guild
 owner, private forum and reply thread parent. Queue identity is the Discord message ID;
 re-delivery of the same ID does not create new work.
 
@@ -91,7 +91,7 @@ these operations. No remote credential or push implementation is included.
 
 ## Deliberate limits
 
-One worker; one configured server owner; text-only intake; no REST history catch-up; no
+One worker; one configured server owner; text and bounded still-image intake; no REST history catch-up; no
 scheduler; no built-in public posting destination or receipt broker. Extending these requires
 explicit authority checks, durable state and regression tests at the new boundary.
 
@@ -111,3 +111,13 @@ explicit completion evidence. Protocol tests are offline; live account and host
 sandbox acceptance remain separate deployment checks. See [runners](runners.md).
 
 The design trade-offs are recorded in [ADR 0001](decisions/0001-provider-bound-runners.md).
+
+
+## Private image inputs
+
+Schema 4 adds image bytes, media types and SHA-256 digests tied to jobs. Validated
+attachment batches and their job commit atomically. Native Codex image inputs work
+on initial and resumed turns; other adapters reject images before fetch. Queued
+restart, workflow continuation, manual recovery and state snapshots retain bytes
+without refetching signed CDN URLs. Temporary runner files stay under private state
+and are removed at turn end or on next singleton-locked startup. See [image input](image-input.md).

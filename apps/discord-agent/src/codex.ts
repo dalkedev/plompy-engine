@@ -1,6 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
+import { isAbsolute } from "node:path";
+import { MAX_IMAGES } from "./images.js";
 import {
   childEnvironment,
   MAX_OUTPUT,
@@ -12,6 +14,7 @@ import type { TurnResult } from "./runner.js";
 export type { TurnResult } from "./runner.js";
 export interface CodexOptions {
   workflow?: boolean;
+  images?: readonly string[];
 }
 const workflowSchema = fileURLToPath(
   new URL("../schemas/workflow-output.schema.json", import.meta.url),
@@ -23,6 +26,13 @@ export function codexArgs(
 ): string[] {
   if (sessionId && !SESSION_ID.test(sessionId))
     throw new Error("Invalid resume session");
+  const images = options.images ?? [];
+  if (
+    images.length > MAX_IMAGES ||
+    images.some((path) => !isAbsolute(path) || /[\x00-\x1f\x7f]/.test(path))
+  )
+    throw new Error("Invalid image input paths");
+  const imageFlags = images.flatMap((path) => ["--image", path]);
   const flags = [
     "--no-daemon",
     "-C",
@@ -42,8 +52,26 @@ export function codexArgs(
   ];
   const schema = options.workflow ? ["--output-schema", workflowSchema] : [];
   return sessionId
-    ? [...flags, "resume", "--json", ...schema, sessionId, "-"]
-    : [...flags, "--json", "--color", "never", ...schema, "-"];
+    ? [
+        ...flags,
+        "resume",
+        "--json",
+        ...schema,
+        ...imageFlags,
+        ...(images.length ? ["--"] : []),
+        sessionId,
+        "-",
+      ]
+    : [
+        ...flags,
+        "--json",
+        "--color",
+        "never",
+        ...schema,
+        ...imageFlags,
+        ...(images.length ? ["--"] : []),
+        "-",
+      ];
 }
 function terminate(child: ChildProcessWithoutNullStreams): void {
   if (child.exitCode !== null) return;

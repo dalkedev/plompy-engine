@@ -89,7 +89,7 @@ or successful publication. Those require observed checks on the target installat
 
 ## A deliberately limited first edition
 
-This edition has one global worker, text-only intake and no message-history catch-up after a
+This edition has one global worker, text and bounded still-image intake, and no message-history catch-up after a
 full outage. The private installation's concurrent lanes, editorial scheduler and publication
 broker are not included. Browser navigation checks are best-effort guards; processes sharing
 a Unix account still share a trust boundary.

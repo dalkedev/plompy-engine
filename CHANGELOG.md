@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 — 2026-11-05
+
+### Discord image input
+
+- Accept still PNG, JPEG and WebP attachments with a caption, without text, or with an explicit `!work` goal in Codex threads. Pass local files as native Codex image inputs on both initial and resumed turns.
+- Authorize the owner, server and private forum thread before downloading. Restrict downloads to matching Discord CDN attachment paths, reject redirects, and bound count, declared and streamed bytes, MIME signatures, canvas dimensions and download time.
+- Reject image requests explicitly in the Claude Code and OpenCode adapters before downloading; never silently discard images or switch providers.
+- Preserve intake order across asynchronous downloads, abort active downloads on shutdown, and remove private runner files after success, failure or cancellation.
+
+### Durable image state and upgrades
+
+- Advance public SQLite state to schema 4. Commit image bytes, media types and SHA-256 digests atomically with jobs; preserve them through queue restart, workflow continuation, manual recovery and verified state snapshots.
+- Keep original CDN URLs, filenames and binary images out of Markdown transcripts and automatic memory commits. Images remain private job history; backups now include those bytes.
+- Preserve schema-3 jobs and provider bindings during migration. Rolling back to 0.4.0 requires its compatible pre-upgrade snapshot and reconciliation of later work.
+- Add offline synthetic regressions for authorization, fetch limits, URL rejection, atomicity, migration, recovery, temporary-file cleanup and actual initial/resume subprocess arguments. No Discord messages, account actions or live inference are used as smoke tests.
+
 ## 0.4.0 — 2026-11-05
 
 ### Runner adapters

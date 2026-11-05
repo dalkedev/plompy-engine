@@ -13,6 +13,10 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { join } from "node:path";
 import { Store, SCHEMA_VERSION } from "../apps/discord-agent/dist/store.js";
+import {
+  imageDigest,
+  materializeImages,
+} from "../apps/discord-agent/dist/images.js";
 import { codexArgs } from "../apps/discord-agent/dist/codex.js";
 import { validateWorkOutcome } from "../apps/discord-agent/dist/workflow.js";
 import { snapshotState } from "./state-snapshot.mjs";
@@ -79,6 +83,39 @@ for (const session of [null, "11111111-1111-4111-8111-111111111111"]) {
     }),
     /--output-schema/,
   );
+}
+// Exercise the exact packaged Codex parser with native images on initial and
+// resumed turns. --help is inserted before our positional delimiter, so this
+// parses the real flags without opening a session, authenticating or inference.
+const syntheticPng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWZkAAAAASUVORK5CYII=",
+  "base64",
+);
+const imageFiles = await materializeImages(process.env.SZPONT_STATE_DIR, [
+  {
+    mediaType: "image/png",
+    sha256: imageDigest(syntheticPng),
+    data: syntheticPng,
+  },
+]);
+try {
+  for (const session of [null, "11111111-1111-4111-8111-111111111111"]) {
+    const args = codexArgs(workflowConfig, session, {
+      workflow: true,
+      images: imageFiles.paths,
+    });
+    const delimiter = args.indexOf("--");
+    assert.ok(delimiter > args.indexOf("--image"));
+    args.splice(delimiter, 0, "--help");
+    const help = execFileSync("codex", args, {
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+    assert.match(help, /--image/);
+    assert.match(help, /--output-schema/);
+  }
+} finally {
+  await imageFiles.cleanup();
 }
 assert.match(
   execFileSync(
@@ -248,5 +285,5 @@ await writeFile(
   { mode: 0o600 },
 );
 console.log(
-  "PASS: non-root Node/Codex image, private cache/workspace, read-only source, SQLite persistence, bundled workflow schema, resumed checkpoints, consistent state snapshot, separate artifacts and no baked authentication.",
+  "PASS: non-root Node/Codex image, private cache/workspace, read-only source, SQLite persistence, bundled workflow schema, native fresh/resumed image inputs, resumed checkpoints, consistent state snapshot, separate artifacts and no baked authentication.",
 );

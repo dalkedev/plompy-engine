@@ -16,6 +16,7 @@ import { validateWorkOutcome } from "./workflow.js";
 export const CLAUDE_MIN_VERSION = "2.1.285";
 export interface ClaudeOptions {
   workflow?: boolean;
+  images?: readonly string[];
 }
 const workflowSchema = readFileSync(
   new URL("../schemas/workflow-output.schema.json", import.meta.url),
@@ -181,6 +182,13 @@ export function runClaude(
   signal?: AbortSignal,
   options: ClaudeOptions = {},
 ): Promise<TurnResult> {
+  if (options.images?.length)
+    return Promise.resolve({
+      ok: false,
+      output: "",
+      error: "unsupported_image_input",
+      sessionId,
+    });
   if (Buffer.byteLength(prompt) > 65_536)
     throw new Error("Assembled prompt exceeds limit");
   const expected = sessionId ?? randomUUID();
