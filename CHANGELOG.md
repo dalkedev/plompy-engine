@@ -1,6 +1,33 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-11-05
+
+### Runner adapters
+
+- Add experimental Claude Code and OpenCode host runners alongside the default Codex CLI, with explicit deployment-level selection for new threads.
+- Keep provider readiness and queue eligibility independent, without automatic engine or model fallback when another runner is unavailable.
+- Validate exact provider sessions, explicit completion events, bounded subprocesses and typed work checkpoints. Preserve cancellation reasons and process-group cleanup.
+- Isolate provider configuration variables and private authentication directories. Add runner-aware diagnostics and public-tree checks for private authentication/session paths.
+- Document provider-specific permissions, login, model and MCP configuration. OpenCode requires explicit acknowledgement of host execution; its local credential check does not prove remote authentication.
+
+### Durable state and upgrade boundary
+
+- Advance public SQLite state to schema 3 with immutable conversation bindings and job provider snapshots. Legacy conversations, sessions and queued work remain Codex independently of the configured default.
+- Preserve provider bindings across restart, manual recovery and session reset. A default-runner change applies only to new threads; uncertain work is never rerouted or replayed automatically.
+- Extend verified state backup and restore support to schema 3. Rollback to 0.3.x requires a matching pre-upgrade snapshot and reconciliation of later actions.
+- Verify migrations, rollback, scheduling and adapters with offline synthetic regressions. No live Claude/OpenCode account, model or host-sandbox acceptance is claimed by these tests.
+
+### Documentation and offline demo
+
+- Rework the README around concrete use cases, runner support levels and deployment boundaries, with a reproducible three-scenario gallery.
+- Add an account-free demo using the actual Engine and SQLite Store with scripted transport and replies. Include raw transcripts and separate optional capture tooling.
+
+### Distribution boundary
+
+- Refresh the README banner and social-preview asset to reflect Codex, Claude Code and OpenCode while retaining the project identity.
+
+- Keep the published Docker image Codex-only. Reject alternative runner selection before initialization writes until independent container acceptance exists.
+- Preserve the actual Codex sandbox and the non-root, read-only image acceptance path on Linux amd64 and arm64.
 
 ## 0.3.1 — 2026-11-05
 

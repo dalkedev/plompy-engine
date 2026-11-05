@@ -1,4 +1,8 @@
 import type { JobStatus, Store } from "./store.js";
+import type { ProviderId } from "./config.js";
+
+export const providerLabel = (provider: ProviderId): string =>
+  ({ codex: "Codex", claude: "Claude Code", opencode: "OpenCode" })[provider];
 
 interface ConversationState {
   blocked_reason: string | null;
@@ -22,7 +26,7 @@ export const COMMAND_HELP = [
   "!result [task ID] — read the saved response (latest task by default).",
   "!cancel <task ID> — cancel a queued task or stop this thread's active process.",
   "!recover <task ID> — inspect prior actions and continue a failed or interrupted task; replaces queued follow-ups in this thread.",
-  "!new-session — clear this thread's session and cancel its queued tasks; history is retained.",
+  "!new-session — clear this thread's session and cancel its queued tasks; its runner binding and history are retained.",
   "!help — show these commands.",
   "A verified work-session checkpoint can pause at its budget or step cap without blocking this thread. Continue with a fresh explicit !work budget; interrupted or uncertain turns require manual recovery.",
   "One worker runs tasks across all threads. A queued task is not running yet. Stopping a process does not undo actions already taken.",
@@ -33,6 +37,7 @@ export function threadStatus(
   store: Store,
   threadId: string,
   authReady: boolean,
+  provider: ProviderId = store.provider(threadId) ?? "codex",
 ): string {
   const conversation = store.db
     .prepare(
@@ -85,9 +90,13 @@ export function threadStatus(
             : "Maintenance: transcript export or memory Git sync is pending. Task state is saved independently.";
   const blocked = conversation?.blocked_reason;
   const lines = [
-    authReady
-      ? "Codex: authenticated."
-      : "Codex: login unverified; queued work waits until authentication is confirmed.",
+    provider === "opencode"
+      ? authReady
+        ? "OpenCode: local prerequisites and credential entry present; remote authentication is untested."
+        : "OpenCode: local prerequisites unverified; queued work waits. Remote authentication is untested."
+      : authReady
+        ? `${providerLabel(provider)}: authenticated.`
+        : `${providerLabel(provider)}: login unverified; queued work waits until authentication is confirmed.`,
     blocked
       ? blocked === "failed" || blocked === "interrupted"
         ? `Thread: blocked after ${blocked === "interrupted" ? "an interrupted" : "a failed"} task. Queued messages cannot run until you choose recovery or a new session.`
@@ -164,7 +173,9 @@ export function threadStatus(
     );
   else if (!authReady && counts.queued > 0)
     lines.push(
-      "Next: complete Codex login on the host. These tasks remain saved in the queue.",
+      provider === "opencode"
+        ? "Next: verify OpenCode configuration and local credentials on the host. Remote authentication is untested; these tasks remain saved in the queue."
+        : `Next: complete ${providerLabel(provider)} login on the host. These tasks remain saved in the queue.`,
     );
   else if (counts.queued > 0)
     lines.push(

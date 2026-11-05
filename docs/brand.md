@@ -6,7 +6,7 @@ Use **szpont-engine**, lowercase and hyphenated, for the repository and engine. 
 when referring to the assistant in a conversation. Keep `szpont-engine` intact in headings,
 links, and portfolio captions.
 
-> A self-hosted personal agent engine with persistent Codex sessions and private Markdown memory.
+> A self-hosted personal agent engine with provider-bound CLI sessions and private Markdown memory.
 
 The project is built around continuity: a task starts in a private Discord thread, runs on
 the owner's machine, and returns to the same conversation with its context preserved.
@@ -58,7 +58,7 @@ owner to decide. Lead with the reader's task, then show a command or a link to t
 
 | Prefer | Avoid |
 | --- | --- |
-| "Resume the Codex session for this thread." | "An agent that remembers everything." |
+| "Resume the saved session for this thread." | "An agent that remembers everything." |
 | "Inspect interrupted work before recovery." | "Never lose work again." |
 | "Runs on your own Linux machine." | "Fully autonomous, secure by default." |
 | "Optional Camoufox tools over local MCP." | "Works with every website." |
@@ -72,3 +72,8 @@ The source and repository assets are provided under the [MIT license](../LICENSE
 The project artwork was generated with OpenAI image generation for this identity.
 The transparent PNG mark and wide PNG banner are the supplied master files. The social
 preview is a JPEG export of the same banner; its composition and proportions are unchanged.
+
+The 0.4 banner names Codex, Claude Code and OpenCode in its first capability row,
+then Discord threads, SQLite and Markdown in its second row. Provider names show
+available adapters, not identical sandbox guarantees or live-account acceptance.
+The [runner guide](runners.md) states their support levels.

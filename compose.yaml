@@ -1,13 +1,14 @@
 name: szpont-engine
 services:
   engine:
-    image: ${SZPONT_IMAGE:-ghcr.io/dalkedev/szpont-engine:0.3.1}
+    image: ${SZPONT_IMAGE:-ghcr.io/dalkedev/szpont-engine:0.4.0}
     build:
       context: .
     env_file:
       - ${SZPONT_ENV_FILE:?Set SZPONT_ENV_FILE to an absolute private environment file outside this checkout}
     environment:
       # These container paths override host-path values in the private environment file.
+      SZPONT_RUNNER: codex
       CODEX_HOME: /var/lib/szpont/codex
       SZPONT_WORKSPACE: /var/lib/szpont/workspace/current
       SZPONT_STATE_DIR: /var/lib/szpont/state

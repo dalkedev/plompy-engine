@@ -1,6 +1,6 @@
 # Bounded work sessions
 
-A normal Discord message requests one Codex turn. Use an explicit owner command when a goal
+A normal Discord message requests one runner turn. Use an explicit owner command when a goal
 needs several verified steps:
 
 ```text
@@ -16,7 +16,7 @@ all available time. The engine stops when the fixed goal is complete or blocked.
 ## What happens between steps
 
 1. The owner goal, budget and parent Discord message ID enter SQLite in one transaction.
-2. One worker claims one step. Codex receives the fixed goal, saved session and prior checkpoint.
+2. One worker claims one step. The bound runner receives the fixed goal, saved session and prior checkpoint.
 3. The process must exit successfully and emit `turn.completed`. Its final answer must match
    the bundled schema: `outcome`, `summary` and `nextAction`, without extra properties.
 4. The engine commits the step result and charged execution time before reporting progress.
@@ -39,7 +39,7 @@ evidence a person can review.
 
 ## Budgets and stop conditions
 
-Only elapsed Codex execution consumes the budget. Queue, authentication, transcript export and
+Only elapsed runner execution consumes the budget. Queue, authentication, transcript export and
 memory commit waits do not. Elapsed execution uses a monotonic process clock; system clock
 corrections do not change the charge. Each subprocess is capped by both the configured task timeout and
 remaining work budget. This does not promise a wall-clock completion deadline or a token/cost
@@ -54,7 +54,7 @@ limit; the configured account's usage allowance remains separate.
 | Timeout, crash, missing completion or invalid JSON | Failed/interrupted workflow, blocked conversation | Reconcile possible partial actions before `!recover` |
 | Owner cancellation or service stop during a turn   | Interrupted workflow, blocked conversation        | Inspect state; no automatic replay                   |
 
-A verified pause retains the Codex session. `!work 30m Continue the importer goal using its
+A verified pause retains the provider-bound session. `!work 30m Continue the importer goal using its
 last verified checkpoint` is a new budget and goal in the same thread. `!recover` cannot renew
 an exhausted budget. An uncertain turn that exhausted its time or step cap requires an explicit
 `!new-session` before a fresh budget; history is retained. A recoverable failure keeps the
@@ -83,3 +83,5 @@ the owner resolves it. No model turn is repeated merely because an export or com
 Progress messages are best effort. A failed final Discord send is ambiguous and is not
 automatically resent. The stored job result and `!result` remain available. See
 [architecture](architecture.md) and [backups](state-backups.md) for the state boundaries.
+
+Runner-specific checkpoint protocols and experimental limits are described in [runners](runners.md).

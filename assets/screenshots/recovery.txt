@@ -1,0 +1,18 @@
+Offline demo · synthetic data · no model calls
+Real Engine + SQLite Store; transport, readiness and agent replies are scripted.
+
+EXPLICIT RECOVERY
+owner      #release > Prepare a release note.
+state      #release · failed · Codex · session=saved
+owner      #release > Continue preparing the note.
+state      #release · queued · Codex · session=saved
+owner      #release > !status
+status     Thread: blocked after a failed task. Queued messages cannot run until you choose recovery or a new session.
+status     Queue in this thread: 1 queued; 0 running.
+status     Worker: idle. Queued tasks have not started yet.
+evidence   No replay before an explicit recovery: true
+owner      #release > !recover 940000000000000001
+engine     Manual recovery queued. Inspect prior state and receipts first.
+agent      #release < [synthetic] Prior demo state inspected; note is ready.
+state      #release · succeeded · Codex · session=saved
+evidence   Recovery recorded; stale follow-up cancelled: true

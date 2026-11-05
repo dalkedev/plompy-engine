@@ -5,28 +5,28 @@ A release is a versioned public source snapshot and a container image. It does n
 ## Pull a release
 
 ```sh
-docker pull ghcr.io/dalkedev/szpont-engine:0.3.1
-docker buildx imagetools inspect ghcr.io/dalkedev/szpont-engine:0.3.1
+docker pull ghcr.io/dalkedev/szpont-engine:0.4.0
+docker buildx imagetools inspect ghcr.io/dalkedev/szpont-engine:0.4.0
 ```
 
-The release workflow publishes Linux `amd64` and `arm64` variants. A stable release publishes an exact version tag, a minor-series tag, `latest`, and `sha-<first 12 characters of commit>`. For example, `v0.3.1` produces `0.3.1`, `0.3`, `latest`, and its revision tag. A prerelease such as `v0.4.0-rc.1` publishes only its exact prerelease and revision tags; it cannot move `latest` or a stable minor-series tag.
+The release workflow publishes Linux `amd64` and `arm64` variants. A stable release publishes an exact version tag, a minor-series tag, `latest`, and `sha-<first 12 characters of commit>`. For example, `v0.4.0` produces `0.4.0`, `0.4`, `latest`, and its revision tag. A prerelease such as `v0.5.0-rc.1` publishes only its exact prerelease and revision tags; it cannot move `latest` or a stable minor-series tag.
 
 Tags are convenient aliases. For repeatable deployments, copy the full `ghcr.io/dalkedev/szpont-engine@sha256:...` reference from the successful workflow summary or manifest inspection and pin that digest in your deployment. The OCI labels identify the source repository, exact revision, version, and MIT license. The published image also includes BuildKit provenance and an SBOM.
 
-The engine image contains no browser profile or real account session. It includes the Codex CLI, whose authentication and usage allowance you provide separately. The optional Camoufox desktop/browser service is outside this image.
+The engine image contains no browser profile or real account session. Version 0.4.0 packages and verifies **Codex only**; it rejects `SZPONT_RUNNER=claude` and `opencode` before initialization writes. Claude Code and OpenCode are [experimental host adapters](runners.md), requiring their own installed CLI, private authentication, permissions and acceptance checks. The optional Camoufox desktop/browser service is outside this image. A release does not supply model access or account allowances.
 
 ## Maintainer release process
 
-1. Merge the intended changes into `main`. Keep all real state and owner material outside the source tree.
-2. Set the same version in the root `package.json`, `apps/discord-agent/package.json`, both root-version fields of `apps/discord-agent/package-lock.json`, `packages/browser/pyproject.toml`, and the `szpont-browser` project entry in `packages/browser/uv.lock`. Update `CHANGELOG.md` with the actual changes and date. Check the Python lock with `uv lock --check --offline` from `packages/browser`.
-3. Wait for the normal checks on the exact commit. Review the diff and run the container smoke test locally when Docker is available.
+1. Prepare the intended changes in a reviewed pull request. Keep all real state and owner material outside the source tree.
+2. Set the same version in the root `package.json`, `apps/discord-agent/package.json`, both root-version fields of `apps/discord-agent/package-lock.json`, `packages/browser/pyproject.toml`, and the `szpont-browser` project entry in `packages/browser/uv.lock`. Set the Dockerfile `VERSION` default and Compose image default to the same release version. Update `CHANGELOG.md` with the actual changes and date. Check the Python lock with `uv lock --check --offline` from `packages/browser`.
+3. Review the diff and wait for the normal checks on the exact pull-request head. Run the container smoke test locally when Docker is available, then merge normally and verify the resulting `main` commit before tagging.
 4. Create and push a fresh version tag on that commit. Never move an existing release tag.
 
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.3.1 -m 'Szpont Engine 0.3.1'
-git push origin refs/tags/v0.3.1
+git tag -a v0.4.0 -m 'Szpont Engine 0.4.0'
+git push origin refs/tags/v0.4.0
 ```
 
 The [release workflow](../.github/workflows/release.yml) runs only on `v*` tag pushes. It first requires the tagged commit to be reachable from `main`, validates all package and project-lock versions, checks the public tree, and runs the locked engine and browser suites. Each native amd64/arm64 runner then builds its OCI archive once, including provenance and an SBOM, and loads that archive's runtime for the offline smoke test. A configuration-digest check binds the loaded runtime (including its filesystem layer identities) to the OCI archive. Runtime state is created in throwaway volumes and is never included in the archive.
@@ -45,6 +45,17 @@ Official references: [Docker OCI exports](https://docs.docker.com/build/exporter
 
 ## Upgrade and rollback
 
-Record the current image digest and stop the engine before backing up its private volumes. Keep Codex authentication backups private. Start the desired pinned image with the same configured volumes, then check its logs and queue status before sending a synthetic owner task. A successful image build or offline smoke test does not establish that a Discord bot token or real Codex login is valid.
+Record the current image digest and stop the engine before taking a coordinated backup of its private state and workspace. Keep runner authentication and browser-profile backups private and separate. Start the desired pinned image with the same configured volumes, then inspect its logs and queue status before sending a synthetic owner task. A successful image build or offline smoke test does not establish Discord connectivity, account validity or live model access.
 
-Do not run two engine instances against the same SQLite state at once. Version 0.3 introduces SQLite schema version 1. Before upgrading from 0.2, take a verified pre-upgrade snapshot using the [state backup guide](state-backups.md). To roll back, stop the new instance, restore its compatible pre-upgrade state to a new private path and switch to that state with the previous pinned image digest. Never point 0.2 code at a migrated 0.3 database. A rollback restores the earlier snapshot, so later accepted jobs must be reconciled separately before any replay.
+Do not run two engine instances against the same SQLite state at once. Version 0.4.0 migrates public schemas 0, 1 and 2 to **schema 3**. Existing jobs and conversations are labelled Codex, including conversations whose session has not started; changing `SZPONT_RUNNER` never converts them to another provider. New threads use the configured default. Session reset retains the thread's provider, and recovery retains the original job's provider.
+
+| Engine version | Public SQLite schema |
+| --- | --- |
+| 0.2.x | 0 |
+| 0.3.0 | 1 |
+| 0.3.1 | 2 |
+| 0.4.0 | 3 |
+
+Before upgrading, create and verify a pre-upgrade snapshot using the [state backup guide](state-backups.md), and retain the matching workspace checkpoint and image digest. The 0.3.x engine rejects schema 3. To roll back, stop 0.4.0, restore the compatible pre-upgrade snapshot into a new private state location, reconcile jobs and external actions accepted after that snapshot, and switch the matching binary and workspace together. Never lower `PRAGMA user_version` or remove provider columns as a downgrade shortcut.
+
+The 0.2 engine predates the version guard and cannot preserve later workflow or provider semantics. It must never open migrated state. A rollback restores earlier database contents; it does not undo files, posts, deployments or other external effects. Public and private-deployment databases are not interchangeable.

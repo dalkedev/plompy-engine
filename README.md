@@ -1,50 +1,100 @@
 <div align="center">
 
-![szpont-engine — persistent personal agents, on your own machine](assets/brand/readme-banner.png)
+![szpont-engine — Codex, Claude Code and OpenCode in persistent private threads](assets/brand/readme-banner.png)
 
 # szpont-engine
 
-**Send a task from your phone. Pick it up in the same session. Keep the memory.**
+**Run coding agents from private Discord threads.**
 
-A self-hosted personal agent engine connecting private Discord threads to persistent
-Codex CLI sessions, a durable SQLite queue, and a private Markdown workspace.
+Each thread keeps its own CLI session. Accepted tasks stay in SQLite.
+Useful context stays in a private Markdown workspace.
 
 [![Offline checks](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml/badge.svg)](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml)
+[![Release](https://img.shields.io/github/v/release/dalkedev/szpont-engine?color=FF6B35&labelColor=111315)](https://github.com/dalkedev/szpont-engine/releases)
 [![Node.js 24](https://img.shields.io/badge/Node.js-24-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
 [![MIT license](https://img.shields.io/badge/license-MIT-FF6B35?labelColor=111315)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/dalkedev/szpont-engine?color=FF6B35&labelColor=111315)](https://github.com/dalkedev/szpont-engine/releases)
 
-[Quick start](#quick-start) · [Documentation](docs/index.md) · [Architecture](docs/architecture.md) · [Contributing](CONTRIBUTING.md)
+[See it work](#see-it-work) · [Quick start](#quick-start) · [Choose a runner](#choose-a-runner) · [Documentation](docs/index.md)
 
 </div>
 
-## Pick up where you left off
+Send a task from your phone, follow up in the same thread, and inspect the result when it finishes.
+The machine runs the coding CLI; Discord carries the conversation.
 
-Open a private Discord forum thread, send a task, and let your own Linux machine do the work.
-Follow-ups resume that thread's stored Codex session. Instructions, notes, and transcripts live
-in Markdown you can read, edit, and back up yourself.
+Your phone can go back in your pocket.
 
-When a process times out or the host restarts, the engine keeps the interrupted job visible.
-You inspect the saved result and choose when to recover. It never automatically replays an
-interrupted job.
+## See it work
 
-## What it does
+These captures show the **real Engine and Store running locally with synthetic messages,
+transport and runner responses**. They are documentation views of actual offline output,
+not screenshots of a connected Discord account or live model results. Text transcripts and
+[reproduction instructions](docs/demo.md) are included.
 
-- **Keeps conversations continuous.** Each Discord thread maps to its own stored Codex session.
-- **Records accepted work.** SQLite WAL, unique message IDs, bounded queues, and atomic claims.
-- **Continues bounded goals.** `!work 30m <goal>` saves typed checkpoints and continues the same session, yielding to other threads between steps.
-- **Makes recovery explicit.** Interrupted and failed turns block that conversation until you act.
-- **Explains waiting work.** `!status` shows queue activity, blocked threads, and uncertain result delivery.
-- **Checks setup locally.** `npm run doctor` reports configuration and filesystem problems without contacting Discord.
-- **Checks deployment identity.** Intake is limited to the configured owner, guild, bot identity, and private forum.
-- **Keeps memory readable.** Selected Markdown is committed locally in a separate private Git workspace.
-- **Repairs delayed exports.** Durable transcript and memory retries survive restarts without rerunning the model.
-- **Protects upgrades.** Versioned SQLite migration and verified, no-overwrite state snapshots retain existing sessions and results.
-- **Adds browsing when you need it.** An optional Camoufox bridge exposes browser tools over local stdio MCP.
+### Follow up without starting over
 
-The public edition runs **one global worker** with text-only intake, bounded work sessions and manual recovery of uncertain turns.
-It has no message-history catch-up after a full outage, scheduler, or built-in publication broker.
-This is a small, inspectable engine for one owner.
+A second message resumes the saved session. A separate thread gets a separate session.
+
+![Offline demonstration of a follow-up preserving its session and another thread receiving a separate session](assets/screenshots/session.png)
+
+### Inspect an interruption before continuing
+
+A failed turn remains visible. Queued follow-ups wait; the owner chooses recovery explicitly.
+A delivery retry does not rerun the model.
+
+![Offline demonstration of saved failure state, a blocked follow-up and explicit recovery](assets/screenshots/recovery.png)
+
+“Queued” is a state, not an optimistic progress report.
+
+### Keep the runner attached to the conversation
+
+Choose a default for new threads. Existing conversations keep their provider and session,
+while unavailable providers do not block eligible work for others.
+
+![Offline demonstration of provider-bound conversations and independent readiness](assets/screenshots/providers.png)
+
+## What belongs in a thread?
+
+| Task                         | Example message                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| Investigate a failure        | `Reproduce the failing parser test, explain the cause, and prepare a focused fix.`    |
+| Build in bounded steps       | `!work 30m Add CSV export to the fixture app. Include tests and document the format.` |
+| Research before implementing | `Compare these two API designs. Save the trade-offs before changing code.`            |
+
+Access to repositories, browsers and external services comes from your own CLI and MCP
+configuration. The engine does not provide model access or accounts.
+
+## What the engine handles
+
+- **Continuity:** one provider-bound CLI session per Discord thread; private Markdown instructions and notes.
+- **Durable intake:** SQLite WAL, deduplicated message IDs, bounded queues and atomic claims.
+- **Bounded work:** typed checkpoints, active execution budgets and fair turns between threads.
+- **Honest recovery:** interrupted work remains visible; uncertain actions are never replayed automatically.
+- **Delivery and maintenance:** result receipts, transcript exports and scoped local Git commits have separate durable state.
+- **Deployment checks:** owner/forum authorization, local diagnostics, versioned migrations and verified state snapshots.
+
+The public edition has **one global worker**. Work sessions yield between verified steps;
+they do not interrupt a running step. There is no built-in scheduler, publication broker,
+attachment intake or message-history catch-up after an outage.
+
+## Choose a runner
+
+| Runner                         | CLI requirement | Where it runs                                                        |
+| ------------------------------ | --------------- | -------------------------------------------------------------------- |
+| **Codex** — default            | 0.166.0         | Linux host or the published Docker image                             |
+| **Claude Code** — experimental | >=2.1.285, <3   | Linux host with restricted mode and mandatory native Bash sandboxing |
+| **OpenCode** — experimental    | 1.19.5          | Operator-isolated Linux host; explicit host execution opt-in         |
+
+```sh
+SZPONT_RUNNER=codex     # or claude / opencode
+```
+
+This selects the default for **new conversations**. Existing threads and recovered jobs retain
+their original runner. The engine never switches tools after an authentication or model failure.
+Upstream CLI model aliases and provider fallback policies can still apply.
+
+The Docker image packages **Codex only**. Claude Code and OpenCode have different execution
+boundaries and private login paths; see [runner setup](docs/runners.md). Their protocol tests
+are offline; live account and host-boundary acceptance remain deployment checks.
 
 ## How it fits together
 
@@ -53,50 +103,50 @@ flowchart LR
     Discord["Private Discord thread"] --> Guard["Owner + forum checks"]
     Guard --> Queue[(SQLite queue)]
     Queue --> Worker["One worker"]
-    Worker --> Codex["Codex CLI session"]
-    Codex <--> Memory["Private Markdown + Git"]
-    Codex -. "optional local MCP" .-> Browser["Camoufox"]
+    Worker --> Runner["Provider adapter"]
+    Runner --> Codex["Codex"]
+    Runner --> Claude["Claude Code"]
+    Runner --> OpenCode["OpenCode"]
+    Runner <--> Memory["Private Markdown + Git"]
+    Runner -. "optional MCP" .-> Browser["Camoufox"]
     Worker --> Result["Saved result + delivery state"]
     Result --> Discord
 ```
 
-Execution state and notification delivery are recorded separately. A completed local turn does
-not prove an external website action succeeded. Read the [architecture](docs/architecture.md)
-for state transitions, session handling, and recovery boundaries.
+Execution, notification delivery and external effects are separate facts.
+A successful local turn does not prove a deployment, post or website action succeeded.
+[Architecture](docs/architecture.md) covers the state transitions and recovery contract.
 
 ## Quick start
 
-Prefer containers? The [Docker guide](docs/docker.md) provides a non-root image, private volumes,
-and an offline sandbox check. [Releases](docs/releases.md) cover version tags and immutable image digests.
+You need Linux, **Node.js 24.x**, Git, `flock`, your own Discord bot and an authenticated runner.
+The default path below uses Codex CLI **0.166.0**.
+For containers, start with the [Docker guide](docs/docker.md).
 
-You need Linux, **Node.js 24.x**, Git, `flock`, and an authenticated Codex CLI. The process
-adapter targets **Codex CLI 0.166.0** and its JSON event format. Configure your own model/account
-access; the MIT license covers this source, not inference or third-party services.
-
-### 1. Install and check the engine
+### 1. Install and try the offline demo
 
 ```sh
 git clone https://github.com/dalkedev/szpont-engine.git
 cd szpont-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
-npm test
+npm run build
+npm run demo -- session
 ```
 
-`npm test` builds the TypeScript engine and runs its offline checks without model calls or
-account actions.
+The demo uses synthetic data and needs no Discord token or model account.
+Run `npm test` for the offline regression suite.
 
-### 2. Create your private workspace
+### 2. Create a private workspace
 
 ```sh
 npm run init:workspace -- "$HOME/.local/share/szpont/workspace"
 ```
 
-The initializer creates a new private Git workspace **outside this checkout** and refuses to
-overwrite an existing directory. Edit its `agent/USER.md` and `agent/POLICY.md` before use.
+The initializer creates an independent Git workspace **outside this checkout** and refuses to
+overwrite an existing directory. Edit `agent/USER.md` and `agent/POLICY.md` before use.
 
-Create your own Discord application and bot, enable Message Content Intent, and choose a
-private forum in a server you own. Follow [configuration](docs/configuration.md) for identities,
-permissions, paths, and Codex setup.
+Create a Discord bot, enable Message Content Intent, and select a private forum in a server
+you own. Follow [configuration](docs/configuration.md) for identities and effective permissions.
 
 ### 3. Configure and start one instance
 
@@ -106,8 +156,8 @@ cp .env.example "$HOME/.config/szpont/agent.env"
 chmod 600 "$HOME/.config/szpont/agent.env"
 ```
 
-Edit that private file: replace every placeholder and set absolute paths. The engine does not
-load `.env` automatically. Load only your own trusted configuration, then start it:
+Replace every placeholder and set absolute private paths. The engine does not load `.env`
+automatically. Load only your trusted configuration:
 
 ```sh
 set -a
@@ -120,75 +170,89 @@ npm run doctor -- --check-login
 flock -n -E 75 "$SZPONT_STATE_DIR/engine.lock" npm --prefix apps/discord-agent start
 ```
 
-The lock must be held before startup recovery. Send a harmless task in a new private forum
-thread to check your installation. Offline tests do not verify Discord permissions, model
-access, or browser login. See [deployment](docs/deployment.md) for unattended hosting and
-the [optional browser guide](packages/browser/README.md) for Camoufox setup.
+Hold the lock before startup recovery. Send a harmless task in a new private thread to verify
+your installation. Offline tests do not establish real Discord permissions, model entitlement
+or browser login. See [deployment](docs/deployment.md) for service setup and
+[runner setup](docs/runners.md) for Claude Code and OpenCode.
 
-## Use it from Discord
+## Discord commands
 
-| Input                 | Effect                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------- |
-| A normal message      | Queue a task and continue this thread's session                                       |
-| `!work 30m <goal>`    | Continue a bounded goal across verified steps; 1–120 active minutes, at most 32 steps |
-| `!help`               | Show commands without starting a task                                                 |
-| `!status`             | Show queue activity, authentication, blocked work, and delivery state                 |
-| `!cancel MESSAGE_ID`  | Cancel queued work or interrupt a running task in this thread                         |
-| `!recover MESSAGE_ID` | Queue deliberate recovery of a failed or interrupted task                             |
-| `!new-session`        | Cancel queued work, keep history, and start a fresh session on the next message       |
-| `!result MESSAGE_ID`  | Read the stored result without rerunning work                                         |
+| Input                  | Effect                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| A normal message       | Queue a task in this thread's saved session                                              |
+| `!work 30m <goal>`     | Continue a fixed goal with checkpoints; 1–120 active minutes, at most 32 completed steps |
+| `!status`              | Inspect this thread's queue, readiness, work session and delivery state                  |
+| `!cancel MESSAGE_ID`   | Cancel queued work or stop this thread's active process                                  |
+| `!recover MESSAGE_ID`  | Inspect prior actions and deliberately continue failed or interrupted work               |
+| `!new-session`         | Cancel queued work and clear the session; retain the provider binding and history        |
+| `!result [MESSAGE_ID]` | Read a saved response without rerunning work; latest task by default                     |
+| `!help`                | Show commands without starting a model                                                   |
 
-Attachments are rejected. Messages sent during a long outage may never have entered the queue;
-use `!status` to inspect what was actually accepted.
-Unknown commands and invalid command arguments show usage instead of becoming model tasks.
-For setup failures, run the [local doctor](docs/doctor.md); it does not create directories or repair state.
+Messages received during a full outage may never have entered the queue. Use `!status` to check
+what was accepted. Invalid commands show usage rather than becoming model tasks.
 
-Work sessions use a fixed goal and an active execution budget. Verified checkpoints yield to
-other threads; ordinary follow-ups in the same thread wait until that work session ends.
-A verified budget pause keeps the session available for a fresh explicit `!work` budget.
-Crashes, timeouts and malformed outcomes require inspection and manual recovery. Read the
-[work session guide](docs/work-sessions.md) for examples and exact stop conditions.
+A verified work-session pause retains its session and checkpoint. A fresh explicit `!work`
+budget can continue it. Crashes, timeouts and malformed outcomes require inspection and manual
+recovery. See [work sessions](docs/work-sessions.md).
 
-Before upgrading from 0.2, make a [state backup](docs/state-backups.md). Version 0.3 introduces
-schema version 1; rolling back to older code requires restoring its compatible pre-upgrade state.
-The [1.0 roadmap](ROADMAP.md) lists the remaining stability gates.
-
-## Keep source public and memory private
+## Public code. Private memory.
 
 ```text
 szpont-engine/                 # Public source and synthetic templates
 ~/.config/szpont/agent.env     # Private credentials and deployment IDs
 ~/.local/share/szpont/
-  workspace/                  # Private instructions, notes, transcripts, and Git history
-  state/                      # SQLite queue and session mapping
+  workspace/                  # Instructions, notes, transcripts and Git history
+  state/                      # SQLite queue and provider/session mappings
   codex/                      # Private Codex login and configuration
-  browser/                    # Optional private browser profile
-  artifacts/                  # Private task output
+  browser/                    # Optional browser profile
+  artifacts/                  # Task output
 ```
 
-The engine commits selected Markdown locally; it does not push memory. Never point the private
-workspace's remote at this public repository. Treat transcripts, browser profiles, and generated
-artifacts as private data.
+The engine commits selected Markdown locally; **it does not push memory**. Keep the workspace
+remote separate from this public repository. Treat transcripts, credentials, browser profiles
+and artifacts as private data. Alternative runners have their own private directories.
 
-## Explore the code
+Version **0.4.0 uses SQLite schema 3**. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
+rollback requires compatible state and reconciliation of later actions. Do not point older code
+at a migrated database.
 
-| Path                                                  | Responsibility                                               |
-| ----------------------------------------------------- | ------------------------------------------------------------ |
-| [`config.ts`](apps/discord-agent/src/config.ts)       | Deployment identity, intake authorization, child environment |
-| [`store.ts`](apps/discord-agent/src/store.ts)         | Job state, deduplication, sessions, recovery                 |
-| [`engine.ts`](apps/discord-agent/src/engine.ts)       | Execution and notification lifecycle                         |
-| [`codex.ts`](apps/discord-agent/src/codex.ts)         | Bounded subprocess protocol and cancellation                 |
-| [`workflow.ts`](apps/discord-agent/src/workflow.ts)   | Explicit work budgets, fixed goals and typed checkpoints     |
-| [`workspace.ts`](apps/discord-agent/src/workspace.ts) | Context, transcripts, scoped local memory commits            |
-| [`packages/browser/`](packages/browser/)              | Optional Camoufox MCP tools and offline checks               |
-| [`examples/workspace/`](examples/workspace/)          | Synthetic starting instructions                              |
+## Development
+
+```sh
+npm test
+# Optional browser package, with Python 3.12 and the locked dependencies:
+(cd packages/browser && uv run --locked --offline pytest -q)
+```
+
+The tests use synthetic data and fake CLIs. They exercise queueing, migrations, exact session
+resume, recovery, provider readiness, process limits and checkpoint validation without
+calling a model or posting messages. Container checks additionally exercise the actual Codex
+filesystem sandbox. See [demo and capture tooling](docs/demo.md) to reproduce the gallery.
+
+<details>
+<summary>Source map</summary>
+
+| Path                                                                                                                                                | Responsibility                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [`config.ts`](apps/discord-agent/src/config.ts)                                                                                                     | Configuration, authorization and child environments      |
+| [`engine.ts`](apps/discord-agent/src/engine.ts)                                                                                                     | Execution, maintenance and notification lifecycle        |
+| [`store.ts`](apps/discord-agent/src/store.ts)                                                                                                       | Queue, provider bindings, checkpoints and recovery       |
+| [`runner.ts`](apps/discord-agent/src/runner.ts)                                                                                                     | Explicit dispatch to the recorded provider               |
+| [`codex.ts`](apps/discord-agent/src/codex.ts), [`claude.ts`](apps/discord-agent/src/claude.ts), [`opencode.ts`](apps/discord-agent/src/opencode.ts) | CLI protocols, process bounds and cancellation           |
+| [`workspace.ts`](apps/discord-agent/src/workspace.ts)                                                                                               | Prompt context, transcript export and scoped Git commits |
+| [`packages/browser/`](packages/browser/)                                                                                                            | Optional Camoufox MCP tools and offline checks           |
+| [`examples/workspace/`](examples/workspace/)                                                                                                        | Synthetic workspace templates                            |
+
+</details>
 
 ## Trust and limits
 
-There is no exactly-once guarantee for external services and no automatic replay of ambiguous
-writes. Check the actual destination before recovering work. The configured Codex sandbox,
-host permissions, and service account remain part of the trust boundary. Filtering child
-environments does not isolate processes sharing a Unix user; browser URL checks do not replace
-network isolation. See [security](SECURITY.md) before granting access to real accounts.
+There is no exactly-once guarantee for external services. Inspect the actual destination before
+recovering an uncertain action. Environment filtering does not isolate processes sharing a Unix
+user; browser URL guards do not replace network isolation. Explicit MCP servers remain trusted
+processes. Read [security](SECURITY.md) before granting real account access.
 
-[Documentation](docs/index.md) · [Contributing](CONTRIBUTING.md) · [Brand assets](docs/brand.md) · [MIT license](LICENSE)
+The project is MIT-licensed; model access and third-party services are separate.
+The [road to 1.0](ROADMAP.md) records the remaining stability gates.
+
+[Documentation](docs/index.md) · [Contributing](CONTRIBUTING.md) · [Releases](docs/releases.md) · [Brand assets](docs/brand.md) · [MIT license](LICENSE)

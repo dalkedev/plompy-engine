@@ -2,6 +2,13 @@
 set -eu
 umask 077
 
+# This image only packages and verifies the Codex CLI sandbox. External host
+# adapters need their own binaries, private auth storage and isolation acceptance.
+if [ "${SZPONT_RUNNER:-codex}" != codex ]; then
+  echo "This image supports SZPONT_RUNNER=codex only. See docs/runners.md for experimental host adapters." >&2
+  exit 1
+fi
+
 if [ "$(id -u)" = 0 ]; then
   echo "Refusing to run Szpont Engine as root." >&2
   exit 1

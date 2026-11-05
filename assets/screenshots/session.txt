@@ -1,0 +1,15 @@
+Offline demo · synthetic data · no model calls
+Real Engine + SQLite Store; transport, readiness and agent replies are scripted.
+
+SESSION CONTINUITY
+owner      #feature > Plan one focused change.
+agent      #feature < [synthetic] Plan saved: one focused change.
+state      #feature · succeeded · Codex · session=saved
+owner      #feature > Continue with that plan.
+agent      #feature < [synthetic] Continuing the saved thread session.
+state      #feature · succeeded · Codex · session=saved
+evidence   Follow-up received the exact saved session: true
+owner      #another-task > Start an unrelated task.
+agent      #another-task < [synthetic] This task has its own session.
+state      #another-task · succeeded · Codex · session=saved
+evidence   Different thread owns a separate session: true

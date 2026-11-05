@@ -16,7 +16,9 @@ restart-on-failure, no new privileges, private temporary storage and explicit wr
 Do not copy the author's host units or credentials; deployment paths and permissions are yours.
 This repository does not install a service or modify an existing host.
 
-Authenticate Codex interactively as the service account in its configured `CODEX_HOME`.
+Authenticate the selected runner as the service account in its private configuration
+directory. Codex uses `CODEX_HOME`; see [runners](runners.md) for Claude Code and
+OpenCode installation, auth paths and host isolation requirements.
 Use a harmless local request for acceptance. Verify owner and forum rejection, exact session
 resumption and restart interruption before authorizing real account actions. Never use a
 public post as a smoke test.
@@ -47,4 +49,8 @@ turns block it and require manual recovery with their remaining budget. Export/c
 retry independently; they do not start another model turn. See [work sessions](work-sessions.md).
 
 Do not configure a public remote for private memory. If you add a remote sync bridge, keep its
-credential out of Codex child processes and verify every allowed path and publication destination.
+credential out of model child processes and verify every allowed path and publication destination.
+
+The provider-adapter release advances public SQLite state to schema 3; all legacy
+conversations and jobs retain Codex bindings. Keep a compatible pre-upgrade snapshot
+and every auth directory needed by existing threads. See [runner upgrades](runners.md#bindings-and-upgrades).

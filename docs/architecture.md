@@ -94,3 +94,20 @@ these operations. No remote credential or push implementation is included.
 One worker; one configured server owner; text-only intake; no REST history catch-up; no
 scheduler; no built-in public posting destination or receipt broker. Extending these requires
 explicit authority checks, durable state and regression tests at the new boundary.
+
+## Provider-bound sessions
+
+`runner.ts` dispatches only to the provider stored on a job. New conversation
+bindings are acquired transactionally at intake; every queued job snapshots that
+identity. Schema 3 adds immutable provider columns while preserving the acceptance
+ledger and all existing state. Legacy rows always become Codex. Reset clears a
+session without changing its provider. Recovery retains the original provider.
+
+Readiness is tracked per provider. The one global worker claims only eligible jobs,
+so an unavailable provider does not block other providers. It never retries an
+uncertain turn through another tool or account. Each adapter validates its own
+event stream and exact session ID, bounds subprocess output and time, and requires
+explicit completion evidence. Protocol tests are offline; live account and host
+sandbox acceptance remain separate deployment checks. See [runners](runners.md).
+
+The design trade-offs are recorded in [ADR 0001](decisions/0001-provider-bound-runners.md).
