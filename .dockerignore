@@ -18,6 +18,9 @@
 !scripts/docker-smoke.mjs
 !scripts/docker-sandbox-check.mjs
 !scripts/state-snapshot.mjs
+!scripts/integrations.mjs
+!scripts/integrations/
+!scripts/integrations/**
 !examples/
 !examples/workspace/
 !examples/workspace/**

@@ -6,7 +6,7 @@ image=${1:?Usage: sh scripts/docker-smoke.sh IMAGE}
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 prefix="szpont-smoke-$(date +%s)-$$"
 cleanup() {
-  docker volume rm "$prefix-workspace" "$prefix-state" "$prefix-artifacts" "$prefix-codex" >/dev/null 2>&1 || true
+  docker volume rm "$prefix-workspace" "$prefix-state" "$prefix-artifacts" "$prefix-codex" "$prefix-github" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT HUP INT TERM
 run() {
@@ -23,6 +23,7 @@ run() {
     -v "$prefix-state:/var/lib/szpont/state" \
     -v "$prefix-artifacts:/var/lib/szpont/artifacts" \
     -v "$prefix-codex:/var/lib/szpont/codex" \
+    -v "$prefix-github:/var/lib/szpont/github" \
     "$@"
 }
 run init

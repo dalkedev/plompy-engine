@@ -14,7 +14,7 @@ Useful context stays in a private Markdown workspace.
 [![Node.js 24](https://img.shields.io/badge/Node.js-24-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
 [![MIT license](https://img.shields.io/badge/license-MIT-FF6B35?labelColor=111315)](LICENSE)
 
-[See it work](#see-it-work) · [Quick start](#quick-start) · [Choose a runner](#choose-a-runner) · [Documentation](docs/index.md)
+[See it work](#see-it-work) · [Quick start](#quick-start) · [Choose a runner](#choose-a-runner) · [Integrations](docs/integrations.md) · [Documentation](docs/index.md)
 
 </div>
 
@@ -60,8 +60,9 @@ while unavailable providers do not block eligible work for others.
 | Build in bounded steps       | `!work 30m Add CSV export to the fixture app. Include tests and document the format.` |
 | Research before implementing | `Compare these two API designs. Save the trade-offs before changing code.`            |
 
-Access to repositories, browsers and external services comes from your own CLI and MCP
-configuration. The engine does not provide model access or accounts.
+Choose repository, browser and documentation tools with `npm run integrations`.
+The menu prepares your own CLI and explicit MCP configuration; the engine does
+not provide model access or accounts. See [integration setup](docs/integrations.md).
 
 ## What the engine handles
 
@@ -73,8 +74,8 @@ configuration. The engine does not provide model access or accounts.
 - **Deployment checks:** owner/forum authorization, local diagnostics, versioned migrations and verified state snapshots.
 
 The public edition has **one global worker**. Work sessions yield between verified steps;
-they do not interrupt a running step. There is no built-in scheduler, publication broker,
-attachment intake or message-history catch-up after an outage.
+they do not interrupt a running step. There is no built-in scheduler, publication broker
+or message-history catch-up after an outage. Still-image input is available for Codex.
 
 ## Choose a runner
 
@@ -175,6 +176,27 @@ your installation. Offline tests do not establish real Discord permissions, mode
 or browser login. See [deployment](docs/deployment.md) for service setup and
 [runner setup](docs/runners.md) for Claude Code and OpenCode.
 
+### 4. Choose integrations
+
+With the engine stopped and the same private configuration loaded:
+
+```sh
+npm run integrations
+# Or configure explicitly:
+npm run integrations -- add github --yes
+npm run integrations -- login github
+npm run integrations -- add openai-docs --yes
+npm run integrations -- status
+```
+
+The catalog includes GitHub CLI, the optional Camoufox bridge, OpenAI Docs,
+Context7 and a custom MCP server. Setup adds maintained usage playbooks to your
+private `agent/INTEGRATIONS.md`; it does not download a collection of skills or
+import personal credentials. Camoufox needs a separately provisioned Linux host
+browser/display. See [integration setup](docs/integrations.md) for Docker builds,
+runner-specific configuration, removal and the difference between configuration
+and a live acceptance check.
+
 ## Discord commands
 
 | Input                  | Effect                                                                                   |
@@ -246,6 +268,7 @@ filesystem sandbox. See [demo and capture tooling](docs/demo.md) to reproduce th
 | [`runner.ts`](apps/discord-agent/src/runner.ts)                                                                                                     | Explicit dispatch to the recorded provider               |
 | [`codex.ts`](apps/discord-agent/src/codex.ts), [`claude.ts`](apps/discord-agent/src/claude.ts), [`opencode.ts`](apps/discord-agent/src/opencode.ts) | CLI protocols, process bounds and cancellation           |
 | [`workspace.ts`](apps/discord-agent/src/workspace.ts)                                                                                               | Prompt context, transcript export and scoped Git commits |
+| [`scripts/integrations.mjs`](scripts/integrations.mjs)                                                                                               | Local integration setup, managed configuration and playbooks |
 | [`packages/browser/`](packages/browser/)                                                                                                            | Optional Camoufox MCP tools and offline checks           |
 | [`examples/workspace/`](examples/workspace/)                                                                                                        | Synthetic workspace templates                            |
 

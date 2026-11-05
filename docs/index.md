@@ -21,6 +21,7 @@ Discord bot and server, Codex authentication, and model/account access.
 | [Deployment](deployment.md)        | Linux hosting, the singleton lock, private state, backups, acceptance checks                  |
 | [Docker](docker.md)                | Non-root container setup, sandbox prerequisites, private volumes, offline smoke test          |
 | [Doctor](doctor.md)                | Read-only local configuration and filesystem diagnostics                                      |
+| [Integrations](integrations.md) | CLI setup for GitHub, Camoufox, documentation tools and trusted MCP servers |
 | [Releases](releases.md)            | Versioned images, verification gates, upgrades, and rollback                                  |
 | [Security](../SECURITY.md)         | Trust boundaries, credential handling, sensitive reports                                      |
 | [Contributing](../CONTRIBUTING.md) | Local checks, test expectations, pull request guidance                                        |

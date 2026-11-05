@@ -41,6 +41,15 @@ assert.equal(
   execFileSync("codex", ["--version"], { encoding: "utf8" }).trim(),
   "codex-cli 0.166.0",
 );
+assert.match(
+  execFileSync("gh", ["--version"], { encoding: "utf8", timeout: 10_000 }),
+  /^gh version /,
+);
+assert.equal(process.env.GH_CONFIG_DIR, "/var/lib/szpont/github");
+assert.equal((await stat(process.env.GH_CONFIG_DIR)).mode & 0o777, 0o700);
+await assert.rejects(access(join(process.env.GH_CONFIG_DIR, "hosts.yml")), {
+  code: "ENOENT",
+});
 const adapterFlags = [
   "--no-daemon",
   "-C",
@@ -157,6 +166,28 @@ const policy = await readFile(
 assert.ok(policy.length > 0, "synthetic workspace policy must be initialized");
 assert.equal((await stat(process.env.SZPONT_WORKSPACE)).mode & 0o777, 0o700);
 
+// Exercise the actual packaged CLI with network disabled. Registration must
+// configure the remote server without initiating OAuth discovery or a model.
+const configure = (args) =>
+  execFileSync(
+    "/opt/szpont/scripts/docker-entrypoint.sh",
+    ["integrations", ...args],
+    { encoding: "utf8", timeout: 20_000 },
+  );
+const integrations = JSON.parse(configure(["list", "--json"]));
+assert.equal(integrations.length, 5);
+assert.match(configure(["add", "openai-docs", "--yes"]), /Configured/);
+const configured = JSON.parse(configure(["status", "openai-docs", "--json"]));
+assert.equal(configured.integrations[0].status, "configured");
+assert.match(configure(["remove", "openai-docs", "--yes"]), /removed/);
+assert.equal(
+  JSON.parse(configure(["status", "--json"])).integrations.length,
+  0,
+);
+await assert.rejects(access(join(process.env.GH_CONFIG_DIR, "hosts.yml")), {
+  code: "ENOENT",
+});
+
 const holder = spawn(
   "flock",
   [
@@ -185,16 +216,18 @@ try {
       );
     }),
   ]);
-  const competing = spawnSync(
-    "/opt/szpont/scripts/docker-entrypoint.sh",
-    ["init"],
-    { timeout: 3000 },
-  );
-  assert.equal(
-    competing.status,
-    75,
-    "a competing entrypoint must stop at the state lock",
-  );
+  for (const command of [["init"], ["integrations", "status"]]) {
+    const competing = spawnSync(
+      "/opt/szpont/scripts/docker-entrypoint.sh",
+      command,
+      { timeout: 3000 },
+    );
+    assert.equal(
+      competing.status,
+      75,
+      "a competing entrypoint must stop at the state lock",
+    );
+  }
 } finally {
   clearTimeout(timer);
   if (holder.exitCode === null && holder.signalCode === null) {

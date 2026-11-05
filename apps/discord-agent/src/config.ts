@@ -1,4 +1,4 @@
-import { isAbsolute, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 export const SNOWFLAKE = /^\d{17,20}$/;
 export const SESSION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -24,6 +24,7 @@ export interface Config {
   browserDir: string;
   codexBin: string;
   timeoutMs: number;
+  githubConfigDir?: string;
   provider?: ProviderId;
   claudeBin?: string;
   claudeHome?: string;
@@ -117,19 +118,32 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     timeoutMs > 3_600_000
   )
     throw new Error("Invalid task timeout");
-  return {
+  const workspace = directory("SZPONT_WORKSPACE");
+  const githubConfigDir =
+    env.GH_CONFIG_DIR === undefined
+      ? resolve(stateDir, "..", "github")
+      : directory("GH_CONFIG_DIR");
+  if (
+    dirname(githubConfigDir) === githubConfigDir ||
+    /[\x00-\x1f\x7f]/.test(githubConfigDir)
+  )
+    throw new Error(
+      "GH_CONFIG_DIR must be a private path outside the workspace",
+    );
+  const config: Config = {
     token: required("DISCORD_BOT_TOKEN"),
     guildId,
     ownerId,
     botId,
     parentId,
-    workspace: directory("SZPONT_WORKSPACE"),
+    workspace,
     stateDir,
     artifactsDir: directory("SZPONT_ARTIFACTS_DIR"),
     codexHome: privatePath("CODEX_HOME", provider === "codex", "codex"),
     browserDir: resolve(env.SZPONT_BROWSER_DIR ?? "/var/lib/szpont/browser"),
     codexBin: setting("SZPONT_CODEX_BIN") ?? "codex",
     timeoutMs,
+    githubConfigDir,
     provider: provider as ProviderId,
     claudeBin: setting("SZPONT_CLAUDE_BIN") ?? "claude",
     claudeHome: privatePath(
@@ -154,6 +168,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       : {}),
     opencodeAllowHostExecution: env.SZPONT_OPENCODE_HOST_EXECUTION === "allow",
   };
+  const overlaps = (left: string, right: string): boolean =>
+    [relative(left, right), relative(right, left)].some(
+      (part) =>
+        part === "" ||
+        (part !== ".." && !part.startsWith(`..${sep}`) && !isAbsolute(part)),
+    );
+  if (
+    [
+      workspace,
+      stateDir,
+      config.codexHome,
+      config.claudeHome,
+      config.opencodeHome,
+    ].some((path) => path && overlaps(path, githubConfigDir))
+  )
+    throw new Error(
+      "GH_CONFIG_DIR must be separate from the workspace, engine state and runner authentication directories",
+    );
+  return config;
 }
 export function childEnvironment(
   config: Config,
@@ -182,6 +215,10 @@ export function childEnvironment(
     SZPONT_WORKSPACE: config.workspace,
     SZPONT_ARTIFACTS_DIR: config.artifactsDir,
     SZPONT_BROWSER_DIR: config.browserDir,
+    // Keep gh away from the service user's implicit ~/.config/gh credentials.
+    // Only the integration setup command authenticates this dedicated directory.
+    GH_CONFIG_DIR:
+      config.githubConfigDir ?? resolve(config.stateDir, "..", "github"),
     NO_COLOR: "1",
     TERM: "dumb",
   };

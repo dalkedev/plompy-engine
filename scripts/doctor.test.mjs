@@ -231,6 +231,9 @@ test("public root aliases and private ancestors of source cannot bypass separati
 
 test("overlapping private directories and relative browser paths are rejected", async (t) => {
   const data = await fixture(t);
+  // Keep the optional integration directory independent while exercising the
+  // doctor's existing state/workspace overlap check.
+  data.env.GH_CONFIG_DIR = join(data.temporary, "private", "github");
   for (const value of [
     data.env.SZPONT_WORKSPACE,
     join(data.env.SZPONT_WORKSPACE, "state"),

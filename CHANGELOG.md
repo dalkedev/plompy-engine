@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add an integration setup CLI with GitHub, Camoufox, OpenAI Docs, Context7 and operator-reviewed MCP servers. Keep account authorization separate from local configuration checks.
+- Give GitHub CLI a dedicated private credential directory and Docker volume; keep parent GitHub tokens out of agent subprocesses.
+- Load bounded, runner-specific integration playbooks on each task. Preserve existing operator instructions and conflicting MCP entries.
+- Exercise the packaged configurator and pinned Codex MCP configuration offline, without model calls, account actions or a browser download.
+
 ## 0.5.0 — 2026-11-05
 
 ### Discord image input

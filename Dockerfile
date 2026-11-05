@@ -18,17 +18,18 @@ LABEL org.opencontainers.image.title="Szpont Engine" \
       org.opencontainers.image.version=$VERSION \
       org.opencontainers.image.revision=$REVISION
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates git ripgrep tini util-linux \
+    && apt-get install -y --no-install-recommends ca-certificates git gh ripgrep tini util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && npm install --prefix /opt/codex --omit=dev --ignore-scripts --no-audit --no-fund @openai/codex@0.166.0 \
     && npm cache clean --force \
     && ln -s /opt/codex/node_modules/.bin/codex /usr/local/bin/codex \
     && codex --version \
-    && install -d -m 0700 -o node -g node /var/lib/szpont/workspace /var/lib/szpont/state /var/lib/szpont/artifacts /var/lib/szpont/codex
+    && install -d -m 0700 -o node -g node /var/lib/szpont/workspace /var/lib/szpont/state /var/lib/szpont/artifacts /var/lib/szpont/codex /var/lib/szpont/github
 ENV NODE_ENV=production \
     HOME=/tmp/szpont-home \
     XDG_CACHE_HOME=/tmp/szpont-cache \
     CODEX_HOME=/var/lib/szpont/codex \
+    GH_CONFIG_DIR=/var/lib/szpont/github \
     SZPONT_WORKSPACE=/var/lib/szpont/workspace/current \
     SZPONT_STATE_DIR=/var/lib/szpont/state \
     SZPONT_ARTIFACTS_DIR=/var/lib/szpont/artifacts \
@@ -39,7 +40,8 @@ COPY --from=build /build/package.json ./apps/discord-agent/package.json
 COPY --from=build /build/dist ./apps/discord-agent/dist
 COPY apps/discord-agent/schemas ./apps/discord-agent/schemas
 COPY --from=build /build/node_modules ./apps/discord-agent/node_modules
-COPY scripts/init-workspace.mjs scripts/docker-smoke.mjs scripts/docker-sandbox-check.mjs scripts/state-snapshot.mjs ./scripts/
+COPY scripts/init-workspace.mjs scripts/docker-smoke.mjs scripts/docker-sandbox-check.mjs scripts/state-snapshot.mjs scripts/integrations.mjs ./scripts/
+COPY scripts/integrations ./scripts/integrations
 COPY --chmod=0755 scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 COPY examples/workspace ./examples/workspace
 COPY LICENSE ./LICENSE
