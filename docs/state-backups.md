@@ -5,7 +5,7 @@ committed WAL pages. It opens the source read-only, verifies database integrity 
 foreign keys, and publishes a complete standalone database at a **new** path. No bot
 token, engine configuration, Discord connection or model call is needed.
 
-The tool supports legacy schema 0 and schema 1. It does not migrate either one, and
+The tool supports legacy schemas 0 and 1, and current public schema 2. It does not migrate them, and
 refuses a newer schema. Both `backup` and `restore` preserve jobs, sessions, workflow
 checkpoints, notification receipts and pending transcript/memory effects.
 
@@ -20,7 +20,7 @@ permissions on existing directories. For example, with an already owned `/srv/sz
 install -d -m 700 /srv/szpont/backups
 node /absolute/source/scripts/state-snapshot.mjs backup \
   --source /srv/szpont/state/agent.sqlite \
-  --destination /srv/szpont/backups/pre-0.3.0.sqlite
+  --destination /srv/szpont/backups/pre-0.3.1.sqlite
 ```
 
 The engine may keep running during an online backup. SQLite copies a consistent
@@ -48,7 +48,7 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
    ```sh
    install -d -m 700 /srv/szpont/restored-state
    node /absolute/source/scripts/state-snapshot.mjs restore \
-     --source /srv/szpont/backups/pre-0.3.0.sqlite \
+     --source /srv/szpont/backups/pre-0.3.1.sqlite \
      --destination /srv/szpont/restored-state/agent.sqlite
    ```
 
@@ -62,8 +62,8 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
    Configure the matching private workspace separately. Keep only one engine instance.
    With Docker, use a separately restored state volume and stop the previous container
    before switching; a host path example is not a command to modify a container volume.
-5. Start the chosen engine version under its instance lock. Version 0.3 migrates a
-   legacy schema 0 database to schema 1 at startup. Inspect `!status`, interrupted jobs,
+5. Start the chosen engine version under its instance lock. Version 0.3.1 migrates
+   public schema 0 or 1 to schema 2 at startup. Inspect `!status`, interrupted jobs,
    workflow checkpoints and maintenance health. Recover uncertain work only after
    reconciling its action receipts; restoration itself never resumes a job.
 
@@ -72,6 +72,13 @@ database and never starts the engine, changes service configuration, alters queu
 statuses, resets a session or grants permission to repeat an action.
 
 ## Upgrade and rollback
+
+Version 0.3.1 adds an immutable acceptance ledger and migrates public schema 1 to 2.
+Keep a verified pre-upgrade snapshot and matching workspace before starting it.
+The 0.3.0 engine rejects schema 2; rolling back requires restoring its schema 1
+snapshot into a new state directory, reconciling intervening work, then switching
+the matching binary and workspace together. Public and private runtime databases
+are not interchangeable: the public engine rejects private lane/publication state.
 
 Before upgrading from 0.2, retain a verified **schema 0** snapshot and a matching private
 workspace checkpoint. Version 0.3 adds durable workflows, effect generations and queue

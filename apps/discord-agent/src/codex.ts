@@ -179,7 +179,9 @@ export function runCodex(
         }
       }
       if (e.type === "turn.completed") completed = true;
-      if (e.type === "turn.failed" || e.type === "error")
+      // Graceful shutdown diagnostics cannot replace the guard that stopped
+      // this process, especially timeout/cancellation used by recovery policy.
+      if (!error && (e.type === "turn.failed" || e.type === "error"))
         error = "codex_turn_failed";
     };
     child.stdout.on("data", (data: Buffer) => {
@@ -206,7 +208,7 @@ export function runCodex(
       if (stderrBytes > 256 * 1024) stop("stderr_limit");
     });
     child.once("error", () => {
-      error = "codex_process_unavailable";
+      error ??= "codex_process_unavailable";
       finish(false);
     });
     child.once("close", (code) => {

@@ -23,6 +23,11 @@ all available time. The engine stops when the fixed goal is complete or blocked.
 5. A valid `continue` checkpoint returns the same parent job to the queue tail. Other eligible
    threads get a turn; later messages in this thread cannot overtake its active work session.
 
+Since 0.3.1, a durable acceptance sequence orders jobs within a thread independently of
+wall-clock timestamps and the mutable queue position used for fair yielding. Migrated
+legacy jobs retain the previous `(created_at,id)` order: historical intake order cannot
+be reconstructed when the old database did not record it.
+
 The queue is serialized because the workspace, Git index and optional browser profile are
 shared. A long individual step still holds the worker until it finishes or times out. This is
 fairness between completed steps, not preemption or parallel execution.
@@ -35,7 +40,8 @@ evidence a person can review.
 ## Budgets and stop conditions
 
 Only elapsed Codex execution consumes the budget. Queue, authentication, transcript export and
-memory commit waits do not. Each subprocess is capped by both the configured task timeout and
+memory commit waits do not. Elapsed execution uses a monotonic process clock; system clock
+corrections do not change the charge. Each subprocess is capped by both the configured task timeout and
 remaining work budget. This does not promise a wall-clock completion deadline or a token/cost
 limit; the configured account's usage allowance remains separate.
 
