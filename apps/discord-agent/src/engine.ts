@@ -8,7 +8,18 @@ import {
   type ProviderId,
 } from "./config.js";
 import { assemblePrompt, saveTranscript, syncMemory } from "./workspace.js";
-import { runnerReady, runTurn, type TurnResult } from "./runner.js";
+import {
+  downloadImages,
+  materializeImages,
+  type SavedImage,
+} from "./images.js";
+import {
+  runnerReady,
+  runTurn,
+  supportsImages,
+  type RunnerOptions,
+  type TurnResult,
+} from "./runner.js";
 import { Store, type Job } from "./store.js";
 import { COMMAND_HELP, providerLabel, threadStatus } from "./status.js";
 import {
@@ -28,10 +39,11 @@ export interface Dependencies {
     session: string | null,
     onSession: (id: string) => void,
     signal: AbortSignal,
-    options?: { workflow?: boolean },
+    options?: RunnerOptions,
   ) => Promise<TurnResult>;
   persist: (config: Config, store: Store, threadId: string) => Promise<void>;
   sync: (config: Config, id: string) => Promise<string>;
+  fetchImage?: typeof fetch;
   now?: () => number;
   /** Process-local elapsed time, independent of wall-clock timestamps. */
   monotonicNow?: () => number;
@@ -52,6 +64,9 @@ const commandUsage = new Map([
 ]);
 export class Engine {
   private busy = false;
+  private intakePending = 0;
+  private intakeAbort = new AbortController();
+  private accepting: Promise<unknown> = Promise.resolve();
   private completion: Promise<void> | undefined;
   private stopping = false;
   private active: Job | undefined;
@@ -105,9 +120,50 @@ export class Engine {
       .map(([provider]) => provider);
   }
   async accept(message: Incoming): Promise<boolean> {
-    if (!authorized(message, this.config)) return false;
+    if (this.stopping || !authorized(message, this.config)) return false;
+    this.intakePending++;
+    // Image download is asynchronous. Preserve intake order and bound concurrent
+    // download memory to one authorized batch per engine.
+    const pending = this.accepting.then(() => this.acceptAuthorized(message));
+    this.accepting = pending.catch(() => {});
+    try {
+      return await pending;
+    } finally {
+      this.intakePending--;
+    }
+  }
+  private async acceptAuthorized(message: Incoming): Promise<boolean> {
+    if (this.stopping) return false;
+    if (this.store.get(message.id)) return true;
     const text = message.content.trim(),
       thread = message.channelId;
+    const hasImages = message.attachments > 0;
+    if (hasImages && !supportsImages(this.providerFor(thread))) {
+      if (this.store.controlOnce(message.id))
+        await this.notice(
+          thread,
+          `${providerLabel(this.providerFor(thread))} image input is not supported by this adapter. No images were downloaded and nothing was queued. Use a Codex thread or send a text-only request.`,
+        );
+      return true;
+    }
+    if (hasImages && text.startsWith("!") && !/^!work(?:\s|$)/.test(text)) {
+      if (this.store.controlOnce(message.id))
+        await this.notice(
+          thread,
+          "Commands cannot include attachments. Nothing was queued; send the command alone or attach images to a normal message or !work goal.",
+        );
+      return true;
+    }
+    const images = async (): Promise<SavedImage[]> =>
+      hasImages
+        ? downloadImages(
+            message.images!,
+            thread,
+            this.deps.fetchImage,
+            this.intakeAbort.signal,
+            this.config.parentId,
+          )
+        : [];
     if (/^!work(?:\s|$)/.test(text)) {
       if (!this.store.controlOnce(message.id)) return true;
       let request;
@@ -130,11 +186,12 @@ export class Engine {
             request.budgetMs,
             32,
             this.config.provider ?? "codex",
+            await images(),
           );
         } catch {
           await this.notice(
             thread,
-            "Cannot queue this work session. Use !status to check this thread and queue capacity. Nothing was queued.",
+            "Cannot queue this work session. Check queue capacity and attachments: use up to 4 PNG, JPEG or WebP images, at most 8 MiB each and 20 MiB total. Nothing was queued.",
           );
           return true;
         }
@@ -259,7 +316,12 @@ export class Engine {
         );
       return true;
     }
-    const prompt = redact(message.content, this.config.token);
+    const prompt = redact(
+      message.content.trim()
+        ? message.content
+        : "Please inspect the attached image(s).",
+      this.config.token,
+    );
     let inserted: boolean;
     try {
       inserted = this.store.enqueue(
@@ -268,11 +330,12 @@ export class Engine {
         prompt,
         null,
         this.config.provider ?? "codex",
+        await images(),
       );
     } catch {
       await this.notice(
         thread,
-        "Queue is full. Wait for current tasks to finish.",
+        "Cannot queue this message. Check queue capacity and attachments: use up to 4 PNG, JPEG or WebP images, at most 8 MiB each and 20 MiB total. Nothing was queued.",
       );
       return true;
     }
@@ -370,6 +433,9 @@ export class Engine {
         this.active = job;
         this.abort = new AbortController();
         let typing: NodeJS.Timeout | undefined;
+        let imageFiles:
+          | Awaited<ReturnType<typeof materializeImages>>
+          | undefined;
         let spent = 0;
         let started: number | undefined;
         let committed = false;
@@ -394,6 +460,15 @@ export class Engine {
               lastSummary: workflow.last_summary,
               nextAction: workflow.next_action,
             });
+          const savedImages = this.store.images(job.id);
+          if (savedImages.length) {
+            if (!supportsImages(job.provider))
+              throw new Error("unsupported image input");
+            imageFiles = await materializeImages(
+              this.config.stateDir,
+              savedImages,
+            );
+          }
           started = this.monotonicNow();
           const result = await this.deps.run(
             workflow
@@ -409,7 +484,10 @@ export class Engine {
             this.store.session(job.thread_id),
             (id) => this.store.setSession(job!.thread_id, id, job!.provider),
             this.abort.signal,
-            workflow ? { workflow: true } : undefined,
+            {
+              ...(workflow ? { workflow: true } : {}),
+              ...(imageFiles ? { images: imageFiles.paths } : {}),
+            },
           );
           spent = this.executionSpent(started);
           started = undefined;
@@ -466,6 +544,11 @@ export class Engine {
             );
         } finally {
           if (typing) clearInterval(typing);
+          await imageFiles?.cleanup().catch(() => {
+            console.log(
+              JSON.stringify({ event: "image_cleanup", status: "failed" }),
+            );
+          });
           this.abort = undefined;
           this.active = undefined;
         }
@@ -508,9 +591,10 @@ export class Engine {
   }
   stop(): void {
     this.stopping = true;
+    this.intakeAbort.abort();
     this.abort?.abort();
   }
   isBusy(): boolean {
-    return this.busy;
+    return this.busy || this.intakePending > 0;
   }
 }

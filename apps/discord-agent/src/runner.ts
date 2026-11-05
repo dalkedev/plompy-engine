@@ -11,6 +11,11 @@ export interface TurnResult {
 }
 export interface RunnerOptions {
   workflow?: boolean;
+  images?: readonly string[];
+}
+
+export function supportsImages(provider: Config["provider"]): boolean {
+  return (provider ?? "codex") === "codex";
 }
 
 // Dispatch only to the persisted provider. Errors never trigger another runner.
@@ -32,6 +37,13 @@ export function runTurn(
   signal?: AbortSignal,
   options: RunnerOptions = {},
 ): Promise<TurnResult> {
+  if (options.images?.length && !supportsImages(config.provider))
+    return Promise.resolve({
+      ok: false,
+      output: "",
+      error: "unsupported_image_input",
+      sessionId,
+    });
   switch (config.provider ?? "codex") {
     case "codex":
       return runCodex(config, prompt, sessionId, onSession, signal, options);

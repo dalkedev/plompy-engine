@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { imageDigest } from "../apps/discord-agent/dist/images.js";
 import { Store, SCHEMA_VERSION } from "../apps/discord-agent/dist/store.js";
 import {
   MAX_SCHEMA_VERSION,
@@ -456,4 +457,53 @@ test("schema 3 backup and restore preserve non-Codex binding, session identity a
   } finally {
     reopened.close();
   }
+});
+
+test("schema 4 backup and restore preserve image bytes across interrupted-job recovery", async (t) => {
+  const f = await fixture(t);
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWZkAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const recovered = "123456789012345680";
+  const image = { mediaType: "image/png", sha256: imageDigest(png), data: png };
+  const store = new Store(f.source);
+  try {
+    store.enqueue(job, thread, "Synthetic image request", null, "codex", [
+      image,
+    ]);
+    store.claim();
+    store.setSession(thread, session);
+    store.finish(job, "interrupted", "", "synthetic_interruption");
+    store.recover(job, thread, recovered);
+    const report = await snapshotState({ operation: "backup", ...f });
+    assert.equal(report.schemaVersion, 4);
+    const restored = join(f.directory, "restored-images.sqlite");
+    await snapshotState({
+      operation: "restore",
+      source: f.destination,
+      destination: restored,
+    });
+    const reopened = new Store(restored);
+    try {
+      assert.equal(reopened.get(recovered).recovery_of, job);
+      assert.equal(reopened.get(recovered).status, "queued");
+      assert.equal(reopened.session(thread), session);
+      for (const jobId of [job, recovered]) {
+        const [copy] = reopened.images(jobId);
+        assert.deepEqual(Buffer.from(copy.data), png);
+        assert.equal(copy.sha256, image.sha256);
+        assert.equal(copy.mediaType, "image/png");
+      }
+      assert.deepEqual(
+        reopened.db.prepare("PRAGMA foreign_key_check").all(),
+        [],
+      );
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    store.close();
+  }
+  await noStaging(f.directory);
 });

@@ -6,11 +6,11 @@ Linux host integrations: their protocol tests use synthetic CLIs, not real accou
 The published Docker image packages and verifies **Codex only**; it refuses a
 non-Codex `SZPONT_RUNNER` rather than pretending another runner has the same sandbox.
 
-| Runner | CLI requirement | Readiness | Execution boundary |
-| --- | --- | --- | --- |
-| `codex` | Codex CLI 0.166.0 | Local `login status` | Existing `workspace-write` sandbox and explicit writable directories |
-| `claude` | Claude Code >=2.1.285, <3 | Version and local `auth status` | Restricted mode, mandatory native Bash sandbox, explicit tools and MCP |
-| `opencode` | OpenCode 1.19.5 | Pinned version, local selected-model credential entry | Service-account host permissions; operator isolation and explicit opt-in required |
+| Runner | CLI requirement | Readiness | Execution boundary | Image input |
+| --- | --- | --- | --- | --- |
+| `codex` | Codex CLI 0.166.0 | Local `login status` | Existing `workspace-write` sandbox and explicit writable directories | Still PNG/JPEG/WebP, including resumed turns |
+| `claude` | Claude Code >=2.1.285, <3 | Version and local `auth status` | Restricted mode, mandatory native Bash sandbox, explicit tools and MCP | Rejected before fetch |
+| `opencode` | OpenCode 1.19.5 | Pinned version, local selected-model credential entry | Service-account host permissions; operator isolation and explicit opt-in required | Rejected before fetch |
 
 These checks do not prove remote model entitlement, available quota, actual provider
 sandbox operation, or successful external actions. The engine never switches runners or requests a fallback model. Upstream CLI
@@ -32,9 +32,12 @@ or OpenCode session identifier is never passed to a different adapter. Existing
 session uniqueness is retained across all providers as an additional collision guard.
 
 Stop the engine and take a [verified state snapshot](state-backups.md) before
-upgrading. Older engines reject schema 3; rollback requires compatible pre-upgrade
+upgrading. Version 0.5.0 uses schema 4 for private image persistence; 0.4.0 rejects
+that schema. Earlier engines also reject schemas newer than their own. Rollback requires compatible pre-upgrade
 state and separate reconciliation of later accepted work. Keep the binaries and
 private auth directories needed by existing conversations after changing a default.
+
+See [image input](image-input.md) for attachment limits, private storage and recovery.
 
 ## Claude Code on a Linux host
 

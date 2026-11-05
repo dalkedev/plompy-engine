@@ -219,6 +219,7 @@ export async function runOpenCode(
     error,
     sessionId,
   });
+  if (options.images?.length) return failure("unsupported_image_input");
   if (!config.opencodeAllowHostExecution)
     return failure("opencode_host_execution_not_enabled");
   const args = opencodeArgs(config, sessionId);

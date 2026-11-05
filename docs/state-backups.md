@@ -5,9 +5,9 @@ committed WAL pages. It opens the source read-only, verifies database integrity 
 foreign keys, and publishes a complete standalone database at a **new** path. No bot
 token, engine configuration, Discord connection or model call is needed.
 
-The tool supports legacy schemas 0, 1 and 2, and current public schema 3. It does not migrate them, and
+The tool supports legacy schemas 0, 1, 2 and 3, and current public schema 4. It does not migrate them, and
 refuses a newer schema. Both `backup` and `restore` preserve jobs, sessions, workflow
-checkpoints, notification receipts and pending transcript/memory effects.
+checkpoints, notification receipts, pending transcript/memory effects and private image bytes.
 
 ## Create a snapshot
 
@@ -20,7 +20,7 @@ permissions on existing directories. For example, with an already owned `/srv/sz
 install -d -m 700 /srv/szpont/backups
 node /absolute/source/scripts/state-snapshot.mjs backup \
   --source /srv/szpont/state/agent.sqlite \
-  --destination /srv/szpont/backups/pre-0.4.0.sqlite
+  --destination /srv/szpont/backups/pre-0.5.0.sqlite
 ```
 
 The engine may keep running during an online backup. SQLite copies a consistent
@@ -48,7 +48,7 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
    ```sh
    install -d -m 700 /srv/szpont/restored-state
    node /absolute/source/scripts/state-snapshot.mjs restore \
-     --source /srv/szpont/backups/pre-0.4.0.sqlite \
+     --source /srv/szpont/backups/pre-0.5.0.sqlite \
      --destination /srv/szpont/restored-state/agent.sqlite
    ```
 
@@ -62,8 +62,8 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
    Configure the matching private workspace separately. Keep only one engine instance.
    With Docker, use a separately restored state volume and stop the previous container
    before switching; a host path example is not a command to modify a container volume.
-5. Start the chosen engine version under its instance lock. Version 0.4.0 migrates
-   public schemas 0, 1 and 2 to schema 3 at startup, preserving legacy provider
+5. Start the chosen engine version under its instance lock. Version 0.5.0 migrates
+   public schemas 0, 1, 2 and 3 to schema 4 at startup, preserving legacy provider
    identities as Codex. Inspect `!status`, interrupted jobs, workflow checkpoints
    and maintenance health. Recover uncertain work only after reconciling its action
    receipts; restoration itself never resumes a job.
@@ -73,6 +73,14 @@ database and never starts the engine, changes service configuration, alters queu
 statuses, resets a session or grants permission to repeat an action.
 
 ## Upgrade and rollback
+
+Version 0.5.0 adds private image bytes, MIME types and SHA-256 digests to jobs and
+migrates public schema 3 to schema 4. Existing text jobs, provider bindings and
+sessions are preserved. Schema-4 snapshots include all attachment bytes, including
+images retained by manual recovery. The 0.4.0 engine rejects schema 4; rolling back
+requires its compatible pre-upgrade snapshot and reconciliation of later accepted
+work. Do not delete the image table or lower the schema version to force a downgrade.
+
 
 Version 0.4.0 adds immutable conversation-provider bindings and job-provider snapshots,
 and migrates public schemas 0, 1 and 2 to schema 3. Every legacy conversation and job
@@ -102,7 +110,7 @@ shortcut. A state snapshot does not roll back files or external side effects.
 
 ## Scope and failure handling
 
-- The snapshot contains private prompts, results and identifiers. Keep it outside the
+- The snapshot contains private prompts, results, identifiers and image attachments. Keep it outside the
   public source, Docker build context, public Git remote and public CI artifacts.
   File permissions are access control, not encryption; encrypt off-host backups with
   your own backup system and check its destination permissions.
@@ -139,3 +147,12 @@ default. The snapshot tool preserves provider columns, immutable bindings and
 provider-specific session IDs. It does not start or replay jobs. The 0.3.x
 engines reject this state; restore a compatible pre-upgrade snapshot before
 rolling back and reconcile any later actions separately.
+
+
+## Image attachments (schema 4)
+
+Version 0.5.0 stores attachment bytes in SQLite, so no separate image-directory
+backup is needed for queued jobs, workflow continuation or manual recovery. The
+snapshot tool preserves the images and their media types, order and SHA-256 digests.
+Generated per-turn `.turn-images-*` files are disposable and are not part of the
+backup. See [image input](image-input.md) for limits, retention and private cleanup.

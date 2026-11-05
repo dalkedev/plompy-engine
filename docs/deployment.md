@@ -54,3 +54,10 @@ credential out of model child processes and verify every allowed path and public
 The provider-adapter release advances public SQLite state to schema 3; all legacy
 conversations and jobs retain Codex bindings. Keep a compatible pre-upgrade snapshot
 and every auth directory needed by existing threads. See [runner upgrades](runners.md#bindings-and-upgrades).
+
+
+Version 0.5.0 advances public SQLite state to schema 4 for private image attachments,
+preserving provider bindings. State snapshots now contain image bytes. Keep state
+owned by the service account with mode `0700`; native-input files use private
+per-turn directories there and are cleaned on the next singleton-locked startup
+after a crash. See [image input](image-input.md) before enabling attachment intake.

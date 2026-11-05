@@ -9,7 +9,7 @@ COPY apps/discord-agent/src ./src
 RUN npm run build && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
-ARG VERSION=0.4.0
+ARG VERSION=0.5.0
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Szpont Engine" \
       org.opencontainers.image.description="Self-hosted Discord agent engine with durable jobs and private Markdown memory" \

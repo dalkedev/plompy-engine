@@ -116,6 +116,12 @@ export class DiscordTransport implements Transport {
         thread: channel.isThread(),
         content: message.content,
         attachments: message.attachments.size,
+        images: [...message.attachments.values()].map((attachment) => ({
+          id: attachment.id,
+          url: attachment.url,
+          contentType: attachment.contentType,
+          size: attachment.size,
+        })),
       };
       void handler(incoming).catch(() => {
         console.log(
