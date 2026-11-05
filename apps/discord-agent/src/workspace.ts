@@ -195,7 +195,12 @@ export async function syncMemory(
     }
   }
   if (!allowed.length) return "clean";
-  await git(["add", "--", ...allowed]);
+  // Let commit --only own its temporary index. Register new paths without
+  // staging content, so a failed commit remains retryable. Do not pass tracked
+  // deletions to add -N: Git would stage those deletions in the shared index.
+  const newPaths = new Set(untracked.split("\0"));
+  const intent = allowed.filter((path) => newPaths.has(path));
+  if (intent.length) await git(["add", "--intent-to-add", "--", ...intent]);
   await git([
     "-c",
     "user.name=Szpont",

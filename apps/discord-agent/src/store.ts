@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { SESSION_ID, SNOWFLAKE } from "./config.js";
 import type { WorkOutcome } from "./workflow.js";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export type JobStatus =
   | "queued"
   | "running"
@@ -71,8 +71,29 @@ export class Store {
       ).user_version;
       if (version > SCHEMA_VERSION)
         throw new Error(`Unsupported database schema version ${version}`);
+      const jobColumns = this.db.prepare("PRAGMA table_info(jobs)").all() as {
+        name: string;
+      }[];
+      // A private deployment has lane/publication state this public worker cannot honor.
+      // Its old schema 2 must not be mistaken for this public schema 2.
+      if (jobColumns.some((column) => ["source", "lane"].includes(column.name)))
+        throw new Error(
+          "Unsupported database variant: private state requires the private engine",
+        );
+      if (
+        version === SCHEMA_VERSION &&
+        !this.db
+          .prepare(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_acceptance'",
+          )
+          .get()
+      )
+        throw new Error(
+          "Invalid database schema: acceptance ordering is missing",
+        );
       this.db.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000");
       if (version === 0) this.migrate();
+      if (version < 2) this.migrateAcceptance();
       this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL");
     } catch (error) {
       this.db.close();
@@ -87,7 +108,7 @@ export class Store {
           user_version: number;
         }
       ).user_version;
-      if (lockedVersion === SCHEMA_VERSION) return;
+      if (lockedVersion >= 1 && lockedVersion <= SCHEMA_VERSION) return;
       if (lockedVersion !== 0)
         throw new Error(`Unsupported database schema version ${lockedVersion}`);
       this.db.exec(`
@@ -131,6 +152,32 @@ export class Store {
             CHECK(last_error IS NULL OR last_error IN('transcript_export_failed','memory_sync_failed','memory_sync_blocked')));
         INSERT INTO effects(thread_id,generation) SELECT thread_id,1 FROM conversations;
         PRAGMA user_version=1;
+      `);
+    });
+  }
+  private migrateAcceptance(): void {
+    this.transaction(() => {
+      const version = (
+        this.db.prepare("PRAGMA user_version").get() as { user_version: number }
+      ).user_version;
+      if (version === SCHEMA_VERSION) return;
+      if (version !== 1)
+        throw new Error(`Unsupported database schema version ${version}`);
+      this.db.exec(`
+        CREATE TABLE job_acceptance(
+          sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+          job_id TEXT NOT NULL UNIQUE REFERENCES jobs(id));
+        -- Historical acceptance order was not persisted. Retain the previous
+        -- (created_at,id) FIFO contract for old jobs, including continued work.
+        INSERT INTO job_acceptance(job_id) SELECT id FROM jobs ORDER BY created_at,id;
+        -- Intake, workflow recovery and direct legacy adapters share this atomic ledger.
+        CREATE TRIGGER record_job_acceptance AFTER INSERT ON jobs BEGIN
+          INSERT INTO job_acceptance(job_id) VALUES(NEW.id);
+        END;
+        CREATE TRIGGER preserve_job_acceptance BEFORE UPDATE ON job_acceptance BEGIN
+          SELECT RAISE(ABORT,'Job acceptance order is immutable');
+        END;
+        PRAGMA user_version=2;
       `);
     });
   }
@@ -319,9 +366,10 @@ export class Store {
         .prepare(
           `UPDATE jobs SET status='running',started_at=? WHERE id=(
         SELECT j.id FROM jobs j JOIN conversations c ON c.thread_id=j.thread_id
+        JOIN job_acceptance accepted ON accepted.job_id=j.id
         WHERE j.status='queued' AND c.blocked_reason IS NULL
-          AND NOT EXISTS(SELECT 1 FROM jobs earlier WHERE earlier.thread_id=j.thread_id AND earlier.status='queued'
-            AND (earlier.created_at<j.created_at OR (earlier.created_at=j.created_at AND earlier.id<j.id)))
+          AND NOT EXISTS(SELECT 1 FROM jobs earlier JOIN job_acceptance predecessor ON predecessor.job_id=earlier.id
+          WHERE earlier.thread_id=j.thread_id AND earlier.status='queued' AND predecessor.sequence<accepted.sequence)
         ORDER BY j.queued_at,j.id LIMIT 1)
         AND status='queued' AND NOT EXISTS(SELECT 1 FROM jobs WHERE status='running') RETURNING *`,
         )

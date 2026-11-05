@@ -69,6 +69,7 @@ async function fixture(t) {
     persist: async () => {},
     sync: async () => "clean",
     now: () => clock.value,
+    monotonicNow: () => clock.value,
   };
   const transport = {
     send: async (channel, text) => sent.push({ channel, text }),

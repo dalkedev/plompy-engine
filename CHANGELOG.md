@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.3.1 — 2026-11-05
+
+### Recovery and ordering fixes
+
+- Retry scoped memory commits after a transient Git failure without leaving staged content behind. Preserve operator staging; tracked deletions and renames remain supported.
+- Keep same-thread FIFO order independent of wall-clock adjustments using a durable acceptance ledger. Continued workflows still yield fairly to other threads.
+- Measure active execution budgets with a monotonic process clock, including failure accounting. Wall-clock corrections no longer refund or prematurely exhaust the remaining budget.
+- Preserve the original timeout/cancellation cause when a gracefully stopping Codex process emits a later generic error.
+- Report the installed browser package version during MCP initialization instead of a stale hardcoded version.
+
+### Upgrade boundary
+
+- Public SQLite schema advances from 1 to 2. Legacy jobs retain their previous `(created_at,id)` ordering; new intake receives an immutable sequence.
+- Reject incompatible private-deployment databases before mutation. Back up state before upgrade; a binary rollback requires restoring its matching pre-upgrade database snapshot.
+- Add offline regressions for transient commit failures, operator staging, clock corrections, continuation/recovery ordering, migration atomicity, variant mismatch and actual MCP initialization metadata.
+
 ## 0.3.0 — 2026-11-04
 
 ### Durable work sessions

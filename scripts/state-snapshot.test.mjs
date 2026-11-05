@@ -18,8 +18,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { Store } from "../apps/discord-agent/dist/store.js";
-import { parseSnapshotArguments, snapshotState } from "./state-snapshot.mjs";
+import { Store, SCHEMA_VERSION } from "../apps/discord-agent/dist/store.js";
+import {
+  MAX_SCHEMA_VERSION,
+  parseSnapshotArguments,
+  snapshotState,
+} from "./state-snapshot.mjs";
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -52,7 +56,10 @@ function legacy(path, version = 0) {
     CREATE TABLE controls(message_id TEXT PRIMARY KEY);
     PRAGMA user_version=${version};
   `);
-  db.prepare("INSERT INTO conversations VALUES(?,?,NULL,1)").run(thread, session);
+  db.prepare("INSERT INTO conversations VALUES(?,?,NULL,1)").run(
+    thread,
+    session,
+  );
   db.prepare(
     "INSERT INTO jobs(id,thread_id,prompt,status,created_at,result,notification) VALUES(?,?,?,'succeeded',2,?,'sent')",
   ).run(job, thread, marker, "Synthetic completed result");
@@ -61,7 +68,9 @@ function legacy(path, version = 0) {
 
 async function noStaging(directory) {
   assert.equal(
-    (await readdir(directory)).filter((name) => name.startsWith(".szpont-snapshot-")).length,
+    (await readdir(directory)).filter((name) =>
+      name.startsWith(".szpont-snapshot-"),
+    ).length,
     0,
   );
 }
@@ -80,14 +89,33 @@ test("backs up legacy state without migrating and restores to a new path before 
   assert.deepEqual(await readFile(f.source), before);
 
   const restored = join(f.directory, "restored.sqlite");
-  await snapshotState({ operation: "restore", source: f.destination, destination: restored });
+  await snapshotState({
+    operation: "restore",
+    source: f.destination,
+    destination: restored,
+  });
   const store = new Store(restored);
   try {
-    assert.equal(store.db.prepare("PRAGMA user_version").get().user_version, 1);
-    assert.equal(store.db.prepare("SELECT session_id FROM conversations").get().session_id, session);
-    assert.equal(store.db.prepare("SELECT result FROM jobs").get().result, "Synthetic completed result");
-    assert.equal(store.db.prepare("SELECT notification FROM jobs").get().notification, "sent");
-    assert.equal(store.db.prepare("SELECT queued_at FROM jobs").get().queued_at, 2);
+    assert.equal(
+      store.db.prepare("PRAGMA user_version").get().user_version,
+      SCHEMA_VERSION,
+    );
+    assert.equal(
+      store.db.prepare("SELECT session_id FROM conversations").get().session_id,
+      session,
+    );
+    assert.equal(
+      store.db.prepare("SELECT result FROM jobs").get().result,
+      "Synthetic completed result",
+    );
+    assert.equal(
+      store.db.prepare("SELECT notification FROM jobs").get().notification,
+      "sent",
+    );
+    assert.equal(
+      store.db.prepare("SELECT queued_at FROM jobs").get().queued_at,
+      2,
+    );
   } finally {
     store.db.close();
   }
@@ -100,21 +128,35 @@ test("backs up legacy state without migrating and restores to a new path before 
   await noStaging(f.directory);
 });
 
-test("backs up fresh schema 1 with pending effects and workflow checkpoints intact", async (t) => {
+test("backs up current schema with pending effects and workflow checkpoints intact", async (t) => {
   const f = await fixture(t);
   const store = new Store(f.source);
   store.enqueueWorkflow(job, thread, "Synthetic bounded goal", 60_000);
   store.claim();
-  store.checkpoint(job, { outcome: "continue", summary: "First verified step", nextAction: "Review result" }, 50);
+  store.checkpoint(
+    job,
+    {
+      outcome: "continue",
+      summary: "First verified step",
+      nextAction: "Review result",
+    },
+    50,
+  );
   const report = await snapshotState({ operation: "backup", ...f });
-  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.schemaVersion, SCHEMA_VERSION);
   const restored = new Store(f.destination);
   try {
     assert.equal(restored.workflow(job).step_count, 1);
     assert.equal(restored.workflow(job).elapsed_ms, 50);
     assert.equal(restored.workflowSteps(job)[0].summary, "First verified step");
-    assert.ok(restored.effect(thread).generation > restored.effect(thread).exported_generation);
-    assert.equal(restored.db.prepare("SELECT status FROM jobs").get().status, "queued");
+    assert.ok(
+      restored.effect(thread).generation >
+        restored.effect(thread).exported_generation,
+    );
+    assert.equal(
+      restored.db.prepare("SELECT status FROM jobs").get().status,
+      "queued",
+    );
   } finally {
     restored.db.close();
     store.db.close();
@@ -134,12 +176,21 @@ test("includes committed WAL pages without checkpointing or copying the live mai
     assert.deepEqual(await readFile(f.source), before);
     const snapshot = new DatabaseSync(f.destination, { readOnly: true });
     try {
-      assert.equal(snapshot.prepare("SELECT result FROM jobs").get().result, "Committed only in WAL");
-      assert.equal(snapshot.prepare("PRAGMA journal_mode").get().journal_mode, "delete");
+      assert.equal(
+        snapshot.prepare("SELECT result FROM jobs").get().result,
+        "Committed only in WAL",
+      );
+      assert.equal(
+        snapshot.prepare("PRAGMA journal_mode").get().journal_mode,
+        "delete",
+      );
     } finally {
       snapshot.close();
     }
-    assert.equal((await readdir(f.directory)).includes("snapshot.sqlite-wal"), false);
+    assert.equal(
+      (await readdir(f.directory)).includes("snapshot.sqlite-wal"),
+      false,
+    );
   } finally {
     db.close();
   }
@@ -150,9 +201,15 @@ test("never overwrites an existing destination or restores over its source", asy
   legacy(f.source).close();
   await writeFile(f.destination, "Existing destination is preserved");
   for (const destination of [f.destination, f.source]) {
-    await assert.rejects(snapshotState({ operation: "restore", source: f.source, destination }), /destination_exists/);
+    await assert.rejects(
+      snapshotState({ operation: "restore", source: f.source, destination }),
+      /destination_exists/,
+    );
   }
-  assert.equal(await readFile(f.destination, "utf8"), "Existing destination is preserved");
+  assert.equal(
+    await readFile(f.destination, "utf8"),
+    "Existing destination is preserved",
+  );
   await noStaging(f.directory);
 });
 
@@ -163,8 +220,14 @@ test("concurrent snapshots publish one complete destination without replacing it
     snapshotState({ operation: "backup", ...f }),
     snapshotState({ operation: "backup", ...f }),
   ]);
-  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
-  assert.equal(results.filter((result) => result.status === "rejected").length, 1);
+  assert.equal(
+    results.filter((result) => result.status === "fulfilled").length,
+    1,
+  );
+  assert.equal(
+    results.filter((result) => result.status === "rejected").length,
+    1,
+  );
   const db = new DatabaseSync(f.destination, { readOnly: true });
   assert.equal(db.prepare("SELECT prompt FROM jobs").get().prompt, marker);
   db.close();
@@ -177,11 +240,17 @@ test("rejects destination symlinks and preexisting SQLite sidecars", async (t) =
   const target = join(f.directory, "do-not-touch");
   await writeFile(target, "Unchanged");
   await symlink(target, f.destination);
-  await assert.rejects(snapshotState({ operation: "backup", ...f }), /destination_exists/);
+  await assert.rejects(
+    snapshotState({ operation: "backup", ...f }),
+    /destination_exists/,
+  );
   await rm(f.destination);
   for (const suffix of ["-wal", "-shm", "-journal"]) {
     await writeFile(f.destination + suffix, "Unchanged");
-    await assert.rejects(snapshotState({ operation: "backup", ...f }), /destination_exists/);
+    await assert.rejects(
+      snapshotState({ operation: "backup", ...f }),
+      /destination_exists/,
+    );
     await rm(f.destination + suffix);
   }
   assert.equal(await readFile(target, "utf8"), "Unchanged");
@@ -193,14 +262,31 @@ test("rejects source symlinks, hard links and a writable shared parent", async (
   legacy(f.source).close();
   const alias = join(f.directory, "alias.sqlite");
   await symlink(f.source, alias);
-  await assert.rejects(snapshotState({ operation: "backup", source: alias, destination: f.destination }), /source_must_be_owned_regular_file/);
+  await assert.rejects(
+    snapshotState({
+      operation: "backup",
+      source: alias,
+      destination: f.destination,
+    }),
+    /source_must_be_owned_regular_file/,
+  );
   await rm(alias);
   await link(f.source, alias);
-  await assert.rejects(snapshotState({ operation: "backup", ...f }), /source_must_be_owned_regular_file/);
+  await assert.rejects(
+    snapshotState({ operation: "backup", ...f }),
+    /source_must_be_owned_regular_file/,
+  );
   await rm(alias);
   const shared = join(f.directory, "shared");
   await mkdir(shared, { mode: 0o755 });
-  await assert.rejects(snapshotState({ operation: "backup", source: f.source, destination: join(shared, "new.sqlite") }), /parent_must_be_owned_and_private/);
+  await assert.rejects(
+    snapshotState({
+      operation: "backup",
+      source: f.source,
+      destination: join(shared, "new.sqlite"),
+    }),
+    /parent_must_be_owned_and_private/,
+  );
   await noStaging(f.directory);
 });
 
@@ -211,7 +297,10 @@ test("rejects aliased source sidecars before opening SQLite", async (t) => {
   await writeFile(target, "Unchanged");
   for (const suffix of ["-wal", "-shm", "-journal"]) {
     await symlink(target, f.source + suffix);
-    await assert.rejects(snapshotState({ operation: "backup", ...f }), /source_sidecar_must_be_owned_regular_file/);
+    await assert.rejects(
+      snapshotState({ operation: "backup", ...f }),
+      /source_sidecar_must_be_owned_regular_file/,
+    );
     await rm(f.source + suffix);
   }
   assert.equal(await readFile(target, "utf8"), "Unchanged");
@@ -223,18 +312,34 @@ test("rejects direct and directory alias paths into the public source checkout",
   legacy(f.source).close();
   const publicAlias = join(f.directory, "public-alias");
   await symlink(root, publicAlias);
-  for (const destination of [join(root, "must-not-exist.sqlite"), join(publicAlias, "must-not-exist.sqlite")]) {
-    await assert.rejects(snapshotState({ operation: "backup", source: f.source, destination }), /public_checkout_forbidden/);
+  for (const destination of [
+    join(root, "must-not-exist.sqlite"),
+    join(publicAlias, "must-not-exist.sqlite"),
+  ]) {
+    await assert.rejects(
+      snapshotState({ operation: "backup", source: f.source, destination }),
+      /public_checkout_forbidden/,
+    );
   }
-  await assert.rejects(snapshotState({ operation: "backup", source: join(publicAlias, "README.md"), destination: f.destination }), /public_checkout_forbidden/);
+  await assert.rejects(
+    snapshotState({
+      operation: "backup",
+      source: join(publicAlias, "README.md"),
+      destination: f.destination,
+    }),
+    /public_checkout_forbidden/,
+  );
   await noStaging(f.directory);
 });
 
 test("rejects future schemas without migrating or changing the source", async (t) => {
   const f = await fixture(t);
-  legacy(f.source, 2).close();
+  legacy(f.source, MAX_SCHEMA_VERSION + 1).close();
   const before = await readFile(f.source);
-  await assert.rejects(snapshotState({ operation: "backup", ...f }), /future_schema_unsupported/);
+  await assert.rejects(
+    snapshotState({ operation: "backup", ...f }),
+    /future_schema_unsupported/,
+  );
   assert.deepEqual(await readFile(f.source), before);
   assert.equal((await readdir(f.directory)).includes("snapshot.sqlite"), false);
   await noStaging(f.directory);
@@ -243,12 +348,18 @@ test("rejects future schemas without migrating or changing the source", async (t
 test("invalid databases and foreign key violations leave no partial destination", async (t) => {
   const f = await fixture(t);
   await writeFile(f.source, marker);
-  await assert.rejects(snapshotState({ operation: "backup", ...f }), /snapshot_failed/);
+  await assert.rejects(
+    snapshotState({ operation: "backup", ...f }),
+    /snapshot_failed/,
+  );
   await rm(f.source);
   const db = legacy(f.source);
   db.exec("PRAGMA foreign_keys=OFF; DELETE FROM conversations");
   db.close();
-  await assert.rejects(snapshotState({ operation: "backup", ...f }), /database_integrity_failed/);
+  await assert.rejects(
+    snapshotState({ operation: "backup", ...f }),
+    /database_integrity_failed/,
+  );
   assert.equal((await readdir(f.directory)).includes("snapshot.sqlite"), false);
   await noStaging(f.directory);
 });
@@ -256,28 +367,65 @@ test("invalid databases and foreign key violations leave no partial destination"
 test("requires explicit absolute paths and strict command arguments", async (t) => {
   const f = await fixture(t);
   assert.equal(parseSnapshotArguments(["--help"]), null);
-  assert.deepEqual(parseSnapshotArguments(["restore", "--destination", f.destination, "--source", f.source]), {
-    operation: "restore", source: f.source, destination: f.destination,
-  });
-  for (const args of [[], ["backup"], ["backup", "--source", f.source, "--source", f.source], ["backup", "--source", f.source, "--force", f.destination]])
+  assert.deepEqual(
+    parseSnapshotArguments([
+      "restore",
+      "--destination",
+      f.destination,
+      "--source",
+      f.source,
+    ]),
+    {
+      operation: "restore",
+      source: f.source,
+      destination: f.destination,
+    },
+  );
+  for (const args of [
+    [],
+    ["backup"],
+    ["backup", "--source", f.source, "--source", f.source],
+    ["backup", "--source", f.source, "--force", f.destination],
+  ])
     assert.throws(() => parseSnapshotArguments(args), /invalid_arguments/);
-  await assert.rejects(snapshotState({ operation: "backup", source: "relative.sqlite", destination: f.destination }), /absolute_paths_required/);
+  await assert.rejects(
+    snapshotState({
+      operation: "backup",
+      source: "relative.sqlite",
+      destination: f.destination,
+    }),
+    /absolute_paths_required/,
+  );
 });
 
 test("CLI needs no engine credentials and never prints source data or paths", async (t) => {
   const f = await fixture(t);
   legacy(f.source).close();
-  const result = await execute(process.execPath, [script, "backup", "--source", f.source, "--destination", f.destination], {
-    env: { PATH: process.env.PATH },
-  });
+  const result = await execute(
+    process.execPath,
+    [script, "backup", "--source", f.source, "--destination", f.destination],
+    {
+      env: { PATH: process.env.PATH },
+    },
+  );
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.schemaVersion, 0);
   assert.equal(result.stdout.includes(marker), false);
   assert.equal(result.stdout.includes(f.directory), false);
-  await assert.rejects(execute(process.execPath, [script, "restore", "--source", f.source, "--destination", f.destination]), (error) => {
-    assert.match(error.stderr, /destination_exists/);
-    assert.equal(error.stderr.includes(marker), false);
-    assert.equal(error.stderr.includes(f.directory), false);
-    return true;
-  });
+  await assert.rejects(
+    execute(process.execPath, [
+      script,
+      "restore",
+      "--source",
+      f.source,
+      "--destination",
+      f.destination,
+    ]),
+    (error) => {
+      assert.match(error.stderr, /destination_exists/);
+      assert.equal(error.stderr.includes(marker), false);
+      assert.equal(error.stderr.includes(f.directory), false);
+      return true;
+    },
+  );
 });

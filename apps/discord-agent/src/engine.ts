@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import {
   authorized,
   redact,
@@ -31,6 +32,8 @@ export interface Dependencies {
   persist: (config: Config, store: Store, threadId: string) => Promise<void>;
   sync: (config: Config, id: string) => Promise<string>;
   now?: () => number;
+  /** Process-local elapsed time, independent of wall-clock timestamps. */
+  monotonicNow?: () => number;
 }
 const defaults: Dependencies = {
   ready: loginReady,
@@ -61,6 +64,14 @@ export class Engine {
   ) {}
   private now(): number {
     return (this.deps.now ?? Date.now)();
+  }
+  private monotonicNow(): number {
+    return this.deps.monotonicNow?.() ?? performance.now();
+  }
+  private executionSpent(started: number): number {
+    // Persist integer milliseconds; clock corrections must neither refund nor
+    // exhaust a workflow's active process budget. Queue/maintenance wait is out.
+    return Math.max(1, Math.ceil(this.monotonicNow() - started));
   }
   async accept(message: Incoming): Promise<boolean> {
     if (!authorized(message, this.config)) return false;
@@ -336,7 +347,7 @@ export class Engine {
               lastSummary: workflow.last_summary,
               nextAction: workflow.next_action,
             });
-          started = this.now();
+          started = this.monotonicNow();
           const result = await this.deps.run(
             workflow
               ? {
@@ -353,7 +364,7 @@ export class Engine {
             this.abort.signal,
             workflow ? { workflow: true } : undefined,
           );
-          spent = Math.max(1, this.now() - started);
+          spent = this.executionSpent(started);
           started = undefined;
           if (result.ok && workflow) {
             let outcome;
@@ -396,7 +407,7 @@ export class Engine {
             committed = true;
           }
         } catch {
-          if (started !== undefined) spent = Math.max(1, this.now() - started);
+          if (started !== undefined) spent = this.executionSpent(started);
           // A failure after committing a checkpoint/finish must not overwrite it.
           if (!committed && this.store.get(job.id)?.status === "running")
             this.store.finish(
