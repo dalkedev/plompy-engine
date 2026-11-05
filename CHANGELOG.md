@@ -17,6 +17,11 @@
 - Extend verified state backup and restore support to schema 3. Rollback to 0.3.x requires a matching pre-upgrade snapshot and reconciliation of later actions.
 - Verify migrations, rollback, scheduling and adapters with offline synthetic regressions. No live Claude/OpenCode account, model or host-sandbox acceptance is claimed by these tests.
 
+### Documentation and offline demo
+
+- Rework the README around concrete use cases, runner support levels and deployment boundaries, with a reproducible three-scenario gallery.
+- Add an account-free demo using the actual Engine and SQLite Store with scripted transport and replies. Include raw transcripts and separate optional capture tooling.
+
 ### Distribution boundary
 
 - Refresh the README banner and social-preview asset to reflect Codex, Claude Code and OpenCode while retaining the project identity.

@@ -11,7 +11,8 @@
     "test": "npm --prefix apps/discord-agent test && node --test scripts/*.test.mjs",
     "doctor": "node scripts/doctor.mjs",
     "init:workspace": "node scripts/init-workspace.mjs",
-    "state:snapshot": "node scripts/state-snapshot.mjs"
+    "state:snapshot": "node scripts/state-snapshot.mjs",
+    "demo": "node --disable-warning=ExperimentalWarning scripts/demo.mjs"
   },
   "license": "MIT"
 }

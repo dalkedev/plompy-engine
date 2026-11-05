@@ -1,0 +1,22 @@
+Offline demo · synthetic data · no model calls
+Real Engine + SQLite Store; transport, readiness and agent replies are scripted.
+
+PROVIDER-BOUND THREADS
+owner      #existing > Start a Codex task.
+agent      #existing < [synthetic] Codex finished this demo task.
+state      #existing · succeeded · Codex · session=saved
+config     New-thread default = Claude Code; its local readiness is scripted unavailable.
+owner      #new-claude > Use the configured default.
+state      #new-claude · queued · Claude Code · session=none
+owner      #existing > Continue after the default changed.
+agent      #existing < [synthetic] Codex finished this demo task.
+state      #existing · succeeded · Codex · session=saved
+evidence   Existing Codex binding retained; ready work ran while Claude waited: true
+config     New-thread default = OpenCode; its local readiness is scripted available.
+owner      #new-opencode > Use OpenCode for this thread.
+agent      #new-opencode < [synthetic] OpenCode finished this demo task.
+state      #new-opencode · succeeded · OpenCode · session=saved
+config     Claude Code local readiness is now scripted available.
+agent      #new-claude < [synthetic] Claude Code finished this demo task.
+state      #new-claude · succeeded · Claude Code · session=saved
+evidence   Waiting task resumed on its original runner: true

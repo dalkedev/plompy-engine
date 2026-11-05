@@ -11,6 +11,7 @@ Discord bot and server, Codex authentication, and model/account access.
 
 | Guide                              | What you will find                                                                            |
 | ---------------------------------- | --------------------------------------------------------------------------------------------- |
+| [Offline demo](demo.md)          | Reproducible synthetic Engine/Store scenarios and README capture tooling                       |
 | [Architecture](architecture.md)    | Intake, one-worker execution, session identity, job and delivery state, recovery              |
 | [Work sessions](work-sessions.md)  | Explicit budgets, typed checkpoints, fair scheduling, pause and recovery                      |
 | [State backups](state-backups.md)  | Verified SQLite snapshots, restore and migration rollback                                     |
