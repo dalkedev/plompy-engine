@@ -1,16 +1,28 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-11-05
 
-## Unreleased — provider adapters
+### Runner adapters
 
-- Add experimental Claude Code and OpenCode host runners alongside the default Codex CLI.
-- Bind every conversation and job to its provider; schema 3 preserves legacy work as Codex.
-- Keep readiness and queue eligibility per provider, with no automatic engine/model fallback.
-- Validate exact provider sessions, explicit completion events, bounded processes and work checkpoints.
-- Isolate provider configuration variables, add runner-aware diagnostics and reject private auth paths in the public tree.
-- Keep the published Docker image Codex-only until independent alternative-runner container acceptance exists.
-- Verify adapters with offline synthetic CLI regression tests; no live Claude/OpenCode account or sandbox acceptance is claimed.
+- Add experimental Claude Code and OpenCode host runners alongside the default Codex CLI, with explicit deployment-level selection for new threads.
+- Keep provider readiness and queue eligibility independent, without automatic engine or model fallback when another runner is unavailable.
+- Validate exact provider sessions, explicit completion events, bounded subprocesses and typed work checkpoints. Preserve cancellation reasons and process-group cleanup.
+- Isolate provider configuration variables and private authentication directories. Add runner-aware diagnostics and public-tree checks for private authentication/session paths.
+- Document provider-specific permissions, login, model and MCP configuration. OpenCode requires explicit acknowledgement of host execution; its local credential check does not prove remote authentication.
+
+### Durable state and upgrade boundary
+
+- Advance public SQLite state to schema 3 with immutable conversation bindings and job provider snapshots. Legacy conversations, sessions and queued work remain Codex independently of the configured default.
+- Preserve provider bindings across restart, manual recovery and session reset. A default-runner change applies only to new threads; uncertain work is never rerouted or replayed automatically.
+- Extend verified state backup and restore support to schema 3. Rollback to 0.3.x requires a matching pre-upgrade snapshot and reconciliation of later actions.
+- Verify migrations, rollback, scheduling and adapters with offline synthetic regressions. No live Claude/OpenCode account, model or host-sandbox acceptance is claimed by these tests.
+
+### Distribution boundary
+
+- Refresh the README banner and social-preview asset to reflect Codex, Claude Code and OpenCode while retaining the project identity.
+
+- Keep the published Docker image Codex-only. Reject alternative runner selection before initialization writes until independent container acceptance exists.
+- Preserve the actual Codex sandbox and the non-root, read-only image acceptance path on Linux amd64 and arm64.
 
 ## 0.3.1 — 2026-11-05
 

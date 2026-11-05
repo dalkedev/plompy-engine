@@ -1,6 +1,6 @@
 <div align="center">
 
-![szpont-engine — persistent personal agents, on your own machine](assets/brand/readme-banner.png)
+![szpont-engine — Codex, Claude Code and OpenCode in persistent private threads](assets/brand/readme-banner.png)
 
 # szpont-engine
 
