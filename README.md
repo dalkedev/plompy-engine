@@ -7,7 +7,7 @@
 **Send a task from your phone. Pick it up in the same session. Keep the memory.**
 
 A self-hosted personal agent engine connecting private Discord threads to persistent
-Codex CLI sessions, a durable SQLite queue, and a private Markdown workspace.
+Codex, Claude Code, or OpenCode sessions, a durable SQLite queue, and a private Markdown workspace.
 
 [![Offline checks](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml/badge.svg)](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml)
 [![Node.js 24](https://img.shields.io/badge/Node.js-24-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
@@ -21,7 +21,7 @@ Codex CLI sessions, a durable SQLite queue, and a private Markdown workspace.
 ## Pick up where you left off
 
 Open a private Discord forum thread, send a task, and let your own Linux machine do the work.
-Follow-ups resume that thread's stored Codex session. Instructions, notes, and transcripts live
+Follow-ups resume that thread's stored runner session. Instructions, notes, and transcripts live
 in Markdown you can read, edit, and back up yourself.
 
 When a process times out or the host restarts, the engine keeps the interrupted job visible.
@@ -30,7 +30,7 @@ interrupted job.
 
 ## What it does
 
-- **Keeps conversations continuous.** Each Discord thread maps to its own stored Codex session.
+- **Keeps conversations continuous.** Each Discord thread maps to its own stored runner session.
 - **Records accepted work.** SQLite WAL, unique message IDs, bounded queues, and atomic claims.
 - **Continues bounded goals.** `!work 30m <goal>` saves typed checkpoints and continues the same session, yielding to other threads between steps.
 - **Makes recovery explicit.** Interrupted and failed turns block that conversation until you act.
@@ -46,6 +46,14 @@ The public edition runs **one global worker** with text-only intake, bounded wor
 It has no message-history catch-up after a full outage, scheduler, or built-in publication broker.
 This is a small, inspectable engine for one owner.
 
+## Choose your execution tool
+
+Codex is the default. Experimental host adapters also support **Claude Code** and
+**OpenCode**, selected with `SZPONT_RUNNER`. Each conversation retains its runner
+and session; changing a default never reinterprets existing work or triggers a
+fallback. The published Docker image remains Codex-only. See the [runner guide](docs/runners.md)
+for version pins, private login paths and the different execution boundaries.
+
 ## How it fits together
 
 ```mermaid
@@ -53,7 +61,7 @@ flowchart LR
     Discord["Private Discord thread"] --> Guard["Owner + forum checks"]
     Guard --> Queue[(SQLite queue)]
     Queue --> Worker["One worker"]
-    Worker --> Codex["Codex CLI session"]
+    Worker --> Codex["Codex / Claude Code / OpenCode session"]
     Codex <--> Memory["Private Markdown + Git"]
     Codex -. "optional local MCP" .-> Browser["Camoufox"]
     Worker --> Result["Saved result + delivery state"]
@@ -150,7 +158,7 @@ Crashes, timeouts and malformed outcomes require inspection and manual recovery.
 [work session guide](docs/work-sessions.md) for examples and exact stop conditions.
 
 Before upgrading from 0.2, make a [state backup](docs/state-backups.md). Version 0.3 introduces
-schema version 1; rolling back to older code requires restoring its compatible pre-upgrade state.
+schema version 1; the runner adapters advance public state to schema 3. Rolling back requires restoring compatible pre-upgrade state.
 The [1.0 roadmap](ROADMAP.md) lists the remaining stability gates.
 
 ## Keep source public and memory private
@@ -177,6 +185,7 @@ artifacts as private data.
 | [`config.ts`](apps/discord-agent/src/config.ts)       | Deployment identity, intake authorization, child environment |
 | [`store.ts`](apps/discord-agent/src/store.ts)         | Job state, deduplication, sessions, recovery                 |
 | [`engine.ts`](apps/discord-agent/src/engine.ts)       | Execution and notification lifecycle                         |
+| [`runner.ts`](apps/discord-agent/src/runner.ts)       | Provider dispatch without automatic fallback                  |
 | [`codex.ts`](apps/discord-agent/src/codex.ts)         | Bounded subprocess protocol and cancellation                 |
 | [`workflow.ts`](apps/discord-agent/src/workflow.ts)   | Explicit work budgets, fixed goals and typed checkpoints     |
 | [`workspace.ts`](apps/discord-agent/src/workspace.ts) | Context, transcripts, scoped local memory commits            |
@@ -186,7 +195,7 @@ artifacts as private data.
 ## Trust and limits
 
 There is no exactly-once guarantee for external services and no automatic replay of ambiguous
-writes. Check the actual destination before recovering work. The configured Codex sandbox,
+writes. Check the actual destination before recovering work. The selected runner and its configured sandbox or operator-managed isolation,
 host permissions, and service account remain part of the trust boundary. Filtering child
 environments does not isolate processes sharing a Unix user; browser URL checks do not replace
 network isolation. See [security](SECURITY.md) before granting access to real accounts.

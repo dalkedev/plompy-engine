@@ -5,11 +5,12 @@ import {
   SNOWFLAKE,
   type Config,
   type Incoming,
+  type ProviderId,
 } from "./config.js";
 import { assemblePrompt, saveTranscript, syncMemory } from "./workspace.js";
-import { loginReady, runCodex, type TurnResult } from "./codex.js";
+import { runnerReady, runTurn, type TurnResult } from "./runner.js";
 import { Store, type Job } from "./store.js";
-import { COMMAND_HELP, threadStatus } from "./status.js";
+import { COMMAND_HELP, providerLabel, threadStatus } from "./status.js";
 import {
   parseWorkCommand,
   validateWorkOutcome,
@@ -36,8 +37,8 @@ export interface Dependencies {
   monotonicNow?: () => number;
 }
 const defaults: Dependencies = {
-  ready: loginReady,
-  run: runCodex,
+  ready: runnerReady,
+  run: runTurn,
   persist: saveTranscript,
   sync: syncMemory,
 };
@@ -56,6 +57,7 @@ export class Engine {
   private active: Job | undefined;
   private abort: AbortController | undefined;
   authReady = false;
+  private providerReadiness = new Map<ProviderId, boolean>();
   constructor(
     readonly config: Config,
     readonly store: Store,
@@ -72,6 +74,35 @@ export class Engine {
     // Persist integer milliseconds; clock corrections must neither refund nor
     // exhaust a workflow's active process budget. Queue/maintenance wait is out.
     return Math.max(1, Math.ceil(this.monotonicNow() - started));
+  }
+  private providerFor(threadId: string): ProviderId {
+    return this.store.provider(threadId) ?? this.config.provider ?? "codex";
+  }
+  private async refreshReadiness(): Promise<void> {
+    const providers = new Set<ProviderId>([
+      this.config.provider ?? "codex",
+      ...this.store.queuedProviders(),
+      ...this.store.conversationProviders(),
+    ]);
+    const readiness = new Map<ProviderId, boolean>();
+    await Promise.all(
+      [...providers].map(async (provider) => {
+        const ready = await this.deps
+          .ready({ ...this.config, provider })
+          .catch(() => false);
+        readiness.set(provider, ready);
+      }),
+    );
+    this.providerReadiness = readiness;
+    // Compatibility metadata represents only the configured default, never
+    // a claim that every runner or every thread is authenticated.
+    this.authReady =
+      this.providerReadiness.get(this.config.provider ?? "codex") ?? false;
+  }
+  private eligibleProviders(): ProviderId[] {
+    return [...this.providerReadiness]
+      .filter(([, ready]) => ready)
+      .map(([provider]) => provider);
   }
   async accept(message: Incoming): Promise<boolean> {
     if (!authorized(message, this.config)) return false;
@@ -97,6 +128,8 @@ export class Engine {
             thread,
             redact(request.goal, this.config.token),
             request.budgetMs,
+            32,
+            this.config.provider ?? "codex",
           );
         } catch {
           await this.notice(
@@ -143,7 +176,12 @@ export class Engine {
           if (command === "!status") {
             await this.notice(
               thread,
-              threadStatus(this.store, thread, this.authReady),
+              threadStatus(
+                this.store,
+                thread,
+                this.providerReadiness.get(this.providerFor(thread)) ?? false,
+                this.providerFor(thread),
+              ),
             );
             return true;
           }
@@ -179,7 +217,7 @@ export class Engine {
             changed = true;
             await this.notice(
               thread,
-              "The next message starts a new Codex session. History is retained; queued messages were cancelled.",
+              `The next message starts a new ${providerLabel(this.providerFor(thread))} session. The thread keeps its runner binding. History is retained; queued messages were cancelled.`,
             );
             return true;
           }
@@ -199,7 +237,7 @@ export class Engine {
             await this.notice(
               thread,
               changed
-                ? "Manual recovery queued. Codex will inspect prior state and action receipts first."
+                ? "Manual recovery queued. The saved runner will inspect prior state and action receipts first."
                 : "This recovery request is already saved. Use !status for its state.",
             );
             return true;
@@ -224,7 +262,13 @@ export class Engine {
     const prompt = redact(message.content, this.config.token);
     let inserted: boolean;
     try {
-      inserted = this.store.enqueue(message.id, thread, prompt);
+      inserted = this.store.enqueue(
+        message.id,
+        thread,
+        prompt,
+        null,
+        this.config.provider ?? "codex",
+      );
     } catch {
       await this.notice(
         thread,
@@ -236,7 +280,7 @@ export class Engine {
       if (inserted)
         await this.notice(
           thread,
-          `Queued: ${message.id}.${this.authReady ? "" : " Codex login is unverified; this message remains in the durable queue."}`,
+          `Queued: ${message.id}.${this.providerReadiness.get(this.providerFor(thread)) ? "" : ` ${this.providerFor(thread) === "opencode" ? "OpenCode local prerequisites are unverified" : `${providerLabel(this.providerFor(thread))} login is unverified`}; this message remains in the durable queue.`}`,
         );
     } finally {
       // Durable insertion is authoritative; failed notices/export cannot unqueue it.
@@ -257,7 +301,7 @@ export class Engine {
       );
     }
   }
-  /** At most two due threads per pass; errors retry durably, never via Codex. */
+  /** At most two due threads per pass; errors retry durably, never via a model. */
   private async maintain(): Promise<void> {
     for (const effect of this.store.pendingEffects(this.now(), 2)) {
       const { thread_id: thread, generation } = effect;
@@ -317,10 +361,12 @@ export class Engine {
       // Auth/inference availability is independent of readable history and Git sync.
       await this.maintain();
       await this.notify();
-      this.authReady = await this.deps.ready(this.config).catch(() => false);
-      if (!this.authReady) return;
+      await this.refreshReadiness();
       let job: Job | undefined;
-      while (!this.stopping && (job = this.store.claim())) {
+      while (
+        !this.stopping &&
+        (job = this.store.claim(this.eligibleProviders()))
+      ) {
         this.active = job;
         this.abort = new AbortController();
         let typing: NodeJS.Timeout | undefined;
@@ -333,7 +379,8 @@ export class Engine {
           typing = setInterval(() => {
             void this.transport.typing(thread).catch(() => {});
           }, 8000);
-          let prompt = await assemblePrompt(this.config, job);
+          const runnerConfig = { ...this.config, provider: job.provider };
+          let prompt = await assemblePrompt(runnerConfig, job);
           const workflow = this.store.workflow(job.id);
           const remaining = workflow
             ? workflow.budget_ms - workflow.elapsed_ms
@@ -351,16 +398,16 @@ export class Engine {
           const result = await this.deps.run(
             workflow
               ? {
-                  ...this.config,
+                  ...runnerConfig,
                   timeoutMs: Math.max(
                     1,
                     Math.min(this.config.timeoutMs, remaining),
                   ),
                 }
-              : this.config,
+              : runnerConfig,
             prompt,
             this.store.session(job.thread_id),
-            (id) => this.store.setSession(job!.thread_id, id),
+            (id) => this.store.setSession(job!.thread_id, id, job!.provider),
             this.abort.signal,
             workflow ? { workflow: true } : undefined,
           );
@@ -424,8 +471,7 @@ export class Engine {
         }
         await this.maintain();
         await this.notify();
-        this.authReady = await this.deps.ready(this.config).catch(() => false);
-        if (!this.authReady) break;
+        await this.refreshReadiness();
       }
     } catch {
       console.log(JSON.stringify({ event: "engine_tick", status: "blocked" }));

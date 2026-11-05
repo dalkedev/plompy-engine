@@ -12,14 +12,8 @@ const configModule = new URL(
   import.meta.url,
 );
 const expectedCodex = "0.166.0";
-const pathKeys = [
-  "workspace",
-  "stateDir",
-  "artifactsDir",
-  "codexHome",
-  "browserDir",
-];
-const dependentChecks = [
+const pathKeys = ["workspace", "stateDir", "artifactsDir", "browserDir"];
+const baseDependentChecks = [
   "path_separation",
   "private_directories",
   "private_writability",
@@ -83,12 +77,13 @@ export async function runDoctor({
   checkLogin = false,
 } = {}) {
   const checks = [];
+  const dependentChecks = [...baseDependentChecks];
   const add = (id, status, message, required = true) => {
     checks.push({ id, status, required, message });
   };
   const skip = (ids, message) => {
     for (const id of ids)
-      add(id, "NOT_RUN", message, id !== "codex_login" || checkLogin);
+      add(id, "NOT_RUN", message, !id.endsWith("_login") || checkLogin);
   };
   add(
     "node_runtime",
@@ -99,10 +94,24 @@ export async function runDoctor({
   );
 
   let config, childEnvironment;
+  let provider = "codex";
+  let versionId = "codex_version",
+    loginId = "codex_login";
+  let activePathKeys = pathKeys;
   try {
     const compiled = await import(configModule.href);
     config = compiled.loadConfig(env);
     childEnvironment = compiled.childEnvironment;
+    provider = config.provider ?? "codex";
+    versionId = `${provider}_version`;
+    loginId = `${provider}_login`;
+    dependentChecks.splice(-2, 2, versionId, loginId);
+    activePathKeys = [
+      ...pathKeys,
+      { codex: "codexHome", claude: "claudeHome", opencode: "opencodeHome" }[
+        provider
+      ],
+    ];
   } catch {
     add(
       "configuration",
@@ -127,7 +136,7 @@ export async function runDoctor({
     )
       throw new Error("relative browser directory");
     paths = await Promise.all(
-      pathKeys.map((key) => canonicalDestination(config[key])),
+      activePathKeys.map((key) => canonicalDestination(config[key])),
     );
     if (paths.some((path) => overlaps(canonicalRoot, path)))
       throw new Error("public source overlap");
@@ -241,55 +250,95 @@ export async function runDoctor({
     );
   }
 
-  let codexReady = false;
+  const binary = {
+    codex: config.codexBin,
+    claude: config.claudeBin,
+    opencode: config.opencodeBin,
+  }[provider];
+  const versions = {
+    codex: `Codex CLI ${expectedCodex}`,
+    claude: "Claude Code >=2.1.285, <3",
+    opencode: "OpenCode 1.19.5",
+  };
+  let versionReady = false;
   try {
-    const result = await command(config.codexBin, ["--version"], {
+    const result = await command(binary, ["--version"], {
       cwd: config.workspace,
       env: childEnv,
     });
-    codexReady = result.stdout.trim() === `codex-cli ${expectedCodex}`;
+    const output = result.stdout.trim();
+    if (provider === "codex")
+      versionReady = output === `codex-cli ${expectedCodex}`;
+    else if (provider === "opencode") versionReady = output === "1.19.5";
+    else {
+      const { supportedClaudeVersion } = await import(
+        new URL("../apps/discord-agent/dist/claude.js", import.meta.url)
+      );
+      versionReady = supportedClaudeVersion(output);
+    }
   } catch {
-    // Subprocess diagnostics may include credentials, account details, or paths.
+    /* Do not disclose account or subprocess diagnostics. */
   }
   add(
-    "codex_version",
-    codexReady ? "PASS" : "FAIL",
-    codexReady
-      ? `The configured executable reports Codex CLI ${expectedCodex}.`
-      : `Install Codex CLI ${expectedCodex} and check SZPONT_CODEX_BIN; other protocol versions are not validated by this release.`,
+    versionId,
+    versionReady ? "PASS" : "FAIL",
+    versionReady
+      ? `The configured executable meets the adapter requirement: ${versions[provider]}.`
+      : `Install ${versions[provider]} and verify the selected runner binary; other protocols are not validated.`,
   );
+  if (provider === "opencode")
+    add(
+      "opencode_host_execution",
+      config.opencodeAllowHostExecution ? "PASS" : "FAIL",
+      config.opencodeAllowHostExecution
+        ? "Operator explicitly enabled host execution. OpenCode has no engine-provided OS sandbox; verify your own isolation."
+        : "OpenCode needs operator-managed isolation and explicit SZPONT_OPENCODE_HOST_EXECUTION=allow. See the runner guide.",
+    );
 
   if (!checkLogin) {
     add(
-      "codex_login",
+      loginId,
       "NOT_RUN",
-      "Login status is checked only with --check-login; account access was not tested.",
+      "Readiness is inspected only with --check-login; account access was not tested.",
       false,
     );
-  } else if (!codexReady) {
+  } else if (!versionReady) {
     add(
-      "codex_login",
+      loginId,
       "NOT_RUN",
-      "The configured Codex CLI version check must pass first.",
+      "The selected runner version check must pass first.",
     );
   } else {
+    let ready = false;
     try {
-      await command(config.codexBin, ["login", "status"], {
-        cwd: config.workspace,
-        env: childEnv,
-      });
-      add(
-        "codex_login",
-        "PASS",
-        "Codex login status succeeded for the configured private CODEX_HOME.",
-      );
+      if (provider === "codex") {
+        await command(binary, ["login", "status"], {
+          cwd: config.workspace,
+          env: childEnv,
+        });
+        ready = true;
+      } else {
+        const adapter = await import(
+          new URL(`../apps/discord-agent/dist/${provider}.js`, import.meta.url)
+        );
+        ready = await adapter[
+          provider === "claude" ? "claudeReady" : "opencodeReady"
+        ](config, env);
+      }
     } catch {
-      add(
-        "codex_login",
-        "FAIL",
-        "Complete Codex login as the service user using the configured private CODEX_HOME, then retry the explicit login check.",
-      );
+      /* Keep private readiness details out of diagnostics. */
     }
+    add(
+      loginId,
+      ready ? "PASS" : "FAIL",
+      provider === "opencode"
+        ? ready
+          ? "Local OpenCode model configuration and credential entry are present; remote authorization and model access were not tested."
+          : "Check the private OpenCode configuration, selected model credentials, pinned CLI and host execution opt-in."
+        : ready
+          ? `${provider === "claude" ? "Claude Code" : "Codex"} local login status succeeded for the selected private configuration.`
+          : "Complete the selected CLI login separately as the service user with its private configuration directory, then retry.",
+    );
   }
   return report(checks);
 }

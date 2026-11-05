@@ -56,7 +56,7 @@ test("fresh database receives current version and durable workflow/effect tables
   const path = pathFor(t),
     store = new Store(path);
   t.after(() => store.close());
-  assert.equal(SCHEMA_VERSION, 2);
+  assert.equal(SCHEMA_VERSION, 3);
   assert.equal(
     store.db.prepare("PRAGMA user_version").get().user_version,
     SCHEMA_VERSION,
@@ -85,7 +85,7 @@ test("0.2 schema migration preserves every job, session, result and control with
   t.after(() => store.close());
   const upgraded = store.db.prepare("SELECT * FROM jobs ORDER BY id").all();
   assert.deepEqual(
-    upgraded.map(({ queued_at, ...job }) => job),
+    upgraded.map(({ queued_at, provider, ...job }) => job),
     jobs.map((job) => ({ ...job })),
   );
   assert.deepEqual(
@@ -93,13 +93,18 @@ test("0.2 schema migration preserves every job, session, result and control with
     jobs.map((job) => job.created_at),
   );
   assert.deepEqual(
-    store.db.prepare("SELECT * FROM conversations").all(),
-    conversations,
+    store.db
+      .prepare("SELECT * FROM conversations")
+      .all()
+      .map(({ provider, ...conversation }) => conversation),
+    conversations.map((conversation) => ({ ...conversation })),
   );
   assert.equal(store.controlOnce(id(100)), false);
   assert.equal(store.get(id(2)).status, "running");
   assert.equal(store.get(id(3)).notification, "sending");
   assert.equal(store.session(thread), session);
+  assert.equal(store.provider(thread), "codex");
+  assert.ok(upgraded.every((job) => job.provider === "codex"));
   assert.equal(store.pendingEffects()[0].generation, 1);
   assert.equal(store.workflow(id(1)), undefined);
   assert.equal(

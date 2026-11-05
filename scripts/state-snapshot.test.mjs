@@ -429,3 +429,31 @@ test("CLI needs no engine credentials and never prints source data or paths", as
     },
   );
 });
+
+test("schema 3 backup and restore preserve non-Codex binding, session identity and recovery metadata", async (t) => {
+  const f = await fixture(t);
+  const store = new Store(f.source);
+  const openSession = "ses_0123456789abcdefghijklmnop";
+  store.enqueue(job, thread, "Synthetic OpenCode job", null, "opencode");
+  store.setSession(thread, openSession, "opencode");
+  store.claim();
+  store.finish(job, "failed", "Saved synthetic result", "synthetic_failure");
+  store.close();
+  await snapshotState({ operation: "backup", ...f });
+  const restored = join(f.directory, "provider-restored.sqlite");
+  await snapshotState({
+    operation: "restore",
+    source: f.destination,
+    destination: restored,
+  });
+  const reopened = new Store(restored);
+  try {
+    assert.equal(reopened.provider(thread), "opencode");
+    assert.equal(reopened.session(thread), openSession);
+    assert.equal(reopened.get(job).provider, "opencode");
+    assert.equal(reopened.get(job).result, "Saved synthetic result");
+    assert.throws(() => reopened.setSession(thread, session, "codex"));
+  } finally {
+    reopened.close();
+  }
+});

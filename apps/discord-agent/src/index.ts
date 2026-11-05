@@ -1,6 +1,6 @@
 import { mkdir, chmod, realpath } from "node:fs/promises";
 import { join } from "node:path";
-import { loadConfig } from "./config.js";
+import { loadConfig, runnerHome } from "./config.js";
 import { Store } from "./store.js";
 import { Engine } from "./engine.js";
 import { DiscordTransport } from "./discord.js";
@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   for (const path of [
     config.stateDir,
     config.artifactsDir,
-    config.codexHome,
+    runnerHome(config),
     config.browserDir,
   ]) {
     await mkdir(path, { recursive: true, mode: 0o700 });
@@ -64,7 +64,7 @@ main().catch(() => {
     JSON.stringify({
       event: "startup",
       status: "failed",
-      hint: "Check required paths, bot/forum identity, permissions, Node version and Codex login.",
+      hint: "Check required paths, bot/forum identity, permissions, Node version and selected runner readiness.",
     }),
   );
   process.exitCode = 1;

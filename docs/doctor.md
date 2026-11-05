@@ -75,3 +75,13 @@ This is a prerequisite snapshot, not a daemon health check or a security audit. 
 inspect bot/forum permissions, confirm that a worker is running, promise future filesystem
 access, or test provider availability. Filesystem state can change after inspection. Keep
 service supervision, private backups, and runtime monitoring separate from this command.
+
+## Alternative runner diagnostics
+
+Doctor selects the configured `SZPONT_RUNNER` and checks its private auth directory
+instead of requiring an unrelated Codex directory. The version/login check IDs
+are prefixed `claude_` or `opencode_` for those runners. Version probes remain
+offline and login/readiness requires `--check-login`. OpenCode additionally needs
+`opencode_host_execution`; a local credential-entry PASS does not prove remote
+authorization. Doctor never enables host execution, changes permissions or logs in.
+See [runner setup](runners.md) for pins and acceptance limits.

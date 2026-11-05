@@ -397,3 +397,60 @@ test("invalid flags are rejected without echoing untrusted argument values", asy
     },
   );
 });
+
+test("Claude diagnostics inspect the selected private home without requiring an unrelated Codex directory", async (t) => {
+  const data = await fixture(t, { version: "2.1.285 (Claude Code)" });
+  const home = join(data.temporary, "private", "claude");
+  await mkdir(home);
+  const env = {
+    ...data.env,
+    SZPONT_RUNNER: "claude",
+    CLAUDE_CONFIG_DIR: home,
+    SZPONT_CLAUDE_BIN: data.env.SZPONT_CODEX_BIN,
+  };
+  delete env.CODEX_HOME;
+  const result = await runDoctor({ env, publicRoot: data.publicRoot });
+  assert.equal(result.ok, true);
+  assert.equal(resultFor(result, "claude_version").status, "PASS");
+  assert.equal(resultFor(result, "claude_login").status, "NOT_RUN");
+  assert.equal(resultFor(result, "codex_version"), undefined);
+  await assert.rejects(stat(data.marker), { code: "ENOENT" });
+  assertPrivateOutput(result, data);
+});
+
+test("OpenCode diagnostics require explicit host execution and distinguish local readiness from remote auth", async (t) => {
+  const data = await fixture(t, { version: "1.19.5" });
+  const home = join(data.temporary, "private", "opencode");
+  await mkdir(home);
+  const env = {
+    ...data.env,
+    SZPONT_RUNNER: "opencode",
+    SZPONT_OPENCODE_HOME: home,
+    SZPONT_OPENCODE_MODEL: "synthetic-provider/synthetic-model",
+    SZPONT_OPENCODE_BIN: data.env.SZPONT_CODEX_BIN,
+  };
+  delete env.CODEX_HOME;
+  const blocked = await runDoctor({ env, publicRoot: data.publicRoot });
+  assert.equal(blocked.ok, false);
+  assert.equal(resultFor(blocked, "opencode_host_execution").status, "FAIL");
+  env.SZPONT_OPENCODE_HOST_EXECUTION = "allow";
+  await mkdir(join(home, "data", "opencode"), { recursive: true });
+  await writeFile(
+    join(home, "data", "opencode", "auth.json"),
+    JSON.stringify({
+      "synthetic-provider": { type: "api", key: "synthetic-private-key" },
+    }),
+  );
+  const ready = await runDoctor({
+    env,
+    publicRoot: data.publicRoot,
+    checkLogin: true,
+  });
+  assert.equal(ready.ok, true);
+  assert.equal(resultFor(ready, "opencode_login").status, "PASS");
+  assert.match(
+    resultFor(ready, "opencode_login").message,
+    /remote authorization and model access were not tested/,
+  );
+  assertPrivateOutput(ready, data);
+});

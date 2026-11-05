@@ -1,5 +1,9 @@
 # Docker deployment
 
+This image packages and verifies **Codex only**. `SZPONT_RUNNER` must be `codex`;
+Claude Code and OpenCode are [experimental host adapters](runners.md) and require
+their own installation, auth storage and isolation acceptance.
+
 The engine image contains the compiled TypeScript service, Node 24.22.2, Codex CLI
 0.166.0, Git, ripgrep, `flock` and a small init process. It runs as UID/GID 1000,
 publishes no ports, and includes neither a browser nor authentication. Model access

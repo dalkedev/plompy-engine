@@ -7,14 +7,14 @@ const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
   .split('\0')
   .filter(Boolean);
 const privateRoots = new Set(['agent', 'workspace', 'state', 'artifacts', 'browser-profile']);
-const privateNames = new Set(['auth.json', '.szpont-identity.json', 'cookies.sqlite']);
+const privateNames = new Set(['auth.json', '.szpont-identity.json', 'cookies.sqlite', '.credentials.json']);
 
 const rejected = tracked.filter((path) => {
   const parts = path.split('/');
   const name = basename(path);
   return (
     privateRoots.has(parts[0]) ||
-    parts.includes('.codex') ||
+    parts.some((part) => ['.codex', '.claude', '.opencode', '.opencode-data', 'claude-config', 'opencode-runtime'].includes(part)) ||
     privateNames.has(name) ||
     (name !== '.env.example' && /^\.env(?:\..+)?$/.test(name))
   );

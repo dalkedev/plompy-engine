@@ -14,3 +14,17 @@ For a suspected vulnerability, use GitHub's private vulnerability reporting **if
 shows that option**. Otherwise use the maintainer contact on the linked GitHub profile before
 sending sensitive details. Do not post secrets, cookies, raw logs or exploit details publicly.
 No response-time SLA or independently audited security claim is offered.
+
+## Runner-specific boundaries
+
+Codex, Claude Code and OpenCode do not share a permission or sandbox implementation.
+The [runner guide](docs/runners.md) states each adapter's boundary and acceptance limits.
+Claude uses mandatory native Bash sandboxing and restricted file tools; explicitly
+configured MCP services remain trusted processes outside that Bash sandbox.
+OpenCode requires explicit host execution opt-in and operator-managed OS isolation.
+Its tool permissions cannot confine arbitrary shell commands. The supplied Docker
+image remains Codex-only and rejects other selected runners.
+
+Keep every provider's credentials, session history and configuration private.
+Changing the default does not migrate existing conversations or credentials.
+Provider failures never invoke an automatic fallback.

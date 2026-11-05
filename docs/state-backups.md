@@ -5,7 +5,7 @@ committed WAL pages. It opens the source read-only, verifies database integrity 
 foreign keys, and publishes a complete standalone database at a **new** path. No bot
 token, engine configuration, Discord connection or model call is needed.
 
-The tool supports legacy schemas 0 and 1, and current public schema 2. It does not migrate them, and
+The tool supports legacy schemas 0, 1 and 2, and current public schema 3. It does not migrate them, and
 refuses a newer schema. Both `backup` and `restore` preserve jobs, sessions, workflow
 checkpoints, notification receipts and pending transcript/memory effects.
 
@@ -120,3 +120,12 @@ The offline test suite covers legacy backup/restore and migration, current workf
 and effect state, live WAL contents, private permissions, concurrent publication,
 aliases, existing sidecars, future schemas, corrupt inputs and sanitized CLI output.
 Actual power-loss durability and every network filesystem are not simulated.
+
+## Runner metadata (schema 3)
+
+The runner-adapter release migrates public schemas 0, 1 and 2 to schema 3.
+Legacy conversations and jobs are labelled Codex, independently of the configured
+default. The snapshot tool preserves provider columns, immutable bindings and
+provider-specific session IDs. It does not start or replay jobs. Engines older
+than schema 3 reject this state; restore a compatible pre-upgrade snapshot before
+rolling back and reconcile any later actions separately.

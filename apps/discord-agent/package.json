@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "format": "prettier --write src test README.md package.json tsconfig.json",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "test": "npm run build && node --test --test-concurrency=2 test/*.test.mjs",
     "start": "node dist/index.js"
   },
   "dependencies": {

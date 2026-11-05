@@ -1,8 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
-import { SESSION_ID, SNOWFLAKE } from "./config.js";
+import { isSessionId, SNOWFLAKE, type ProviderId } from "./config.js";
 import type { WorkOutcome } from "./workflow.js";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export type JobStatus =
   | "queued"
   | "running"
@@ -13,6 +13,7 @@ export type JobStatus =
 export interface Job {
   id: string;
   thread_id: string;
+  provider: ProviderId;
   prompt: string;
   status: JobStatus;
   created_at: number;
@@ -81,7 +82,7 @@ export class Store {
           "Unsupported database variant: private state requires the private engine",
         );
       if (
-        version === SCHEMA_VERSION &&
+        version >= 2 &&
         !this.db
           .prepare(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_acceptance'",
@@ -91,9 +92,22 @@ export class Store {
         throw new Error(
           "Invalid database schema: acceptance ordering is missing",
         );
+      if (version === SCHEMA_VERSION) {
+        const conversationColumns = this.db
+          .prepare("PRAGMA table_info(conversations)")
+          .all() as { name: string }[];
+        if (
+          !jobColumns.some((column) => column.name === "provider") ||
+          !conversationColumns.some((column) => column.name === "provider")
+        )
+          throw new Error(
+            "Invalid database schema: runner bindings are missing",
+          );
+      }
       this.db.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000");
       if (version === 0) this.migrate();
       if (version < 2) this.migrateAcceptance();
+      if (version < 3) this.migrateProviders();
       this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL");
     } catch (error) {
       this.db.close();
@@ -160,7 +174,7 @@ export class Store {
       const version = (
         this.db.prepare("PRAGMA user_version").get() as { user_version: number }
       ).user_version;
-      if (version === SCHEMA_VERSION) return;
+      if (version >= 2 && version <= SCHEMA_VERSION) return;
       if (version !== 1)
         throw new Error(`Unsupported database schema version ${version}`);
       this.db.exec(`
@@ -178,6 +192,33 @@ export class Store {
           SELECT RAISE(ABORT,'Job acceptance order is immutable');
         END;
         PRAGMA user_version=2;
+      `);
+    });
+  }
+  private migrateProviders(): void {
+    this.transaction(() => {
+      const version = (
+        this.db.prepare("PRAGMA user_version").get() as { user_version: number }
+      ).user_version;
+      if (version === SCHEMA_VERSION) return;
+      if (version !== 2)
+        throw new Error(`Unsupported database schema version ${version}`);
+      // Legacy sessions and queued work always belong to Codex, independent
+      // of the deployment's current default runner. Never reinterpret history.
+      this.db.exec(`
+        ALTER TABLE conversations ADD COLUMN provider TEXT NOT NULL DEFAULT 'codex'
+          CHECK(provider IN('codex','claude','opencode'));
+        ALTER TABLE jobs ADD COLUMN provider TEXT NOT NULL DEFAULT 'codex'
+          CHECK(provider IN('codex','claude','opencode'));
+        CREATE TRIGGER preserve_conversation_provider BEFORE UPDATE OF provider ON conversations
+          WHEN NEW.provider<>OLD.provider BEGIN
+          SELECT RAISE(ABORT,'Thread runner binding is immutable');
+        END;
+        CREATE TRIGGER preserve_job_provider BEFORE UPDATE OF provider ON jobs
+          WHEN NEW.provider<>OLD.provider BEGIN
+          SELECT RAISE(ABORT,'Job runner snapshot is immutable');
+        END;
+        PRAGMA user_version=3;
       `);
     });
   }
@@ -210,6 +251,13 @@ export class Store {
   }
   close(): void {
     this.db.close();
+  }
+  conversationProviders(): ProviderId[] {
+    return (
+      this.db.prepare("SELECT DISTINCT provider FROM conversations").all() as {
+        provider: ProviderId;
+      }[]
+    ).map((row) => row.provider);
   }
   recoverStartup(): number {
     return this.transaction(() => {
@@ -251,11 +299,12 @@ export class Store {
     threadId: string,
     prompt: string,
     recoveryOf: string | null = null,
+    defaultProvider: ProviderId = "codex",
   ): boolean {
     this.validateIdentity(id, threadId);
     return this.transaction(() => {
       if (this.get(id)) return false;
-      this.insertQueuedJob(id, threadId, prompt, recoveryOf);
+      this.insertQueuedJob(id, threadId, prompt, recoveryOf, defaultProvider);
       this.dirty(threadId);
       return true;
     });
@@ -266,6 +315,7 @@ export class Store {
     goal: string,
     budgetMs: number,
     maxSteps = 32,
+    defaultProvider: ProviderId = "codex",
   ): boolean {
     this.validateIdentity(id, threadId);
     if (
@@ -280,7 +330,7 @@ export class Store {
       throw new Error("Invalid work budget, goal or step limit");
     return this.transaction(() => {
       if (this.get(id)) return false;
-      this.insertQueuedJob(id, threadId, goal, null);
+      this.insertQueuedJob(id, threadId, goal, null, defaultProvider);
       this.db
         .prepare(
           "INSERT INTO workflows(job_id,goal,budget_ms,max_steps,state) VALUES(?,?,?,?,'active')",
@@ -299,7 +349,10 @@ export class Store {
     threadId: string,
     prompt: string,
     recoveryOf: string | null,
+    defaultProvider: ProviderId = "codex",
   ): void {
+    if (!["codex", "claude", "opencode"].includes(defaultProvider))
+      throw new Error("Invalid runner provider");
     const counts = this.db
       .prepare(
         "SELECT COUNT(*) n,SUM(CASE WHEN thread_id=? THEN 1 ELSE 0 END) t FROM jobs WHERE status IN('queued','running')",
@@ -309,14 +362,26 @@ export class Store {
       throw new Error("Queue is full");
     this.db
       .prepare(
-        "INSERT OR IGNORE INTO conversations(thread_id,created_at) VALUES(?,?)",
+        "INSERT OR IGNORE INTO conversations(thread_id,created_at,provider) VALUES(?,?,?)",
       )
-      .run(threadId, Date.now());
+      .run(threadId, Date.now(), defaultProvider);
+    const provider = this.provider(threadId);
+    if (!provider) throw new Error("Missing thread runner binding");
+    if (recoveryOf && provider !== this.get(recoveryOf)?.provider)
+      throw new Error("Recovery runner does not match this thread");
     this.db
       .prepare(
-        "INSERT INTO jobs(id,thread_id,prompt,status,created_at,queued_at,recovery_of) VALUES(?,?,?,'queued',?,?,?)",
+        "INSERT INTO jobs(id,thread_id,prompt,status,created_at,queued_at,recovery_of,provider) VALUES(?,?,?,'queued',?,?,?,?)",
       )
-      .run(id, threadId, prompt, Date.now(), this.nextQueueTime(), recoveryOf);
+      .run(
+        id,
+        threadId,
+        prompt,
+        Date.now(),
+        this.nextQueueTime(),
+        recoveryOf,
+        provider,
+      );
   }
   get(id: string): Job | undefined {
     return this.db.prepare("SELECT * FROM jobs WHERE id=?").get(id) as
@@ -333,6 +398,22 @@ export class Store {
       .prepare("SELECT * FROM workflow_steps WHERE job_id=? ORDER BY step")
       .all(id) as unknown as WorkflowStep[];
   }
+  provider(threadId: string): ProviderId | null {
+    return (
+      (
+        this.db
+          .prepare("SELECT provider FROM conversations WHERE thread_id=?")
+          .get(threadId) as { provider: ProviderId } | undefined
+      )?.provider ?? null
+    );
+  }
+  queuedProviders(): ProviderId[] {
+    return (
+      this.db
+        .prepare("SELECT DISTINCT provider FROM jobs WHERE status='queued'")
+        .all() as { provider: ProviderId }[]
+    ).map((row) => row.provider);
+  }
   session(threadId: string): string | null {
     return (
       (
@@ -342,13 +423,23 @@ export class Store {
       )?.session_id ?? null
     );
   }
-  setSession(threadId: string, sessionId: string): void {
-    if (!SESSION_ID.test(sessionId))
-      throw new Error("Invalid Codex session ID");
+  setSession(
+    threadId: string,
+    sessionId: string,
+    expectedProvider?: ProviderId,
+  ): void {
     this.transaction(() => {
+      const provider = this.provider(threadId);
+      if (
+        !provider ||
+        (expectedProvider !== undefined && provider !== expectedProvider)
+      )
+        throw new Error("Session runner does not match this thread");
+      if (!isSessionId(sessionId, provider))
+        throw new Error("Invalid runner session ID");
       const old = this.session(threadId);
       if (old && old !== sessionId)
-        throw new Error("Codex session changed unexpectedly");
+        throw new Error("Runner session changed unexpectedly");
       if (old === sessionId) return;
       if (
         Number(
@@ -360,7 +451,16 @@ export class Store {
         this.dirty(threadId);
     });
   }
-  claim(): Job | undefined {
+  claim(
+    eligibleProviders: readonly ProviderId[] = ["codex", "claude", "opencode"],
+  ): Job | undefined {
+    if (
+      eligibleProviders.some(
+        (provider) => !["codex", "claude", "opencode"].includes(provider),
+      )
+    )
+      throw new Error("Invalid runner provider");
+    if (!eligibleProviders.length) return undefined;
     return this.transaction(() => {
       const job = this.db
         .prepare(
@@ -368,12 +468,13 @@ export class Store {
         SELECT j.id FROM jobs j JOIN conversations c ON c.thread_id=j.thread_id
         JOIN job_acceptance accepted ON accepted.job_id=j.id
         WHERE j.status='queued' AND c.blocked_reason IS NULL
+          AND j.provider=c.provider AND j.provider IN(${eligibleProviders.map(() => "?").join(",")})
           AND NOT EXISTS(SELECT 1 FROM jobs earlier JOIN job_acceptance predecessor ON predecessor.job_id=earlier.id
           WHERE earlier.thread_id=j.thread_id AND earlier.status='queued' AND predecessor.sequence<accepted.sequence)
         ORDER BY j.queued_at,j.id LIMIT 1)
         AND status='queued' AND NOT EXISTS(SELECT 1 FROM jobs WHERE status='running') RETURNING *`,
         )
-        .get(Date.now()) as Job | undefined;
+        .get(Date.now(), ...eligibleProviders) as Job | undefined;
       if (job) this.dirty(job.thread_id);
       return job;
     });
@@ -578,6 +679,7 @@ export class Store {
         threadId,
         `Manual recovery of message ${id}. The previous turn may have changed files or published content. Inspect the saved session, transcript, journal and external publication receipts before taking any action. Never blindly repeat a publication. Original request:\n\n${old.prompt}`,
         id,
+        old.provider,
       );
       if (workflow) {
         this.db

@@ -21,3 +21,10 @@ coverage/
 /state/
 /artifacts/
 /browser-profile/
+
+.claude/
+.opencode/
+.opencode-data/
+.credentials.json
+claude-config/
+opencode-runtime/

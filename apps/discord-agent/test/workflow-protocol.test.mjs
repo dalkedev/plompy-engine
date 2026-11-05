@@ -338,7 +338,9 @@ test("workflow timeout, crash and absent completion stay uncertain and never aut
     [
       "timeout",
       events(json(), false) + "setInterval(()=>{},1000);",
-      1_000,
+      // Include cold child startup under CI load while still verifying timeout,
+      // exact invocation count and no automatic replay.
+      3_000,
       "task_timeout",
     ],
     ["crash", events(json()) + "process.exit(1);", 10_000, "codex_turn_failed"],

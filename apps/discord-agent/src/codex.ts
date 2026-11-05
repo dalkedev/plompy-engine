@@ -8,12 +8,8 @@ import {
   redact,
   type Config,
 } from "./config.js";
-export interface TurnResult {
-  ok: boolean;
-  output: string;
-  error: string | null;
-  sessionId: string | null;
-}
+import type { TurnResult } from "./runner.js";
+export type { TurnResult } from "./runner.js";
 export interface CodexOptions {
   workflow?: boolean;
 }

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## Unreleased — provider adapters
+
+- Add experimental Claude Code and OpenCode host runners alongside the default Codex CLI.
+- Bind every conversation and job to its provider; schema 3 preserves legacy work as Codex.
+- Keep readiness and queue eligibility per provider, with no automatic engine/model fallback.
+- Validate exact provider sessions, explicit completion events, bounded processes and work checkpoints.
+- Isolate provider configuration variables, add runner-aware diagnostics and reject private auth paths in the public tree.
+- Keep the published Docker image Codex-only until independent alternative-runner container acceptance exists.
+- Verify adapters with offline synthetic CLI regression tests; no live Claude/OpenCode account or sandbox acceptance is claimed.
+
 ## 0.3.1 — 2026-11-05
 
 ### Recovery and ordering fixes
