@@ -161,6 +161,7 @@ export class Engine {
             thread,
             this.deps.fetchImage,
             this.intakeAbort.signal,
+            this.config.parentId,
           )
         : [];
     if (/^!work(?:\s|$)/.test(text)) {

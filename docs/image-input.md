@@ -23,7 +23,7 @@ an image. Select Codex for a new thread or send a text-only request.
 | Media types | Still `image/png`, `image/jpeg`, `image/webp` |
 | Canvas | At most 16,384 pixels per side and 25 million pixels total |
 | Download time | 15 seconds for the entire batch |
-| Source | HTTPS `cdn.discordapp.com` or `media.discordapp.net`, attachment path matching the verified thread and attachment ID |
+| Source | HTTPS `cdn.discordapp.com` or `media.discordapp.net`, attachment path matching the verified thread or configured private forum parent, plus the exact attachment ID |
 
 Other attachments, GIF, SVG, animated PNG/WebP and external image URLs are rejected.
 Declared metadata, HTTP media type and length, streamed bytes, file signatures and
@@ -33,6 +33,9 @@ No Discord token, cookies or credentials are sent with the download request.
 
 Owner, guild, bot/webhook and forum-thread authorization occurs before downloading.
 The engine validates the whole batch's metadata and URLs before its first request.
+A starter upload may use the configured private forum parent in its CDN path; no
+other channel or parent ID is allowed. The download helper allows a parent scope
+only when the authorized engine caller explicitly supplies that configured ID.
 A failed file rejects the entire message; partial batches are never queued. Intake
 is serialized so a later message cannot overtake a pending image download. Shutdown
 aborts that download and does not admit the remaining pending messages. Wait for

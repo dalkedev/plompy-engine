@@ -127,7 +127,11 @@ export function validateSavedImages(images: readonly SavedImage[]): void {
       throw new Error("Image digest mismatch");
   }
 }
-function attachmentUrl(image: IncomingImage, threadId: string): URL {
+function attachmentUrl(
+  image: IncomingImage,
+  threadId: string,
+  parentId?: string,
+): URL {
   const url = new URL(image.url);
   const parts = url.pathname.split("/");
   if (
@@ -139,7 +143,7 @@ function attachmentUrl(image: IncomingImage, threadId: string): URL {
     url.hash ||
     parts.length !== 5 ||
     parts[1] !== "attachments" ||
-    parts[2] !== threadId ||
+    (parts[2] !== threadId && parts[2] !== parentId) ||
     parts[3] !== image.id ||
     !parts[4] ||
     !SNOWFLAKE.test(image.id)
@@ -153,8 +157,11 @@ export async function downloadImages(
   threadId: string,
   fetchImage: typeof fetch = fetch,
   cancel?: AbortSignal,
+  parentId?: string,
 ): Promise<SavedImage[]> {
   if (
+    !SNOWFLAKE.test(threadId) ||
+    (parentId !== undefined && !SNOWFLAKE.test(parentId)) ||
     !images.length ||
     images.length > MAX_IMAGES ||
     images.some(
@@ -168,7 +175,7 @@ export async function downloadImages(
   )
     throw new Error("Image count, type or size limit");
   // Validate the entire batch before the first network request.
-  const urls = images.map((image) => attachmentUrl(image, threadId));
+  const urls = images.map((image) => attachmentUrl(image, threadId, parentId));
   const signal = AbortSignal.any([
     AbortSignal.timeout(15_000),
     ...(cancel ? [cancel] : []),

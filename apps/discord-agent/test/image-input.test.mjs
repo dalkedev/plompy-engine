@@ -314,6 +314,72 @@ test("Discord CDN allowlist rejects SSRF, credentials, foreign attachment paths 
   assert.equal(fetched, 1, "redirect never becomes a second request");
 });
 
+test("forum-starter downloads allow only an explicit verified private parent in addition to the thread", async (t) => {
+  const f = await fixture(t);
+  let fetched = 0;
+  const fetchImage = async () => {
+    fetched++;
+    return response();
+  };
+  const starter = attachment({
+    url: `https://cdn.discordapp.com/attachments/${f.config.parentId}/${id(100)}/synthetic.png`,
+  });
+  // The reusable helper remains thread-only unless its caller supplies a parent.
+  await assert.rejects(downloadImages([starter], thread, fetchImage));
+  assert.equal(fetched, 0);
+  const [image] = await downloadImages(
+    [starter],
+    thread,
+    fetchImage,
+    undefined,
+    f.config.parentId,
+  );
+  assert.deepEqual(Buffer.from(image.data), png);
+  assert.equal(fetched, 1);
+  for (const [url, threadId, parentId] of [
+    [
+      `https://cdn.discordapp.com/attachments/${id(999)}/${id(100)}/synthetic.png`,
+      thread,
+      f.config.parentId,
+    ],
+    [starter.url, thread, id(999)],
+    [attachment().url, thread, "invalid-parent"],
+    [attachment().url, "invalid-thread", f.config.parentId],
+    [
+      `https://cdn.discordapp.com/attachments/${f.config.parentId}/${id(999)}/synthetic.png`,
+      thread,
+      f.config.parentId,
+    ],
+  ])
+    await assert.rejects(
+      downloadImages(
+        [attachment({ url })],
+        threadId,
+        fetchImage,
+        undefined,
+        parentId,
+      ),
+    );
+  assert.equal(
+    fetched,
+    1,
+    "foreign or malformed scopes fail before another request",
+  );
+  await f.engine.accept(message(f.config, { images: [starter] }));
+  await f.engine.kick();
+  assert.equal(f.fetched.length, 1);
+  assert.deepEqual(Buffer.from(f.store.images(id(1))[0].data), png);
+  await f.engine.accept(
+    message(f.config, { id: id(2), parentId: id(999), images: [starter] }),
+  );
+  assert.equal(
+    f.fetched.length,
+    1,
+    "foreign message parent cannot authorize a staged CDN upload",
+  );
+  assert.equal(f.store.get(id(2)), undefined);
+});
+
 test("HTTP MIME, declared length, actual streamed bytes and image signature must agree", async () => {
   for (const [image, makeResponse] of [
     [attachment(), () => response(png, { "content-type": "image/jpeg" })],
