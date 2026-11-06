@@ -134,7 +134,7 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone --branch v0.6.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
+git clone --branch v0.6.1 --depth 1 https://github.com/dalkedev/szpont-engine.git
 cd szpont-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -248,7 +248,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.6.0 retains SQLite schema 4**, introduced in 0.5.0. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
+Version **0.6.1 retains SQLite schema 4**, introduced in 0.5.0. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
 

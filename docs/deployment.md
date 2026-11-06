@@ -66,3 +66,7 @@ Version 0.6.0 retains schema 4 and adds guided integration setup and explicit
 fresh-budget recovery. Stop the service before changing tools; runtime configuration
 is loaded on startup. An integration status check is separate from a harmless live
 acceptance test. See [integration setup](integrations.md) and [work sessions](work-sessions.md).
+
+Version 0.6.1 retains the same state schema and adds read-only `!queue` inspection.
+Use it to distinguish recovery, runner readiness and an earlier accepted task from
+shared-worker waiting. It does not start a model, retry work or provide a start-time estimate.
