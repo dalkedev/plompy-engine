@@ -60,7 +60,9 @@ not preempt another process; the global worker remains serialized.
 Budgets and the 32-step cap bound continuation. Verified exhaustion pauses; crashes, timeouts
 and malformed outcomes block. Manual recovery carries the original goal, checkpoint context
 and consumed budget through the recovery chain. It cannot refund time or renew an exhausted
-budget. When a host dies during a step, its unknown duration conservatively consumes that
+budget. An explicit new `!work` in a blocked thread creates a separate budget, retains its
+provider-bound session and reconciles prior actions first; it does not refund earlier execution.
+When a host dies during a step, its unknown duration conservatively consumes that
 workflow's remaining allowance at startup; verified queued checkpoints are unaffected.
 See [work sessions](work-sessions.md) for owner controls.
 
@@ -111,7 +113,6 @@ explicit completion evidence. Protocol tests are offline; live account and host
 sandbox acceptance remain separate deployment checks. See [runners](runners.md).
 
 The design trade-offs are recorded in [ADR 0001](decisions/0001-provider-bound-runners.md).
-
 
 ## Private image inputs
 

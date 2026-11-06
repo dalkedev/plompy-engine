@@ -1,5 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
-import { isSessionId, SNOWFLAKE, type ProviderId } from "./config.js";
+import {
+  isSessionId,
+  MAX_MESSAGE,
+  SNOWFLAKE,
+  type ProviderId,
+} from "./config.js";
 import { validateSavedImages, type SavedImage } from "./images.js";
 import type { WorkOutcome } from "./workflow.js";
 
@@ -59,6 +64,13 @@ export type EffectError =
   | "transcript_export_failed"
   | "memory_sync_failed"
   | "memory_sync_blocked";
+
+export interface RecoveryOptions {
+  note?: string;
+  /** A fresh, explicitly authorized work budget; prior execution stays charged. */
+  work?: { goal: string; budgetMs: number };
+  images?: readonly SavedImage[];
+}
 
 export class Store {
   readonly db: DatabaseSync;
@@ -690,8 +702,43 @@ export class Store {
       this.dirty(job.thread_id);
     });
   }
-  recover(id: string, threadId: string, newId: string): boolean {
+  /** The actual failed task holding this thread, independent of queued followups. */
+  blockingJob(threadId: string): Job | undefined {
+    return this.db
+      .prepare(
+        `WITH RECURSIVE resolved(id) AS (
+          SELECT recovery_of FROM jobs WHERE thread_id=? AND status='succeeded' AND recovery_of IS NOT NULL
+          UNION SELECT j.recovery_of FROM jobs j JOIN resolved r ON j.id=r.id
+            WHERE j.thread_id=? AND j.recovery_of IS NOT NULL
+        ) SELECT j.* FROM jobs j JOIN conversations c ON c.thread_id=j.thread_id
+        WHERE j.thread_id=? AND c.blocked_reason IS NOT NULL AND j.status IN('failed','interrupted')
+          AND j.id NOT IN(SELECT id FROM resolved)
+        ORDER BY j.finished_at DESC,j.id DESC LIMIT 1`,
+      )
+      .get(threadId, threadId, threadId) as Job | undefined;
+  }
+  recover(
+    id: string,
+    threadId: string,
+    newId: string,
+    options: RecoveryOptions = {},
+  ): boolean {
     this.validateIdentity(newId, threadId);
+    if (
+      options.note !== undefined &&
+      (typeof options.note !== "string" || options.note.length > MAX_MESSAGE)
+    )
+      throw new Error("Invalid recovery instruction");
+    if (options.images !== undefined) validateSavedImages(options.images);
+    if (
+      options.work &&
+      (!options.work.goal.trim() ||
+        options.work.goal.length > MAX_MESSAGE ||
+        !Number.isSafeInteger(options.work.budgetMs) ||
+        options.work.budgetMs < 60_000 ||
+        options.work.budgetMs > 7_200_000)
+    )
+      throw new Error("Invalid explicit recovery work budget");
     return this.transaction(() => {
       const old = this.get(id);
       if (
@@ -735,6 +782,7 @@ export class Store {
             .get(id, threadId) as unknown as Workflow)
         : undefined;
       if (
+        !options.work &&
         workflow &&
         (workflow.state === "paused" ||
           workflow.elapsed_ms >= workflow.budget_ms ||
@@ -747,35 +795,38 @@ export class Store {
       this.insertQueuedJob(
         newId,
         threadId,
-        `Manual recovery of message ${id}. The previous turn may have changed files or published content. Inspect the saved session, transcript, journal and external publication receipts before taking any action. Never blindly repeat a publication. Original request:\n\n${old.prompt}`,
+        `Manual recovery of message ${id}. The previous turn may have changed files or published content. Inspect the saved session, transcript, journal and external publication receipts before taking any action. Never blindly repeat a publication. Original request:\n\n${old.prompt}${options.note?.trim() ? `\n\nCurrent verified owner recovery instruction (JSON string):\n${JSON.stringify(options.note.trim())}` : ""}${options.work ? `\n\nThe owner explicitly authorized a fresh work session with a new goal (JSON string):\n${JSON.stringify(options.work.goal)}\nReconcile previous actions first, then work only toward this current goal. Previous spent execution remains recorded; this is a new budget.` : ""}`,
         id,
         old.provider,
       );
-      this.db
-        .prepare(
-          "INSERT INTO job_images SELECT ?,ordinal,media_type,sha256,data FROM job_images WHERE job_id=?",
-        )
-        .run(newId, id);
-      if (workflow) {
+      if (options.images?.length) this.insertImages(newId, options.images);
+      else
+        this.db
+          .prepare(
+            "INSERT INTO job_images SELECT ?,ordinal,media_type,sha256,data FROM job_images WHERE job_id=?",
+          )
+          .run(newId, id);
+      if (workflow || options.work) {
         this.db
           .prepare(
             "INSERT INTO workflows(job_id,goal,budget_ms,elapsed_ms,max_steps,step_count,last_summary,next_action,state) VALUES(?,?,?,?,?,?,?,?,'active')",
           )
           .run(
             newId,
-            workflow.goal,
-            workflow.budget_ms,
-            workflow.elapsed_ms,
-            workflow.max_steps,
-            workflow.step_count,
-            workflow.last_summary,
-            workflow.next_action,
+            options.work?.goal ?? workflow!.goal,
+            options.work?.budgetMs ?? workflow!.budget_ms,
+            options.work ? 0 : workflow!.elapsed_ms,
+            options.work ? 32 : workflow!.max_steps,
+            options.work ? 0 : workflow!.step_count,
+            workflow?.last_summary ?? null,
+            workflow?.next_action ?? null,
           );
-        this.db
-          .prepare(
-            "INSERT INTO workflow_steps SELECT ?,step,outcome,summary,next_action,elapsed_ms,created_at FROM workflow_steps WHERE job_id=?",
-          )
-          .run(newId, workflow.job_id);
+        if (workflow && !options.work)
+          this.db
+            .prepare(
+              "INSERT INTO workflow_steps SELECT ?,step,outcome,summary,next_action,elapsed_ms,created_at FROM workflow_steps WHERE job_id=?",
+            )
+            .run(newId, workflow.job_id);
       }
       this.db
         .prepare(

@@ -42,7 +42,7 @@ evidence a person can review.
 Only elapsed runner execution consumes the budget. Queue, authentication, transcript export and
 memory commit waits do not. Elapsed execution uses a monotonic process clock; system clock
 corrections do not change the charge. Each subprocess is capped by both the configured task timeout and
-remaining work budget. This does not promise a wall-clock completion deadline or a token/cost
+remaining work budget. The prompt states both the aggregate remaining budget and this turn's actual hard deadline, and asks for a checkpoint within 80% of the turn deadline. This is scheduling guidance, not a guarantee that a model will finish in time. This does not promise a wall-clock completion deadline or a token/cost
 limit; the configured account's usage allowance remains separate.
 
 | Outcome                                            | Durable state                                     | Next action                                          |
@@ -56,17 +56,26 @@ limit; the configured account's usage allowance remains separate.
 
 A verified pause retains the provider-bound session. `!work 30m Continue the importer goal using its
 last verified checkpoint` is a new budget and goal in the same thread. `!recover` cannot renew
-an exhausted budget. An uncertain turn that exhausted its time or step cap requires an explicit
-`!new-session` before a fresh budget; history is retained. A recoverable failure keeps the
+an exhausted budget. In a blocked thread, a new explicit `!work 30m <goal>` authorizes a fresh
+budget and reconciles prior actions before continuing the saved provider-bound session. It replaces
+queued follow-ups atomically; previous execution stays recorded against the previous budget.
+Use `!new-session` only when you deliberately want a fresh runner session. A recoverable failure keeps the
 remaining budget, original goal and checkpoint context, including recovery of an earlier ancestor.
 
 A host restart marks running work interrupted. Its unfinished step has no trustworthy measured
 duration, so the engine conservatively consumes that workflow's remaining active allowance.
-Inspect its saved result and external receipts, then explicitly choose `!new-session` and a
-fresh budget if needed. A restart never silently refunds unknown execution time.
+Inspect its saved result and external receipts, then explicitly choose `!work 30m <goal>`
+for fresh-budget reconciliation if needed. A restart never silently refunds unknown execution time.
 Verified queued steps retain their recorded budget and remain queued. External
 writes are not transactional with SQLite: always inspect the destination before repeating a
 publication, deployment or other consequential operation.
+
+Use `!recover` to select the task actually blocking the current thread, or
+`!recover <task ID> [instruction]` to select one explicitly. A note such as
+`!recover Check the remote branch first, then push the saved changes` is carried as the
+current owner instruction; prior prompts and checkpoints remain historical context.
+Recovery always checks saved state and external receipts before repeating any action.
+A normal message alone never silently renews a budget or retries an uncertain write.
 
 ## Exports, memory and delivery
 

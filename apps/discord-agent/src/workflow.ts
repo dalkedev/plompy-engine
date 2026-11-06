@@ -1,3 +1,5 @@
+import { MAX_MESSAGE, SNOWFLAKE } from "./config.js";
+
 export const MIN_WORK_BUDGET_MS = 60_000;
 export const MAX_WORK_BUDGET_MS = 2 * 60 * 60_000;
 export const MAX_WORKFLOW_STEPS = 32;
@@ -8,6 +10,24 @@ const WORK_USAGE = "Usage: !work <1m..120m or 1h..2h> <goal>.";
 export interface WorkRequest {
   budgetMs: number;
   goal: string;
+}
+export interface RecoveryRequest {
+  id?: string;
+  note: string;
+}
+
+/** An explicit owner control; free text after the optional ID is current intent. */
+export function parseRecoveryCommand(text: string): RecoveryRequest | null {
+  const command = text.trim();
+  if (!/^!recover(?:\s|$)/.test(command)) return null;
+  if (command.length > MAX_MESSAGE) throw new Error("Invalid recovery command");
+  const rest = command.slice("!recover".length).trim();
+  const first = rest.split(/\s+/, 1)[0] ?? "";
+  if (/^\d+$/.test(first)) {
+    if (!SNOWFLAKE.test(first)) throw new Error("Invalid recovery task ID");
+    return { id: first, note: rest.slice(first.length).trim() };
+  }
+  return { note: rest };
 }
 export interface WorkOutcome {
   outcome: "continue" | "completed" | "blocked";
@@ -78,6 +98,7 @@ export function workflowPrompt(
     goal: string;
     step: number;
     remainingMs: number;
+    stepBudgetMs: number;
     lastSummary: string | null;
     nextAction: string | null;
   },
@@ -90,6 +111,9 @@ export function workflowPrompt(
     !Number.isSafeInteger(info.remainingMs) ||
     info.remainingMs < 1 ||
     info.remainingMs > MAX_WORK_BUDGET_MS ||
+    !Number.isSafeInteger(info.stepBudgetMs) ||
+    info.stepBudgetMs < 1 ||
+    info.stepBudgetMs > info.remainingMs ||
     (info.lastSummary !== null && !checkpointText(info.lastSummary, true)) ||
     (info.nextAction !== null && !checkpointText(info.nextAction, false))
   )
@@ -98,6 +122,8 @@ export function workflowPrompt(
 
 --- Durable bounded work session ---
 Perform one useful, bounded step toward the fixed original owner goal below. This is step ${info.step} of at most ${MAX_WORKFLOW_STEPS}; the remaining active execution budget is ${info.remainingMs} milliseconds. Queue, authentication and export waits do not consume that budget. Time is a ceiling, never a requirement to stay busy. Stop as soon as the goal is completed or blocked.
+
+This subprocess has a shorter hard deadline of ${info.stepBudgetMs} milliseconds, measured from its start. Finish the current bounded step and return the required JSON checkpoint within ${Math.max(1, Math.floor(info.stepBudgetMs * 0.8))} milliseconds (80% of this turn's deadline), leaving time for cleanup and output. The overall remaining budget is not this turn's deadline. Split long implementation, build and review work across checkpoints; use "continue" for unfinished work within the owner goal. Do not start an operation that cannot finish and be reconciled within this turn. A timeout can leave partial external effects and will block automatic continuation.
 
 The original verified owner goal is fixed for this work session (JSON string):
 ${JSON.stringify(info.goal)}

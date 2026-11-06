@@ -45,7 +45,8 @@ Then use `!recover MESSAGE_ID` if appropriate. A timeout alone never authorizes 
 external write. A task can succeed while its notification or later memory synchronization fails.
 
 For bounded `!work` goals, a verified budget pause leaves the conversation available. Uncertain
-turns block it and require manual recovery with their remaining budget. Export/commit failures
+turns block it and require explicit recovery with their remaining budget, or a fresh
+`!work 30m <goal>` budget that reconciles actions before continuing the saved session. Export/commit failures
 retry independently; they do not start another model turn. See [work sessions](work-sessions.md).
 
 Do not configure a public remote for private memory. If you add a remote sync bridge, keep its
@@ -54,7 +55,6 @@ credential out of model child processes and verify every allowed path and public
 The provider-adapter release advances public SQLite state to schema 3; all legacy
 conversations and jobs retain Codex bindings. Keep a compatible pre-upgrade snapshot
 and every auth directory needed by existing threads. See [runner upgrades](runners.md#bindings-and-upgrades).
-
 
 Version 0.5.0 advances public SQLite state to schema 4 for private image attachments,
 preserving provider bindings. State snapshots now contain image bytes. Keep state
