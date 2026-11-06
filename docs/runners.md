@@ -17,6 +17,13 @@ sandbox operation, or successful external actions. The engine never switches run
 model aliases and provider-side model fallback policies can still apply. The engine still has **one global worker**.
 A different runner does not add parallel workers or a scheduler.
 
+The [integration setup CLI](integrations.md) can configure tools for all three
+runners. Its interactive menu asks for the runner first; `--runner claude`, for
+example, selects the target explicitly. This tool selection does not
+change the service default or an existing thread's runner. A different model
+provider within OpenCode uses its existing adapter; another coding CLI requires
+a separate engine adapter.
+
 ## Bindings and upgrades
 
 Set `SZPONT_RUNNER=codex|claude|opencode` in your private environment file before
@@ -69,8 +76,14 @@ required sandbox. It uses `dontAsk` with explicit tools rather than bypassing
 permission checks. Unsupported sandbox environments fail rather than falling back
 to unsandboxed Bash. Do not loosen the host's security settings to hide a failed check.
 
-For optional MCP tools, set `SZPONT_CLAUDE_MCP_CONFIG` to an absolute private JSON
-file containing your trusted `mcpServers`. Only that configuration is loaded.
+For optional MCP tools, the integration CLI writes trusted `mcpServers` into
+`$CLAUDE_CONFIG_DIR/szpont-mcp.json`. On service start, the adapter automatically
+loads this fixed file when it exists and passes the private-file and JSON checks.
+Set `SZPONT_CLAUDE_MCP_CONFIG` to an absolute private JSON path to override it.
+With no override and no managed file, no MCP configuration is supplied. Other
+Claude settings and project MCP discovery remain disabled. Restart the service
+after changing integration configuration.
+
 MCP servers and WebFetch/WebSearch are not enclosed by the Bash sandbox; review
 their permissions independently. No browser login or account access transfers from
 Codex automatically. A real harmless first-turn acceptance test is still required.
@@ -108,8 +121,26 @@ The adapter accepts local API or OAuth entries in
 API keys or remote `.well-known` credentials. A local readiness PASS does not
 validate those credentials against a remote provider.
 
-Optional `SZPONT_OPENCODE_CONFIG` points to a trusted private JSON file containing
-only `provider` and/or `mcp` objects. Unrelated top-level keys are rejected.
+**OpenCode Go is a model provider and subscription, not a separate CLI runner.**
+If your own account already has Go access, select it through OpenCode's `/connect`
+flow, then choose an available model with `/models`. Set
+`SZPONT_OPENCODE_MODEL=opencode-go/<model-id>` using the real model ID; the angle
+brackets are a placeholder. Zen / Console Models is a separate model provider
+with usage-based billing. Both use the same OpenCode adapter and MCP tools, as do
+other providers configured in OpenCode. Account access and credentials are
+separate from integration setup. See the official [Go guide](https://opencode.ai/v2/docs/console/go/)
+and [Console Models guide](https://opencode.ai/v2/docs/console/models/). No live Go
+or Zen account acceptance test is implied by local configuration checks.
+
+For optional MCP settings, the integration CLI writes
+`$SZPONT_OPENCODE_HOME/szpont-mcp.json`, which can also hold trusted provider
+configuration. On service start, the adapter automatically
+loads this fixed file when it exists and passes the private-file and JSON checks.
+An explicit `SZPONT_OPENCODE_CONFIG` absolute private JSON path takes precedence.
+The JSON can contain only `provider` and/or `mcp` objects; unrelated top-level keys
+are rejected. With no override and no managed file, no additional provider/MCP
+configuration is supplied. Restart the service after changing integrations.
+
 The child HOME and XDG paths point to the private OpenCode runtime root, so the
 operator's normal `$HOME/.opencode` is not discovered. The adapter fixes the selected
 model/provider and built-in `build` agent, disables

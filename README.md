@@ -61,7 +61,9 @@ while unavailable providers do not block eligible work for others.
 | Research before implementing | `Compare these two API designs. Save the trade-offs before changing code.`            |
 
 Choose repository, browser and documentation tools with `npm run integrations`.
-The menu prepares your own CLI and explicit MCP configuration; the engine does
+Choose Codex, Claude Code, or OpenCode first, then the integration. Use `--runner claude`
+or `--runner opencode` to target a runner directly. OpenCode can use Go, Zen or another
+configured model provider. The menu prepares your own CLI and explicit MCP configuration; the engine does
 not provide model access or accounts. See [integration setup](docs/integrations.md).
 
 ## What the engine handles

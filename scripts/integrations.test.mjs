@@ -140,6 +140,59 @@ test("GitHub setup is isolated, idempotent and never starts login implicitly", a
   assert.doesNotMatch(JSON.stringify(status), /synthetic-gh-success|secret/);
 });
 
+for (const runner of ["claude", "opencode"])
+  test(`explicit ${runner} selection configures its default MCP file without changing the service default`, async (t) => {
+    const f = await fixture(t, "codex");
+    delete f.env.SZPONT_CLAUDE_MCP_CONFIG;
+    delete f.env.SZPONT_OPENCODE_CONFIG;
+    const result = await f.invoke([
+      "add",
+      "openai-docs",
+      "--runner",
+      runner,
+      "--yes",
+    ]);
+    assert.match(result, new RegExp(`Runner: ${runner}`));
+    assert.match(result, /existing threads keep their runner/);
+    const path = join(f.dir, runner, "szpont-mcp.json");
+    const document = JSON.parse(await readFile(path, "utf8"));
+    const entry =
+      document[runner === "claude" ? "mcpServers" : "mcp"].szpont_openai_docs;
+    assert.equal(entry.url, "https://developers.openai.com/mcp");
+    assert.equal(entry.type, runner === "claude" ? "http" : "remote");
+    assert.equal(f.env.SZPONT_RUNNER, "codex");
+    const selected = JSON.parse(
+      await f.invoke(["status", "--runner", runner, "--json"]),
+    );
+    assert.equal(selected.provider, runner);
+    assert.equal(selected.integrations[0].status, "configured");
+    assert.equal(
+      JSON.parse(await f.invoke(["status", "--json"])).integrations.length,
+      0,
+    );
+    await f.invoke(["remove", "openai-docs", "--runner", runner, "--yes"]);
+    assert.equal(
+      JSON.parse(await f.invoke(["status", "--runner", runner, "--json"]))
+        .integrations.length,
+      0,
+    );
+  });
+
+test("unsupported runners and unavailable container runners are rejected before writes", async (t) => {
+  const f = await fixture(t, "codex");
+  await assert.rejects(
+    f.invoke(["add", "github", "--runner", "unknown-cli", "--yes"]),
+    /Unsupported runner/,
+  );
+  f.env.SZPONT_CONTAINER_RUNNER = "codex";
+  await assert.rejects(
+    f.invoke(["add", "openai-docs", "--runner", "claude", "--yes"]),
+    /container packages Codex only/,
+  );
+  assert.deepEqual(await readdir(f.state), []);
+  assert.deepEqual(await readdir(join(f.workspace, "agent")), []);
+});
+
 test("configuration mismatch is preserved on add and remove", async (t) => {
   const f = await fixture(t);
   await f.invoke(["add", "openai-docs", "--yes"]);

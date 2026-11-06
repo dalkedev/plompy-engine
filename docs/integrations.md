@@ -14,15 +14,24 @@ Discord message is needed for setup.
 npm run integrations
 ```
 
-The interactive menu offers the supported integrations and asks for confirmation
-before changing local configuration. For scripts and terminals without a TTY,
-use explicit subcommands:
+The interactive menu first asks which runner's tools to configure: **Codex**,
+**Claude Code**, or **OpenCode**. It then offers the supported integrations and
+asks for confirmation before changing local configuration. The selected runner
+defaults to `SZPONT_RUNNER`, or Codex when that variable is unset.
+
+For scripts and terminals without a TTY, use explicit subcommands and `--runner`
+to choose the tools' target:
 
 ```sh
 npm run integrations -- list
-npm run integrations -- status
-npm run integrations -- status github --json
+npm run integrations -- status --runner claude
+npm run integrations -- status github --runner opencode --json
 ```
+
+`--runner` only selects where this setup command configures or inspects tools. It
+does not edit the service's `SZPONT_RUNNER` setting or switch existing Discord
+threads. Each runner still needs its own installed CLI and separate model-account
+login. See [runner setup](runners.md) for those prerequisites.
 
 ## Included choices
 
@@ -182,22 +191,49 @@ matching managed custom entries for the selected runner.
 
 ## Runner configuration
 
-The selected `SZPONT_RUNNER` determines where MCP configuration is registered:
+The interactive runner choice or explicit `--runner` determines where MCP
+configuration is registered. Without an explicit choice, the command uses
+`SZPONT_RUNNER`, or Codex when unset:
 
 | Runner | Configuration |
 | --- | --- |
 | Codex | Remote endpoints use a minimal managed block in private `$CODEX_HOME/config.toml`; local stdio uses `codex mcp add`. Both are inspected with `codex mcp get`. |
-| Claude Code | Private JSON file named by `SZPONT_CLAUDE_MCP_CONFIG`, with a `mcpServers` object |
-| OpenCode | Private JSON file named by `SZPONT_OPENCODE_CONFIG`, with an `mcp` object |
+| Claude Code | `$CLAUDE_CONFIG_DIR/szpont-mcp.json`, with a `mcpServers` object; `SZPONT_CLAUDE_MCP_CONFIG` overrides this path |
+| OpenCode | `$SZPONT_OPENCODE_HOME/szpont-mcp.json`, with an `mcp` object; `SZPONT_OPENCODE_CONFIG` overrides this path |
 
-Set the relevant absolute private file path before configuring Claude Code or
-OpenCode. JSONC files are not rewritten. Existing unrelated JSON settings are
-preserved; an existing server with different settings produces a conflict instead
-of being overwritten. Refer to [runner setup](runners.md) for each adapter's
-configuration and execution boundaries.
+These paths use the runner's private home. When configuring a non-default runner
+without an explicit home, `claude` or `opencode` alongside `SZPONT_STATE_DIR` is
+used. Keep setup and service paths consistent when selecting a new default.
+
+For example, configure the same documentation service independently for two
+runners:
+
+```sh
+npm run integrations -- add openai-docs --runner claude --yes
+npm run integrations -- add openai-docs --runner opencode --yes
+```
+
+Claude Code and OpenCode automatically load their fixed private `szpont-mcp.json`
+file on the next service start when it exists and passes the private-file and JSON
+checks. No extra environment setting is needed for that managed default. An
+explicit path override takes precedence. When neither an override nor a managed
+file exists, the adapter retains its previous behavior without MCP configuration.
+Unsafe files or invalid configuration fail validation; they are not silently
+loaded. Restart the stopped service after completing setup.
+
+JSONC files are not rewritten. Existing unrelated JSON settings are preserved;
+an existing server with different settings produces a conflict instead of being
+overwritten. Refer to [runner setup](runners.md) for each adapter's configuration
+and execution boundaries.
 
 Existing Discord threads retain their runner. Configuring tools for a new default
 does not configure the other providers or change those thread bindings.
+
+OpenCode Go and Zen / Console Models are model providers used through OpenCode,
+so they use the same OpenCode integration configuration. Other model providers configured in
+OpenCode also share that adapter. Another coding CLI needs its own reviewed engine
+adapter before it can appear in this menu; adding a custom MCP server does not add
+a new runner.
 
 ## Docker
 

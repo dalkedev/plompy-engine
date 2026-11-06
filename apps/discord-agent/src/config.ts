@@ -1,4 +1,5 @@
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { lstatSync } from "node:fs";
 export const SNOWFLAKE = /^\d{17,20}$/;
 export const SESSION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,6 +48,28 @@ export function runnerHome(
       ? (config.claudeHome ?? resolve(config.stateDir, "..", "claude"))
       : (config.opencodeHome ?? resolve(config.stateDir, "..", "opencode"));
 }
+
+// Only the integration wizard's fixed private filename is discovered. Arbitrary
+// runner/project configuration remains disabled, and a missing file is read-only.
+function managedMcpConfig(home: string): string | undefined {
+  const path = resolve(home, "szpont-mcp.json");
+  try {
+    const info = lstatSync(path);
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      info.nlink !== 1 ||
+      info.size > 65_536 ||
+      (info.mode & 0o077) !== 0 ||
+      (process.getuid && info.uid !== process.getuid())
+    )
+      throw new Error("Unsafe managed MCP configuration; inspect it locally.");
+    return path;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw new Error("Unsafe managed MCP configuration; inspect it locally.");
+  }
+}
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const required = (key: string): string => {
     const value = env[key];
@@ -94,6 +117,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     selected || env[key] !== undefined
       ? directory(key)
       : resolve(stateDir, "..", fallback);
+  const claudeHome = privatePath(
+    "CLAUDE_CONFIG_DIR",
+    provider === "claude",
+    "claude",
+  );
+  const opencodeHome = privatePath(
+    "SZPONT_OPENCODE_HOME",
+    provider === "opencode",
+    "opencode",
+  );
+  const claudeMcpConfig =
+    env.SZPONT_CLAUDE_MCP_CONFIG !== undefined
+      ? directory("SZPONT_CLAUDE_MCP_CONFIG")
+      : managedMcpConfig(claudeHome);
+  const opencodeConfig =
+    env.SZPONT_OPENCODE_CONFIG !== undefined
+      ? directory("SZPONT_OPENCODE_CONFIG")
+      : managedMcpConfig(opencodeHome);
   const claudeModel = setting("SZPONT_CLAUDE_MODEL");
   const claudeEffort = setting("SZPONT_CLAUDE_EFFORT");
   if (
@@ -146,26 +187,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     githubConfigDir,
     provider: provider as ProviderId,
     claudeBin: setting("SZPONT_CLAUDE_BIN") ?? "claude",
-    claudeHome: privatePath(
-      "CLAUDE_CONFIG_DIR",
-      provider === "claude",
-      "claude",
-    ),
+    claudeHome,
     ...(claudeModel ? { claudeModel } : {}),
     ...(claudeEffort ? { claudeEffort } : {}),
-    ...(env.SZPONT_CLAUDE_MCP_CONFIG !== undefined
-      ? { claudeMcpConfig: directory("SZPONT_CLAUDE_MCP_CONFIG") }
-      : {}),
+    ...(claudeMcpConfig ? { claudeMcpConfig } : {}),
     opencodeBin: setting("SZPONT_OPENCODE_BIN") ?? "opencode",
-    opencodeHome: privatePath(
-      "SZPONT_OPENCODE_HOME",
-      provider === "opencode",
-      "opencode",
-    ),
+    opencodeHome,
     ...(opencodeModel ? { opencodeModel } : {}),
-    ...(env.SZPONT_OPENCODE_CONFIG !== undefined
-      ? { opencodeConfig: directory("SZPONT_OPENCODE_CONFIG") }
-      : {}),
+    ...(opencodeConfig ? { opencodeConfig } : {}),
     opencodeAllowHostExecution: env.SZPONT_OPENCODE_HOST_EXECUTION === "allow",
   };
   const overlaps = (left: string, right: string): boolean =>

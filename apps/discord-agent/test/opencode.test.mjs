@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { loadConfig } from "../dist/config.js";
 import {
   OPENCODE_VERSION,
   opencodeArgs,
@@ -171,6 +172,62 @@ test("OpenCode explicitly resumes exact session with stdin, selected model, isol
     if (previous === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = previous;
   }
+});
+test("OpenCode Go consumes the wizard's discovered MCP config and preserves the selected model and provider", async (t) => {
+  const { root, config: fixtureConfig } = await fixture(t);
+  const path = join(fixtureConfig.opencodeHome, "szpont-mcp.json");
+  const mcp = {
+    szpont_context7: {
+      type: "remote",
+      url: "https://example.test/mcp",
+      enabled: true,
+    },
+  };
+  const model = "opencode-go/synthetic-model";
+  const provider = { "opencode-go": { name: "Synthetic Go test provider" } };
+  await writeFile(path, JSON.stringify({ provider, mcp }), { mode: 0o600 });
+  await writeFile(
+    join(fixtureConfig.opencodeHome, "data", "opencode", "auth.json"),
+    JSON.stringify({ "opencode-go": { type: "api", key: "synthetic-go-key" } }),
+    { mode: 0o600 },
+  );
+  const config = loadConfig({
+    DISCORD_BOT_TOKEN: fixtureConfig.token,
+    SZPONT_DISCORD_GUILD_ID: "111111111111111111",
+    SZPONT_DISCORD_OWNER_ID: "222222222222222222",
+    SZPONT_DISCORD_BOT_ID: "333333333333333333",
+    SZPONT_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
+    SZPONT_WORKSPACE: fixtureConfig.workspace,
+    SZPONT_STATE_DIR: fixtureConfig.stateDir,
+    SZPONT_ARTIFACTS_DIR: fixtureConfig.artifactsDir,
+    SZPONT_BROWSER_DIR: fixtureConfig.browserDir,
+    SZPONT_RUNNER: "opencode",
+    SZPONT_OPENCODE_HOME: fixtureConfig.opencodeHome,
+    SZPONT_OPENCODE_BIN: fixtureConfig.opencodeBin,
+    SZPONT_OPENCODE_MODEL: model,
+    SZPONT_OPENCODE_HOST_EXECUTION: "allow",
+  });
+  assert.equal(config.opencodeConfig, path);
+  assert.equal(await opencodeReady(config), true);
+  const result = await runOpenCode(
+    config,
+    "Synthetic integration check",
+    null,
+    () => {},
+  );
+  assert.equal(result.ok, true);
+  const child = JSON.parse(await readFile(join(root, "capture.json"), "utf8"));
+  const settings = JSON.parse(child.env.OPENCODE_CONFIG_CONTENT);
+  assert.deepEqual(settings.mcp, mcp);
+  assert.deepEqual(settings.provider, provider);
+  assert.equal(settings.model, model);
+  assert.deepEqual(settings.enabled_providers, ["opencode-go"]);
+  assert.equal(child.args[child.args.indexOf("--model") + 1], model);
+  assert.equal(
+    JSON.parse(child.env.OPENCODE_PERMISSION)["szpont_context7_*"],
+    "allow",
+  );
+  assert.equal(child.env.GH_CONFIG_DIR, config.githubConfigDir);
 });
 test("OpenCode validates session IDs before spawning", async (t) => {
   const { config } = await fixture(t);

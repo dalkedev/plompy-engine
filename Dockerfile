@@ -26,6 +26,7 @@ RUN apt-get update \
     && codex --version \
     && install -d -m 0700 -o node -g node /var/lib/szpont/workspace /var/lib/szpont/state /var/lib/szpont/artifacts /var/lib/szpont/codex /var/lib/szpont/github
 ENV NODE_ENV=production \
+    SZPONT_CONTAINER_RUNNER=codex \
     HOME=/tmp/szpont-home \
     XDG_CACHE_HOME=/tmp/szpont-cache \
     CODEX_HOME=/var/lib/szpont/codex \

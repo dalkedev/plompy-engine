@@ -18,14 +18,20 @@ import { inspectMcp, registerMcp, unregisterMcp } from "./integrations/mcp.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const exec = promisify(execFile);
 const providers = ["codex", "claude", "opencode"];
+const runnerNames = {
+  codex: "Codex",
+  claude: "Claude Code",
+  opencode: "OpenCode (Go, Zen, or another configured provider)",
+};
 const managedMarker = "<!-- Managed by Szpont integrations CLI.";
 const help = `Usage: npm run integrations -- [command] [integration] [options]
 No command: interactive integration menu (TTY required).
 Commands: list, add <id>, status [id], login github, remove <id>
 Integrations: github, camoufox, openai-docs, context7, custom
-Options: --yes, --login (GitHub), --json (list/status), --spec /private/server.json
+Options: --runner codex|claude|opencode, --yes, --login (GitHub), --json (list/status), --spec /private/server.json
 Camoufox: --python /absolute/python --browser-bin /absolute/camoufox-bin --display :99
 Load the same private deployment environment as the engine and stop it before changes.
+--runner chooses which runner's tools to configure; it does not switch existing Discord threads or the service default.
 Configuration checks do not contact MCP servers or invoke a model. GitHub status checks authentication.
 `;
 
@@ -71,14 +77,16 @@ export async function createContext(env = process.env, publicRoot = root) {
       "SZPONT_OPENCODE_HOME",
       join(deploymentState, "..", "opencode"),
     ),
-    ...(env.SZPONT_CLAUDE_MCP_CONFIG
-      ? { claudeMcpConfig: await path("SZPONT_CLAUDE_MCP_CONFIG") }
-      : {}),
-    ...(env.SZPONT_OPENCODE_CONFIG
-      ? { opencodeConfig: await path("SZPONT_OPENCODE_CONFIG") }
-      : {}),
     publicRoot,
   };
+  config.claudeMcpConfig = await path(
+    "SZPONT_CLAUDE_MCP_CONFIG",
+    join(config.claudeHome, "szpont-mcp.json"),
+  );
+  config.opencodeConfig = await path(
+    "SZPONT_OPENCODE_CONFIG",
+    join(config.opencodeHome, "szpont-mcp.json"),
+  );
   for (const other of [
     config.stateDir,
     config.codexHome,
@@ -436,7 +444,9 @@ export async function runIntegrations(
     if (["--yes", "--json", "--login", "--help"].includes(value))
       options[value.slice(2)] = true;
     else if (
-      ["--python", "--browser-bin", "--display", "--spec"].includes(value)
+      ["--runner", "--python", "--browser-bin", "--display", "--spec"].includes(
+        value,
+      )
     ) {
       if (!args[i + 1] || args[i + 1].startsWith("--"))
         throw new Error(`Missing value for ${value}.`);
@@ -450,6 +460,11 @@ export async function runIntegrations(
     print(help);
     return;
   }
+  if (options.runner !== undefined && !providers.includes(options.runner))
+    throw new Error(
+      "Unsupported runner. Choose codex, claude or opencode; another CLI needs an engine adapter.",
+    );
+  let selectedRunner = options.runner ?? env.SZPONT_RUNNER ?? "codex";
   let [action, id, extra] = positional;
   if (
     extra ||
@@ -483,6 +498,25 @@ export async function runIntegrations(
       print(
         "Szpont integrations — connect tools to your own runner and accounts.\n",
       );
+      if (!options.runner) {
+        print(
+          providers
+            .map(
+              (provider, n) =>
+                `${n + 1}. ${runnerNames[provider]}${provider === selectedRunner ? " (current default)" : ""}`,
+            )
+            .join("\n") + "\n0. Exit",
+        );
+        const choice = await ask(
+          "Choose a runner (Enter keeps the current default): ",
+        );
+        if (choice === "0") return;
+        if (choice) {
+          selectedRunner = providers[Number(choice) - 1];
+          if (!selectedRunner)
+            throw new Error("Choose one of the listed runners.");
+        }
+      }
       print(
         catalog
           .map((c, n) => `${n + 1}. ${c.name} — ${c.description}`)
@@ -498,7 +532,17 @@ export async function runIntegrations(
       throw new Error("Unknown integration. Use list.");
     if (["add", "remove", "login"].includes(action) && !id)
       throw new Error("Choose an integration ID. Use list.");
-    const ctx = await createContext(env, publicRoot);
+    if (
+      env.SZPONT_CONTAINER_RUNNER &&
+      selectedRunner !== env.SZPONT_CONTAINER_RUNNER
+    )
+      throw new Error(
+        "This container packages Codex only. Configure Claude Code or OpenCode on the documented Linux host deployment; their CLI binaries and isolation are required.",
+      );
+    const ctx = await createContext(
+      { ...env, SZPONT_RUNNER: selectedRunner },
+      publicRoot,
+    );
     if (action === "status") {
       const value = await registry(ctx);
       const entries = value.integrations.filter(
@@ -528,6 +572,10 @@ export async function runIntegrations(
     print(
       `Runner: ${ctx.provider}. ${action === "login" ? "GitHub's own terminal login will open." : "Only the selected integration and managed instructions will change."}`,
     );
+    if (selectedRunner !== (env.SZPONT_RUNNER ?? "codex"))
+      print(
+        `Configuring ${runnerNames[selectedRunner]} tools only. For new Discord threads, set SZPONT_RUNNER=${selectedRunner} in the service environment separately; existing threads keep their runner.`,
+      );
     if (action === "add" && id === "custom")
       print(
         "A local MCP server executes with service-account permissions. Use a reviewed executable and non-secret arguments.",

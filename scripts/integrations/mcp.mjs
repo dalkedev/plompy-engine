@@ -437,8 +437,8 @@ async function readJson(path, config) {
   const metadata = await existing(path);
   if (!metadata) return { data: {}, bytes: null, metadata: null };
   assertOwnedPrivate(metadata);
-  if (metadata.size > 1024 * 1024)
-    throw new Error("Private MCP configuration exceeds the 1 MiB limit.");
+  if (metadata.size > 65_536)
+    throw new Error("Private MCP configuration exceeds the 64 KiB limit.");
   const bytes = await readFile(path, "utf8");
   let data;
   try {
@@ -513,6 +513,10 @@ async function mutateJson(options, remove) {
     else servers[options.name] = expected(options.provider, options.server);
     const updated =
       JSON.stringify({ ...document.data, [key]: servers }, null, 2) + "\n";
+    if (Buffer.byteLength(updated) > 65_536)
+      throw new Error(
+        "Private MCP configuration exceeds the 64 KiB limit; existing bytes were preserved.",
+      );
     const pending = await open(temporary, "wx", 0o600);
     try {
       await pending.writeFile(updated);

@@ -329,11 +329,23 @@ test("JSONC and overlarge private files are preserved", async (t) => {
   f.config.claudeMcpConfig += "c";
   await assert.rejects(registerMcp(f.options), /JSONC/);
   f.config.claudeMcpConfig = f.path;
-  const bytes = " ".repeat(1024 * 1024 + 1);
+  const bytes = " ".repeat(65_537);
   await writeFile(f.path, bytes, { mode: 0o600 });
-  await assert.rejects(registerMcp(f.options), /1 MiB/);
+  await assert.rejects(registerMcp(f.options), /64 KiB/);
   assert.equal((await stat(f.path)).size, bytes.length);
 });
+
+for (const provider of ["claude", "opencode"])
+  test(`${provider}: setup refuses a result exceeding the runner's file limit`, async (t) => {
+    const f = await fixture(t, provider);
+    const before = JSON.stringify({
+      provider: { synthetic: { name: "x".repeat(65_450) } },
+    });
+    assert.ok(Buffer.byteLength(before) < 65_536);
+    await writeFile(f.path, before, { mode: 0o600 });
+    await assert.rejects(registerMcp(f.options), /64 KiB/);
+    assert.equal(await readFile(f.path, "utf8"), before);
+  });
 
 test("Codex remote configuration never invokes automatic OAuth add and preserves all prior bytes", async (t) => {
   const f = await fixture(t, "codex");
