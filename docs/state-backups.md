@@ -20,7 +20,7 @@ permissions on existing directories. For example, with an already owned `/srv/sz
 install -d -m 700 /srv/szpont/backups
 node /absolute/source/scripts/state-snapshot.mjs backup \
   --source /srv/szpont/state/agent.sqlite \
-  --destination /srv/szpont/backups/pre-0.6.0.sqlite
+  --destination /srv/szpont/backups/pre-0.6.1.sqlite
 ```
 
 The engine may keep running during an online backup. SQLite copies a consistent
@@ -48,7 +48,7 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
    ```sh
    install -d -m 700 /srv/szpont/restored-state
    node /absolute/source/scripts/state-snapshot.mjs restore \
-     --source /srv/szpont/backups/pre-0.6.0.sqlite \
+     --source /srv/szpont/backups/pre-0.6.1.sqlite \
      --destination /srv/szpont/restored-state/agent.sqlite
    ```
 
@@ -62,7 +62,7 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
    Configure the matching private workspace separately. Keep only one engine instance.
    With Docker, use a separately restored state volume and stop the previous container
    before switching; a host path example is not a command to modify a container volume.
-5. Start the chosen engine version under its instance lock. Version 0.6.0 retains schema 4 and migrates
+5. Start the chosen engine version under its instance lock. Version 0.6.1 retains schema 4 and migrates
    public schemas 0, 1, 2 and 3 to schema 4 at startup, preserving legacy provider
    identities as Codex. Inspect `!status`, interrupted jobs, workflow checkpoints
    and maintenance health. Recover uncertain work only after reconciling its action
@@ -74,7 +74,7 @@ statuses, resets a session or grants permission to repeat an action.
 
 ## Upgrade and rollback
 
-Version 0.6.0 retains public schema 4 from 0.5.0. Its fresh-budget recovery keeps
+Version 0.6.1 retains public schema 4 from 0.5.0. Its fresh-budget recovery keeps
 the saved provider session, history and prior charged execution. A backup restores
 those records as they were, so reconcile newer recovery jobs and external actions
 before starting either version against restored state.
