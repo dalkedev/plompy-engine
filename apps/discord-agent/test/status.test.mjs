@@ -123,6 +123,108 @@ test("blocked queues name the newest failed recovery even when older failures ar
   assert.equal(store.get(id(2)).status, "failed");
 });
 
+test("status follows accepted work order after wall-clock rollback and reversed message IDs", (t) => {
+  let now = 2000;
+  t.mock.method(Date, "now", () => now);
+  const store = fixture(t);
+  store.enqueueWorkflow(id(9), thread, "first private goal", 60_000, 32);
+  store.claim();
+  store.checkpoint(
+    id(9),
+    { outcome: "completed", summary: "First checkpoint", nextAction: "" },
+    1000,
+  );
+  now = 1000;
+  store.enqueueWorkflow(id(1), thread, "second private goal", 60_000, 32);
+  store.claim();
+  store.checkpoint(
+    id(1),
+    {
+      outcome: "continue",
+      summary: "Latest checkpoint",
+      nextAction: "Remaining work",
+    },
+    60_000,
+  );
+  const text = threadStatus(store, thread, true);
+  assert.match(text, new RegExp(`Work session ${id(1)}: paused`));
+  assert.match(text, /Last verified checkpoint: Latest checkpoint/);
+  assert.doesNotMatch(text, /Work session .*: completed|First checkpoint/);
+  const recent = text.split("Recent tasks:\n")[1].split("\n");
+  assert.equal(recent[0], `${id(1)}: interrupted`);
+  assert.equal(recent[1], `${id(9)}: succeeded`);
+  assert.doesNotMatch(text, /private goal/);
+});
+
+test("status selects the earliest accepted active work session despite clock rollback", (t) => {
+  let now = 2000;
+  t.mock.method(Date, "now", () => now);
+  const store = fixture(t);
+  store.enqueueWorkflow(id(9), thread, "first private goal", 60_000, 32);
+  now = 1000;
+  store.enqueueWorkflow(id(1), thread, "second private goal", 60_000, 32);
+  assert.match(
+    threadStatus(store, thread, true),
+    new RegExp(`Work session ${id(9)}: active`),
+  );
+  assert.equal(store.claim().id, id(9));
+});
+
+test("status recommends the actual latest accepted blocking recovery after clock rollback", (t) => {
+  let now = 2000;
+  t.mock.method(Date, "now", () => now);
+  const store = fixture(t);
+  failed(store, 9);
+  now = 1000;
+  store.recover(id(9), thread, id(1));
+  store.claim();
+  store.finish(id(1), "failed", "private partial result", "turn_failed");
+  const text = threadStatus(store, thread, true);
+  assert.match(nextLine(text), new RegExp(`!recover ${id(1)}`));
+  assert.doesNotMatch(nextLine(text), new RegExp(`!recover ${id(9)}`));
+  assert.equal(store.blockingJob(thread).id, id(1));
+  assert.doesNotMatch(text, /private partial result/);
+});
+
+test("an exhausted current blocker requires a fresh budget even with an older recoverable failure", (t) => {
+  const store = fixture(t);
+  failed(store, 1);
+  store.resetSession(thread);
+  store.enqueueWorkflow(id(2), thread, "current private goal", 60_000, 32);
+  store.claim();
+  store.finish(
+    id(2),
+    "interrupted",
+    "private partial result",
+    "task_timeout",
+    60_000,
+  );
+  const text = threadStatus(store, thread, true);
+  assert.equal(store.blockingJob(thread).id, id(2));
+  assert.match(nextLine(text), /!work 30m <goal>/);
+  assert.doesNotMatch(nextLine(text), /!recover /);
+});
+
+test("uncertain delivery selects the latest accepted task after clock rollback", (t) => {
+  let now = 2000;
+  t.mock.method(Date, "now", () => now);
+  const store = fixture(t);
+  for (const number of [9, 1]) {
+    store.enqueue(id(number), thread, "private instruction");
+    store.claim();
+    store.finish(id(number), "succeeded", "private response");
+    store.notification(id(number), "ambiguous");
+    now = 1000;
+  }
+  const text = threadStatus(store, thread, true);
+  const delivery = text
+    .split("\n")
+    .find((line) => line.startsWith("Response delivery"));
+  assert.match(delivery, new RegExp(`!result ${id(1)}`));
+  assert.doesNotMatch(delivery, new RegExp(id(9)));
+  assert.doesNotMatch(text, /private instruction|private response/);
+});
+
 test("an already queued or running manual recovery is reported instead of suggesting a duplicate", (t) => {
   const store = fixture(t);
   failed(store);

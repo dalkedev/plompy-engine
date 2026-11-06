@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   isSessionId,
   MAX_MESSAGE,
+  PROVIDERS,
   SNOWFLAKE,
   type ProviderId,
 } from "./config.js";
@@ -70,6 +71,40 @@ export interface RecoveryOptions {
   /** A fresh, explicitly authorized work budget; prior execution stays charged. */
   work?: { goal: string; budgetMs: number };
   images?: readonly SavedImage[];
+}
+
+export interface QueueItem {
+  id: string;
+  provider: ProviderId;
+  status: "queued" | "running";
+  reason:
+    | "running"
+    | "blocked_thread"
+    | "runner_mismatch"
+    | "earlier_task"
+    | "runner_unavailable"
+    | "eligible";
+}
+
+export interface ThreadQueue {
+  workerBusy: boolean;
+  items: QueueItem[];
+}
+
+// Both inspection and claiming use these predicates. Fair yielding changes
+// queued_at, but must never let a later message overtake this thread's head.
+const queueJoin = `FROM jobs j JOIN conversations c ON c.thread_id=j.thread_id
+  JOIN job_acceptance accepted ON accepted.job_id=j.id`;
+const earlierQueued = `EXISTS(SELECT 1 FROM jobs earlier
+  JOIN job_acceptance predecessor ON predecessor.job_id=earlier.id
+  WHERE earlier.thread_id=j.thread_id AND earlier.status='queued'
+    AND predecessor.sequence<accepted.sequence)`;
+function readyPredicate(providers: readonly ProviderId[]): string {
+  if (providers.some((provider) => !PROVIDERS.includes(provider)))
+    throw new Error("Invalid runner provider");
+  return providers.length
+    ? `j.provider IN(${providers.map(() => "?").join(",")})`
+    : "0";
 }
 
 export class Store {
@@ -536,23 +571,16 @@ export class Store {
   claim(
     eligibleProviders: readonly ProviderId[] = ["codex", "claude", "opencode"],
   ): Job | undefined {
-    if (
-      eligibleProviders.some(
-        (provider) => !["codex", "claude", "opencode"].includes(provider),
-      )
-    )
-      throw new Error("Invalid runner provider");
+    const ready = readyPredicate(eligibleProviders);
     if (!eligibleProviders.length) return undefined;
     return this.transaction(() => {
       const job = this.db
         .prepare(
           `UPDATE jobs SET status='running',started_at=? WHERE id=(
-        SELECT j.id FROM jobs j JOIN conversations c ON c.thread_id=j.thread_id
-        JOIN job_acceptance accepted ON accepted.job_id=j.id
+        SELECT j.id ${queueJoin}
         WHERE j.status='queued' AND c.blocked_reason IS NULL
-          AND j.provider=c.provider AND j.provider IN(${eligibleProviders.map(() => "?").join(",")})
-          AND NOT EXISTS(SELECT 1 FROM jobs earlier JOIN job_acceptance predecessor ON predecessor.job_id=earlier.id
-          WHERE earlier.thread_id=j.thread_id AND earlier.status='queued' AND predecessor.sequence<accepted.sequence)
+          AND j.provider=c.provider AND ${ready}
+          AND NOT ${earlierQueued}
         ORDER BY j.queued_at,j.id LIMIT 1)
         AND status='queued' AND NOT EXISTS(SELECT 1 FROM jobs WHERE status='running') RETURNING *`,
         )
@@ -560,6 +588,40 @@ export class Store {
       if (job) this.dirty(job.thread_id);
       return job;
     });
+  }
+  /** Read-only, bounded by the per-thread intake cap; never returns task content. */
+  queue(
+    threadId: string,
+    eligibleProviders: readonly ProviderId[] = PROVIDERS,
+  ): ThreadQueue {
+    const ready = readyPredicate(eligibleProviders);
+    const rows = this.db
+      .prepare(
+        `SELECT j.id,j.provider,j.status,
+        CASE WHEN j.status='running' THEN 'running'
+          WHEN c.blocked_reason IS NOT NULL THEN 'blocked_thread'
+          WHEN j.provider<>c.provider THEN 'runner_mismatch'
+          WHEN ${earlierQueued} THEN 'earlier_task'
+          WHEN NOT (${ready}) THEN 'runner_unavailable'
+          ELSE 'eligible' END AS reason,
+        EXISTS(SELECT 1 FROM jobs WHERE status='running') AS worker_busy
+        ${queueJoin}
+        WHERE j.thread_id=? AND j.status IN('queued','running')
+        ORDER BY accepted.sequence LIMIT 8`,
+      )
+      .all(...eligibleProviders, threadId) as unknown as (QueueItem & {
+      worker_busy: number;
+    })[];
+    return {
+      workerBusy: rows.length
+        ? Boolean(rows[0]!.worker_busy)
+        : Boolean(
+            this.db
+              .prepare("SELECT 1 FROM jobs WHERE status='running' LIMIT 1")
+              .get(),
+          ),
+      items: rows.map(({ worker_busy: _, ...item }) => item),
+    };
   }
   checkpoint(
     id: string,
@@ -895,7 +957,8 @@ export class Store {
   recent(threadId: string): Job[] {
     return this.db
       .prepare(
-        "SELECT * FROM jobs WHERE thread_id=? ORDER BY created_at DESC,id DESC LIMIT 8",
+        `SELECT j.* FROM jobs j JOIN job_acceptance accepted ON accepted.job_id=j.id
+        WHERE j.thread_id=? ORDER BY accepted.sequence DESC LIMIT 8`,
       )
       .all(threadId) as unknown as Job[];
   }

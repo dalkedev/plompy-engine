@@ -32,6 +32,18 @@ The queue is serialized because the workspace, Git index and optional browser pr
 shared. A long individual step still holds the worker until it finishes or times out. This is
 fairness between completed steps, not preemption or parallel execution.
 
+Use `!queue` for a read-only snapshot of this thread's queued and running task IDs,
+runner and waiting reason. It distinguishes a blocked thread, unverified runner
+readiness, an earlier accepted task and eligibility for the shared worker. Worker
+occupancy is shown without identifiers or content from other threads. It reports
+the worker's last readiness check; this command does not probe a runner, call a
+model, change queue order or retry a task. Eligibility does not predict a start time
+or a global rank. A running task may still finish or fail before the next claim.
+
+An ordinary message accepted in a blocked thread also warns that it cannot run yet
+and points to `!queue`. Read the blocker and saved result before choosing recovery;
+a new message alone does not authorize replay of an uncertain external action.
+
 Each text field is limited to 4,000 UTF-8 bytes. Checkpoints are historical model output,
 not new owner authority. They must be reconciled with current files and actual action receipts.
 The engine does not verify the truth of a model's completion claim; the summary must provide
