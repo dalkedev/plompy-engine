@@ -473,3 +473,36 @@ test("blocking task resolution ignores queued followups and resolved recovery an
     .run(thread);
   assert.equal(store.blockingJob(thread), undefined);
 });
+
+test("ancestor recovery follows the latest authorized fresh budget even after clock rollback", (t) => {
+  const store = fixture(t);
+  store.enqueueWorkflow(id(1), thread, "Old goal", 60_000);
+  store.claim();
+  store.finish(
+    id(1),
+    "interrupted",
+    "Old partial result",
+    "task_timeout",
+    60_000,
+  );
+  store.recover(id(1), thread, id(2), {
+    work: { goal: "New authorized goal", budgetMs: 120_000 },
+  });
+  store.claim();
+  store.finish(
+    id(2),
+    "interrupted",
+    "Latest uncertain result",
+    "task_timeout",
+    20_000,
+  );
+  store.db
+    .prepare("UPDATE jobs SET created_at=0,finished_at=0 WHERE id=?")
+    .run(id(2));
+  assert.equal(store.blockingJob(thread).id, id(2));
+  store.recover(id(1), thread, id(3));
+  assert.equal(store.workflow(id(3)).goal, "New authorized goal");
+  assert.equal(store.workflow(id(3)).budget_ms, 120_000);
+  assert.equal(store.workflow(id(3)).elapsed_ms, 20_000);
+  assert.equal(store.workflow(id(1)).elapsed_ms, 60_000);
+});

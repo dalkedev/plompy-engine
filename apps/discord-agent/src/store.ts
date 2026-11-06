@@ -711,9 +711,10 @@ export class Store {
           UNION SELECT j.recovery_of FROM jobs j JOIN resolved r ON j.id=r.id
             WHERE j.thread_id=? AND j.recovery_of IS NOT NULL
         ) SELECT j.* FROM jobs j JOIN conversations c ON c.thread_id=j.thread_id
+        JOIN job_acceptance accepted ON accepted.job_id=j.id
         WHERE j.thread_id=? AND c.blocked_reason IS NOT NULL AND j.status IN('failed','interrupted')
           AND j.id NOT IN(SELECT id FROM resolved)
-        ORDER BY j.finished_at DESC,j.id DESC LIMIT 1`,
+        ORDER BY accepted.sequence DESC LIMIT 1`,
       )
       .get(threadId, threadId, threadId) as Job | undefined;
   }
@@ -770,14 +771,16 @@ export class Store {
       )
         throw new Error("This job has already been successfully recovered");
       const originalWorkflow = this.workflow(id);
-      // Recovering an ancestor must not reset execution charged to a later failed recovery.
+      // Recovering an ancestor follows the latest accepted recovery, including an
+      // explicitly fresh budget. Wall-clock timestamps and elapsed totals cannot
+      // order distinct budgets or refund execution charged to a later recovery.
       const workflow = originalWorkflow
         ? (this.db
             .prepare(
               `WITH RECURSIVE chain(id) AS (
         SELECT ? UNION SELECT j.id FROM jobs j JOIN chain c ON j.recovery_of=c.id WHERE j.thread_id=?
       ) SELECT w.* FROM workflows w JOIN chain c ON c.id=w.job_id
-        JOIN jobs j ON j.id=w.job_id ORDER BY w.elapsed_ms DESC,w.step_count DESC,j.created_at DESC,j.id DESC LIMIT 1`,
+        JOIN job_acceptance accepted ON accepted.job_id=w.job_id ORDER BY accepted.sequence DESC LIMIT 1`,
             )
             .get(id, threadId) as unknown as Workflow)
         : undefined;
