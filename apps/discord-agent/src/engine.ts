@@ -22,6 +22,7 @@ import {
 } from "./runner.js";
 import { Store, type Job } from "./store.js";
 import { COMMAND_HELP, providerLabel, threadStatus } from "./status.js";
+import { threadQueue } from "./queue.js";
 import {
   parseWorkCommand,
   parseRecoveryCommand,
@@ -57,6 +58,7 @@ const defaults: Dependencies = {
 };
 const commandUsage = new Map([
   ["!status", "!status"],
+  ["!queue", "!queue"],
   ["!help", "!help"],
   ["!cancel", "!cancel <task ID>"],
   ["!new-session", "!new-session"],
@@ -270,6 +272,18 @@ export class Engine {
         }
         let changed = false;
         try {
+          if (command === "!queue") {
+            await this.notice(
+              thread,
+              threadQueue(
+                this.store,
+                thread,
+                this.providerReadiness.get(this.providerFor(thread)) ?? false,
+                this.providerFor(thread),
+              ),
+            );
+            return true;
+          }
           if (command === "!status") {
             await this.notice(
               thread,
@@ -372,7 +386,7 @@ export class Engine {
       if (inserted)
         await this.notice(
           thread,
-          `Queued: ${message.id}.${this.providerReadiness.get(this.providerFor(thread)) ? "" : ` ${this.providerFor(thread) === "opencode" ? "OpenCode local prerequisites are unverified" : `${providerLabel(this.providerFor(thread))} login is unverified`}; this message remains in the durable queue.`}`,
+          `Queued: ${message.id}.${this.providerReadiness.get(this.providerFor(thread)) ? "" : ` ${this.providerFor(thread) === "opencode" ? "OpenCode local prerequisites are unverified" : `${providerLabel(this.providerFor(thread))} login is unverified`}; this message remains in the durable queue.`}${this.store.queue(thread).items.some((item) => item.reason === "blocked_thread") ? " This thread is blocked after an earlier task; this message cannot run yet. Use !queue for the blocker and recovery options." : " Use !queue to inspect waiting tasks."}`,
         );
     } finally {
       // Durable insertion is authoritative; failed notices/export cannot unqueue it.

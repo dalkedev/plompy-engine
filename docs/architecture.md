@@ -48,6 +48,11 @@ These are local guarantees. They do not form a transaction with an external webs
 state. Global worker occupancy is only a boolean: another thread's identifiers, prompts,
 results, and session IDs are not included. `!help` and invalid controls never enqueue work.
 
+`!queue` uses the same runner and predecessor predicates as claiming to explain each
+current-thread pending task. Its metadata query never selects prompts, results or
+session IDs. Active jobs and recent history use durable acceptance order, including
+when the wall clock moves backwards. Inspection does not claim work or query a model.
+
 ## Bounded workflows and queue fairness
 
 An explicit `!work` command creates a workflow attached to the original parent job. A completed

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `!queue` with current-thread task IDs, accepted order and waiting reasons. Share runner and predecessor predicates with the scheduler; keep other conversations and task content private. Inspection does not call a model, retry a task or predict a start time.
+- Warn immediately when a normal message is accepted into a blocked thread, and point to recovery guidance and the blocking task's saved result.
+- Order status, default result readback and recovery suggestions by durable acceptance order, so wall-clock rollback cannot select an older workflow or failure.
+
 ## 0.6.0 — 2026-11-06
 
 ### Guided integrations

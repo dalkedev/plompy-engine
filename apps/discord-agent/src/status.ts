@@ -22,6 +22,7 @@ interface RecentTask {
 export const COMMAND_HELP = [
   "Send a normal message to queue a task in this thread.",
   "!status — show this thread's queue, worker, work-session and maintenance state.",
+  "!queue — list this thread's queued/running task IDs in accepted order and explain why each task is waiting; no model call.",
   "!work 30m <goal> or !work 2h <goal> — run checkpointed steps with 1–120 minutes of active execution, at most 32 completed steps. Other threads get turns between steps.",
   "!result [task ID] — read the saved response (latest task by default).",
   "!cancel <task ID> — cancel a queued task or stop this thread's active process.",
@@ -57,19 +58,23 @@ export function threadStatus(
   );
   const recent = store.db
     .prepare(
-      "SELECT id,status,notification FROM jobs WHERE thread_id=? ORDER BY created_at DESC,id DESC LIMIT 8",
+      `SELECT j.id,j.status,j.notification FROM jobs j
+      JOIN job_acceptance accepted ON accepted.job_id=j.id
+      WHERE j.thread_id=? ORDER BY accepted.sequence DESC LIMIT 8`,
     )
     .all(threadId) as unknown as RecentTask[];
   const uncertain = store.db
     .prepare(
-      "SELECT id FROM jobs WHERE thread_id=? AND notification='ambiguous' ORDER BY finished_at DESC,id DESC LIMIT 1",
+      `SELECT j.id FROM jobs j JOIN job_acceptance accepted ON accepted.job_id=j.id
+      WHERE j.thread_id=? AND j.notification='ambiguous' ORDER BY accepted.sequence DESC LIMIT 1`,
     )
     .get(threadId) as { id: string } | undefined;
   const currentWorkflow = store.db
     .prepare(
       `SELECT w.job_id FROM workflows w JOIN jobs j ON j.id=w.job_id
+      JOIN job_acceptance accepted ON accepted.job_id=j.id
       WHERE j.thread_id=? ORDER BY (j.status='running') DESC,(w.state='active') DESC,
-        CASE WHEN w.state='active' THEN j.created_at END ASC,j.created_at DESC,j.id DESC LIMIT 1`,
+        CASE WHEN w.state='active' THEN accepted.sequence END ASC,accepted.sequence DESC LIMIT 1`,
     )
     .get(threadId) as { job_id: string } | undefined;
   const workflow = currentWorkflow
@@ -140,32 +145,17 @@ export function threadStatus(
       "Next: a manual recovery is already queued or running in this thread. Wait for its result; do not queue another recovery.",
     );
   else if (blocked && counts.running === 0) {
-    // Resolve all ancestors of a successful recovery, including multi-step chains.
-    const recoverable = store.db
-      .prepare(
-        `WITH RECURSIVE resolved(id) AS (
-          SELECT recovery_of FROM jobs WHERE thread_id=? AND status='succeeded' AND recovery_of IS NOT NULL
-          UNION
-          SELECT j.recovery_of FROM jobs j JOIN resolved r ON j.id=r.id
-            WHERE j.thread_id=? AND j.recovery_of IS NOT NULL
-        ), exhausted(id) AS (
-          SELECT w.job_id FROM workflows w JOIN jobs j ON j.id=w.job_id
-            WHERE j.thread_id=? AND (w.state='paused' OR w.elapsed_ms>=w.budget_ms OR w.step_count>=w.max_steps)
-          UNION
-          SELECT j.recovery_of FROM jobs j JOIN exhausted e ON j.id=e.id
-            WHERE j.thread_id=? AND j.recovery_of IS NOT NULL
-        ) SELECT id FROM jobs WHERE thread_id=? AND status IN('failed','interrupted')
-          AND id NOT IN(SELECT id FROM resolved)
-          AND id NOT IN(SELECT id FROM exhausted)
-          ORDER BY created_at DESC,id DESC LIMIT 1`,
-      )
-      .get(threadId, threadId, threadId, threadId, threadId) as
-      | { id: string }
-      | undefined;
+    const blocker = store.blockingJob(threadId);
+    const blockedWorkflow = blocker ? store.workflow(blocker.id) : undefined;
+    const needsBudget =
+      blockedWorkflow &&
+      (blockedWorkflow.state === "paused" ||
+        blockedWorkflow.elapsed_ms >= blockedWorkflow.budget_ms ||
+        blockedWorkflow.step_count >= blockedWorkflow.max_steps);
     lines.push(
-      recoverable
-        ? `Next: use !recover ${recoverable.id} to inspect prior actions and continue. Recovery replaces queued follow-ups in this thread. Use !new-session instead to cancel queued work and start fresh; history is retained.`
-        : store.blockingJob(threadId)
+      blocker && !needsBudget
+        ? `Next: use !recover ${blocker.id} to inspect prior actions and continue. Recovery replaces queued follow-ups in this thread. Use !new-session instead to cancel queued work and start fresh; history is retained.`
+        : blocker
           ? "Next: use !work 30m <goal> to authorize a fresh budget, reconcile prior actions and continue the saved session. Queued follow-ups are replaced and prior spent budget is retained. Use !new-session only if you want a fresh session."
           : "Next: use !new-session to clear this thread's block and start fresh. This cancels queued work; history is retained. No failed or interrupted task is eligible for recovery.",
     );

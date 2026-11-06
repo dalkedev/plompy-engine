@@ -45,6 +45,11 @@ A delivery retry does not rerun the model.
 
 “Queued” is a state, not an optimistic progress report.
 
+Use `!queue` to see which tasks are waiting and why: an earlier task in this thread,
+unverified runner readiness, a blocked conversation, or the shared worker. The view
+contains task IDs and states from this thread; it does not call a model or expose
+messages from other conversations. No invented countdown. Computers have enough timers.
+
 ### Keep the runner attached to the conversation
 
 Choose a default for new threads. Existing conversations keep their provider and session,
