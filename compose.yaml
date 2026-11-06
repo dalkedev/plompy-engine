@@ -1,7 +1,7 @@
 name: szpont-engine
 services:
   engine:
-    image: ${SZPONT_IMAGE:-ghcr.io/dalkedev/szpont-engine:0.5.0}
+    image: ${SZPONT_IMAGE:-ghcr.io/dalkedev/szpont-engine:0.6.0}
     build:
       context: .
     env_file:

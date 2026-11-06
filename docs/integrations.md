@@ -237,13 +237,13 @@ a new runner.
 
 ## Docker
 
-The published **0.5.0 image predates this command**. Until a new image containing
-it is published, build from this source under a separate local tag:
+The **0.6.0 image includes this command and GitHub CLI**. After taking a verified
+pre-upgrade snapshot, stop the engine and pull the selected release:
 
 ```sh
-export SZPONT_IMAGE=szpont-engine:integrations-local
+export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.6.0
 docker compose stop engine
-docker compose build engine
+docker compose pull engine
 docker compose run --rm -it engine integrations
 docker compose run --rm engine integrations status
 docker compose up -d --no-build

@@ -61,3 +61,8 @@ preserving provider bindings. State snapshots now contain image bytes. Keep stat
 owned by the service account with mode `0700`; native-input files use private
 per-turn directories there and are cleaned on the next singleton-locked startup
 after a crash. See [image input](image-input.md) before enabling attachment intake.
+
+Version 0.6.0 retains schema 4 and adds guided integration setup and explicit
+fresh-budget recovery. Stop the service before changing tools; runtime configuration
+is loaded on startup. An integration status check is separate from a harmless live
+acceptance test. See [integration setup](integrations.md) and [work sessions](work-sessions.md).

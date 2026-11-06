@@ -129,7 +129,7 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone https://github.com/dalkedev/szpont-engine.git
+git clone --branch v0.6.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
 cd szpont-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -207,7 +207,7 @@ and a live acceptance check.
 | `!work 30m <goal>`     | Continue a fixed goal with checkpoints; 1–120 active minutes, at most 32 completed steps |
 | `!status`              | Inspect this thread's queue, readiness, work session and delivery state                  |
 | `!cancel MESSAGE_ID`   | Cancel queued work or stop this thread's active process                                  |
-| `!recover MESSAGE_ID`  | Inspect prior actions and deliberately continue failed or interrupted work               |
+| `!recover [MESSAGE_ID] [instruction]` | Reconcile the blocking or selected task, then continue its saved session       |
 | `!new-session`         | Cancel queued work and clear the session; retain the provider binding and history        |
 | `!result [MESSAGE_ID]` | Read a saved response without rerunning work; latest task by default                     |
 | `!help`                | Show commands without starting a model                                                   |
@@ -217,7 +217,8 @@ what was accepted. Invalid commands show usage rather than becoming model tasks.
 
 A verified work-session pause retains its session and checkpoint. A fresh explicit `!work`
 budget can continue it. Crashes, timeouts and malformed outcomes require inspection and manual
-recovery. See [work sessions](docs/work-sessions.md).
+recovery. In a blocked thread, a fresh explicit `!work` budget reconciles prior actions
+and continues the saved session. See [work sessions](docs/work-sessions.md).
 
 Codex threads also accept up to four still PNG, JPEG or WebP attachments, with a
 caption, without text, or alongside an explicit `!work` goal. Images are passed as
@@ -242,7 +243,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.5.0 uses SQLite schema 4**. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
+Version **0.6.0 retains SQLite schema 4**, introduced in 0.5.0. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
 
