@@ -25,10 +25,10 @@ export const COMMAND_HELP = [
   "!work 30m <goal> or !work 2h <goal> — run checkpointed steps with 1–120 minutes of active execution, at most 32 completed steps. Other threads get turns between steps.",
   "!result [task ID] — read the saved response (latest task by default).",
   "!cancel <task ID> — cancel a queued task or stop this thread's active process.",
-  "!recover <task ID> — inspect prior actions and continue a failed or interrupted task; replaces queued follow-ups in this thread.",
+  "!recover [task ID] [instruction] — inspect prior actions and continue a failed or interrupted task; the current thread's blocking task is selected when the ID is omitted. Replaces queued follow-ups in this thread.",
   "!new-session — clear this thread's session and cancel its queued tasks; its runner binding and history are retained.",
   "!help — show these commands.",
-  "A verified work-session checkpoint can pause at its budget or step cap without blocking this thread. Continue with a fresh explicit !work budget; interrupted or uncertain turns require manual recovery.",
+  "A verified work-session checkpoint can pause at its budget or step cap without blocking this thread. An explicit !work budget in a blocked thread first reconciles prior actions and continues its saved session. Interrupted or uncertain turns are never retried automatically.",
   "One worker runs tasks across all threads. A queued task is not running yet. Stopping a process does not undo actions already taken.",
 ].join("\n");
 
@@ -165,7 +165,9 @@ export function threadStatus(
     lines.push(
       recoverable
         ? `Next: use !recover ${recoverable.id} to inspect prior actions and continue. Recovery replaces queued follow-ups in this thread. Use !new-session instead to cancel queued work and start fresh; history is retained.`
-        : "Next: use !new-session to clear this thread's block and start fresh. This cancels queued work; history is retained. No failed or interrupted task is eligible for recovery.",
+        : store.blockingJob(threadId)
+          ? "Next: use !work 30m <goal> to authorize a fresh budget, reconcile prior actions and continue the saved session. Queued follow-ups are replaced and prior spent budget is retained. Use !new-session only if you want a fresh session."
+          : "Next: use !new-session to clear this thread's block and start fresh. This cancels queued work; history is retained. No failed or interrupted task is eligible for recovery.",
     );
   } else if (counts.running > 0)
     lines.push(

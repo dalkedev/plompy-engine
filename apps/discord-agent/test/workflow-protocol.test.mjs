@@ -13,6 +13,7 @@ import { join, isAbsolute } from "node:path";
 import { codexArgs, runCodex } from "../dist/codex.js";
 import {
   parseWorkCommand,
+  parseRecoveryCommand,
   validateWorkOutcome,
   workflowPrompt,
   MIN_WORK_BUDGET_MS,
@@ -193,12 +194,15 @@ test("workflow prompt preserves a fixed owner goal and labels checkpoints as his
       goal,
       step: 2,
       remainingMs: 59_000,
+      stepBudgetMs: 20_000,
       lastSummary,
       nextAction,
     },
   );
   assert.match(prompt, /step 2 of at most 32/);
   assert.match(prompt, /59000 milliseconds/);
+  assert.match(prompt, /hard deadline of 20000 milliseconds/);
+  assert.match(prompt, /within 16000 milliseconds/);
   assert.ok(prompt.includes(JSON.stringify(goal)));
   assert.ok(
     prompt.includes(JSON.stringify({ summary: lastSummary, nextAction })),
@@ -215,6 +219,7 @@ test("workflow prompt rejects invalid bounds and oversized assembled context", (
     goal: "Test locally",
     step: 1,
     remainingMs: 60_000,
+    stepBudgetMs: 60_000,
     lastSummary: null,
     nextAction: null,
   };
@@ -226,6 +231,9 @@ test("workflow prompt rejects invalid bounds and oversized assembled context", (
     { remainingMs: 0 },
     { remainingMs: Infinity },
     { remainingMs: 7_200_001 },
+    { stepBudgetMs: 0 },
+    { stepBudgetMs: Infinity },
+    { stepBudgetMs: 60_001 },
     { lastSummary: "x".repeat(4_001) },
     { nextAction: "x".repeat(4_001) },
   ])
@@ -367,4 +375,30 @@ test("workflow timeout, crash and absent completion stay uncertain and never aut
       assert.equal(result.error, error);
       assert.equal((await calls()).length, 1);
     });
+});
+
+test("explicit recovery accepts the current thread, an optional task ID and an owner instruction", () => {
+  assert.deepEqual(parseRecoveryCommand("!recover"), { note: "" });
+  assert.deepEqual(
+    parseRecoveryCommand(
+      "!recover Push the saved branch after checking remote state",
+    ),
+    {
+      note: "Push the saved branch after checking remote state",
+    },
+  );
+  assert.deepEqual(
+    parseRecoveryCommand(
+      "!recover 5555000000000001001 Continue\nwith verified changes",
+    ),
+    {
+      id: "5555000000000001001",
+      note: "Continue\nwith verified changes",
+    },
+  );
+  assert.equal(parseRecoveryCommand("Quoted !recover continue"), null);
+  assert.equal(parseRecoveryCommand("!recovering"), null);
+  assert.throws(() => parseRecoveryCommand("!recover 123 continue"));
+  assert.throws(() => parseRecoveryCommand(`!recover ${"1".repeat(21)}`));
+  assert.throws(() => parseRecoveryCommand(`!recover ${"a".repeat(8001)}`));
 });

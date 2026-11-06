@@ -512,3 +512,129 @@ test("a committed workflow checkpoint survives failed progress and final notices
   assert.equal(f.store.get(id(1)).result, "Verified step 2");
   assert.equal(f.store.get(id(1)).notification, "ambiguous");
 });
+
+test("a two-hour workflow receives its actual turn deadline and checkpoints across multiple turns", async (t) => {
+  const f = await fixture(t);
+  f.config.timeoutMs = 1_200_000;
+  let turn = 0;
+  f.deps.run = async (c, prompt, session, save) => {
+    f.calls.push({ c, prompt, session });
+    if (!session) save(sid);
+    assert.equal(c.timeoutMs, 1_200_000);
+    assert.match(prompt, /hard deadline of 1200000 milliseconds/);
+    assert.match(prompt, /within 960000 milliseconds/);
+    f.clock.value += 900_000;
+    return success(
+      ++turn === 1
+        ? output(
+            "continue",
+            "First bounded change verified",
+            "Review the next change",
+          )
+        : output(),
+    );
+  };
+  const engine = f.make();
+  await engine.accept(
+    f.message(1, "!work 2h Implement and review the synthetic change"),
+  );
+  await drain(engine);
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.calls[1].session, sid);
+  assert.equal(f.store.workflow(id(1)).elapsed_ms, 1_800_000);
+  assert.equal(f.store.get(id(1)).status, "succeeded");
+});
+
+for (const command of [
+  "!recover",
+  "!recover Check the destination first, then push the saved branch",
+]) {
+  test(`${command} selects the blocking task rather than queued followups`, async (t) => {
+    const f = await fixture(t);
+    f.store.enqueue(id(1), thread, "Original authorized work");
+    f.store.claim();
+    f.store.finish(id(1), "interrupted", "Partial result", "task_timeout");
+    f.store.setSession(thread, sid);
+    f.store.enqueue(id(2), thread, "stale queued followup");
+    const engine = f.make();
+    await engine.accept(f.message(3, command));
+    await drain(engine);
+    assert.equal(f.store.get(id(3)).recovery_of, id(1));
+    assert.equal(f.store.get(id(2)).status, "cancelled");
+    assert.equal(f.calls.length, 1);
+    assert.equal(f.calls[0].session, sid);
+    assert.match(
+      f.calls[0].prompt,
+      /Inspect the saved session, transcript, journal and external publication receipts/,
+    );
+    if (command !== "!recover")
+      assert.match(
+        f.calls[0].prompt,
+        /Current verified owner recovery instruction/,
+      );
+    await engine.accept(f.message(3, command));
+    await drain(engine);
+    assert.equal(f.calls.length, 1);
+  });
+}
+
+test("fresh explicit work reconciles an exhausted workflow without resetting its session or refunding the old budget", async (t) => {
+  const f = await fixture(t);
+  f.store.enqueueWorkflow(id(1), thread, "Original goal", 60_000);
+  f.store.claim();
+  f.store.setSession(thread, sid);
+  f.store.finish(
+    id(1),
+    "interrupted",
+    "Uncertain destination state",
+    "task_timeout",
+    60_000,
+  );
+  f.store.enqueue(id(2), thread, "older queued followup");
+  const engine = f.make();
+  await engine.accept(
+    f.message(
+      3,
+      "!work 2h Check the remote branch and finish the current change",
+    ),
+  );
+  await drain(engine);
+  assert.equal(f.store.workflow(id(1)).elapsed_ms, 60_000);
+  assert.equal(f.store.workflow(id(1)).state, "blocked");
+  assert.equal(f.store.get(id(2)).status, "cancelled");
+  assert.equal(f.store.get(id(3)).recovery_of, id(1));
+  assert.equal(f.store.workflow(id(3)).budget_ms, 7_200_000);
+  assert.equal(
+    f.store.workflow(id(3)).goal,
+    "Check the remote branch and finish the current change",
+  );
+  assert.equal(f.calls[0].session, sid);
+  assert.match(f.calls[0].prompt, /Reconcile previous actions first/);
+  assert.match(f.calls[0].prompt, /Never blindly repeat a publication/);
+  assert.ok(
+    f.sent.some(({ text }) =>
+      /fresh budget continues the saved session/.test(text),
+    ),
+  );
+});
+
+test("recovery without an ID cannot select another thread or start an unrelated old failure", async (t) => {
+  const f = await fixture(t);
+  f.store.enqueue(id(1), other, "Foreign task");
+  f.store.claim();
+  f.store.finish(id(1), "failed", "Foreign result", "turn_failed");
+  const engine = f.make();
+  await engine.accept(f.message(2, "!recover"));
+  await drain(engine);
+  assert.equal(f.store.get(id(2)), undefined);
+  assert.equal(f.calls.length, 0);
+  assert.ok(
+    f.sent.some(({ text }) =>
+      /No failed or interrupted task is blocking this thread/.test(text),
+    ),
+  );
+  await engine.accept(f.message(3, `!recover ${id(1)} Continue`));
+  await drain(engine);
+  assert.equal(f.store.get(id(3)), undefined);
+  assert.equal(f.calls.length, 0);
+});

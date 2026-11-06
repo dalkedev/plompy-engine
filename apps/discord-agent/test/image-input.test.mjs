@@ -823,3 +823,31 @@ process.stdin.on("end", () => {
     await files.cleanup();
   }
 });
+
+for (const replace of [false, true]) {
+  test(`fresh recovery work ${replace ? "uses newly attached" : "preserves saved"} images atomically`, async (t) => {
+    const f = await fixture(t);
+    f.store.enqueueWorkflow(
+      id(1),
+      thread,
+      "Original image goal",
+      60_000,
+      32,
+      "codex",
+      [saved(), saved()],
+    );
+    f.store.claim();
+    f.store.setSession(thread, session);
+    f.store.finish(id(1), "interrupted", "Uncertain", "task_timeout", 60_000);
+    f.store.recover(id(1), thread, id(2), {
+      work: { goal: "Reconcile then finish", budgetMs: 120_000 },
+      images: replace ? [saved()] : [],
+    });
+    assert.equal(f.store.images(id(2)).length, replace ? 1 : 2);
+    assert.deepEqual(Buffer.from(f.store.images(id(2))[0].data), png);
+    assert.equal(f.store.session(thread), session);
+    assert.equal(f.store.workflow(id(1)).elapsed_ms, 60_000);
+    assert.equal(f.store.workflow(id(2)).elapsed_ms, 0);
+    assert.deepEqual(f.store.db.prepare("PRAGMA foreign_key_check").all(), []);
+  });
+}

@@ -403,3 +403,106 @@ test("failed recovery transaction preserves original workflow and queued followu
   );
   assert.deepEqual(state(store), before);
 });
+
+test("fresh-budget reconciliation retains provider and session while recording a separate budget", (t) => {
+  const store = fixture(t);
+  store.enqueueWorkflow(id(1), thread, "Original goal", 60_000, 32, "claude");
+  store.claim(["claude"]);
+  store.setSession(thread, session, "claude");
+  store.finish(id(1), "interrupted", "Uncertain", "task_timeout", 60_000);
+  store.enqueue(id(2), thread, "Queued old followup");
+  assert.equal(
+    store.recover(id(1), thread, id(3), {
+      work: { goal: "Current owner goal", budgetMs: 120_000 },
+    }),
+    true,
+  );
+  assert.equal(store.get(id(3)).provider, "claude");
+  assert.equal(store.get(id(3)).recovery_of, id(1));
+  assert.equal(store.session(thread), session);
+  assert.equal(store.workflow(id(1)).elapsed_ms, 60_000);
+  assert.equal(store.workflow(id(3)).elapsed_ms, 0);
+  assert.equal(store.workflow(id(3)).step_count, 0);
+  assert.equal(store.workflow(id(3)).budget_ms, 120_000);
+  assert.equal(store.get(id(2)).error_code, "superseded_by_recovery");
+});
+
+test("invalid new recovery budget and insertion failure roll back queue cancellation and session state", (t) => {
+  const store = fixture(t);
+  store.enqueueWorkflow(id(1), thread, "Original", 60_000);
+  store.claim();
+  store.finish(id(1), "interrupted", "partial", "task_timeout", 60_000);
+  store.enqueue(id(2), thread, "Preserve until commit");
+  const before = state(store);
+  for (const work of [
+    { goal: " ", budgetMs: 60_000 },
+    { goal: "Goal", budgetMs: 1 },
+    { goal: "Goal", budgetMs: 7_200_001 },
+  ]) {
+    assert.throws(() => store.recover(id(1), thread, id(3), { work }));
+    assert.deepEqual(state(store), before);
+  }
+  store.db
+    .exec(`CREATE TEMP TRIGGER reject_recovery_budget BEFORE INSERT ON workflows
+    WHEN NEW.job_id='${id(3)}' BEGIN SELECT RAISE(ABORT,'injected new budget failure'); END`);
+  assert.throws(
+    () =>
+      store.recover(id(1), thread, id(3), {
+        work: { goal: "Continue safely", budgetMs: 120_000 },
+      }),
+    /injected new budget failure/,
+  );
+  assert.deepEqual(state(store), before);
+});
+
+test("blocking task resolution ignores queued followups and resolved recovery ancestors", (t) => {
+  const store = fixture(t);
+  store.enqueue(id(1), thread, "Original");
+  store.claim();
+  store.finish(id(1), "interrupted", "partial", "task_timeout");
+  store.enqueue(id(2), thread, "Newer queued request");
+  assert.equal(store.blockingJob(thread).id, id(1));
+  assert.equal(store.blockingJob(other), undefined);
+  store.recover(id(1), thread, id(3));
+  store.claim();
+  store.finish(id(3), "succeeded", "Reconciled");
+  store.db
+    .prepare(
+      "UPDATE conversations SET blocked_reason='stale' WHERE thread_id=?",
+    )
+    .run(thread);
+  assert.equal(store.blockingJob(thread), undefined);
+});
+
+test("ancestor recovery follows the latest authorized fresh budget even after clock rollback", (t) => {
+  const store = fixture(t);
+  store.enqueueWorkflow(id(1), thread, "Old goal", 60_000);
+  store.claim();
+  store.finish(
+    id(1),
+    "interrupted",
+    "Old partial result",
+    "task_timeout",
+    60_000,
+  );
+  store.recover(id(1), thread, id(2), {
+    work: { goal: "New authorized goal", budgetMs: 120_000 },
+  });
+  store.claim();
+  store.finish(
+    id(2),
+    "interrupted",
+    "Latest uncertain result",
+    "task_timeout",
+    20_000,
+  );
+  store.db
+    .prepare("UPDATE jobs SET created_at=0,finished_at=0 WHERE id=?")
+    .run(id(2));
+  assert.equal(store.blockingJob(thread).id, id(2));
+  store.recover(id(1), thread, id(3));
+  assert.equal(store.workflow(id(3)).goal, "New authorized goal");
+  assert.equal(store.workflow(id(3)).budget_ms, 120_000);
+  assert.equal(store.workflow(id(3)).elapsed_ms, 20_000);
+  assert.equal(store.workflow(id(1)).elapsed_ms, 60_000);
+});

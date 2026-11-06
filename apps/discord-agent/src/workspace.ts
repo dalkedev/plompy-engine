@@ -20,6 +20,30 @@ const fixed = [
   "agent/MEMORY.md",
   "agent/POLICY.md",
 ];
+
+export async function integrationInstructions(
+  config: Config,
+  provider: Job["provider"],
+): Promise<string> {
+  const text = await readTail(
+    config.workspace,
+    "agent/INTEGRATIONS.md",
+    32_000,
+  );
+  if (!text.includes("<!-- Managed by Szpont integrations CLI."))
+    return text.slice(-5000);
+  const [header, ...sections] = text.split(/\n(?=## )/);
+  const selected = [
+    header,
+    ...sections.filter((section) =>
+      section.split("\n", 1)[0]?.endsWith(`(${provider})`),
+    ),
+  ].join("\n");
+  return selected.length > 10_000
+    ? selected.slice(0, 10_000) +
+        "\n[More integration instructions exist in agent/INTEGRATIONS.md; read that file before using another tool.]"
+    : selected;
+}
 async function safePath(
   root: string,
   path: string,
@@ -101,6 +125,11 @@ export async function assemblePrompt(
     const text = await readTail(config.workspace, path, 5000);
     sections.push(`--- ${path} ---\n${text || "[file missing]"}`);
   }
+  const integrations = await integrationInstructions(config, job.provider);
+  if (integrations)
+    sections.push(
+      `--- agent/INTEGRATIONS.md (this runner) ---\n${integrations}`,
+    );
   let notes: string[] = [];
   try {
     notes = (await readdir(join(config.workspace, "agent/memory")))

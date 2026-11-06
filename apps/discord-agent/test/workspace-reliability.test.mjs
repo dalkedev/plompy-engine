@@ -54,6 +54,7 @@ async function fixture() {
   ]);
   const config = {
     workspace,
+    stateDir: join(root, "state"),
     token: "synthetic-token",
     codexHome: join(root, "codex"),
     artifactsDir: join(root, "artifacts"),

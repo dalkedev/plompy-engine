@@ -14,7 +14,7 @@ Useful context stays in a private Markdown workspace.
 [![Node.js 24](https://img.shields.io/badge/Node.js-24-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
 [![MIT license](https://img.shields.io/badge/license-MIT-FF6B35?labelColor=111315)](LICENSE)
 
-[See it work](#see-it-work) · [Quick start](#quick-start) · [Choose a runner](#choose-a-runner) · [Documentation](docs/index.md)
+[See it work](#see-it-work) · [Quick start](#quick-start) · [Choose a runner](#choose-a-runner) · [Integrations](docs/integrations.md) · [Documentation](docs/index.md)
 
 </div>
 
@@ -60,8 +60,11 @@ while unavailable providers do not block eligible work for others.
 | Build in bounded steps       | `!work 30m Add CSV export to the fixture app. Include tests and document the format.` |
 | Research before implementing | `Compare these two API designs. Save the trade-offs before changing code.`            |
 
-Access to repositories, browsers and external services comes from your own CLI and MCP
-configuration. The engine does not provide model access or accounts.
+Choose repository, browser and documentation tools with `npm run integrations`.
+Choose Codex, Claude Code, or OpenCode first, then the integration. Use `--runner claude`
+or `--runner opencode` to target a runner directly. OpenCode can use Go, Zen or another
+configured model provider. The menu prepares your own CLI and explicit MCP configuration; the engine does
+not provide model access or accounts. See [integration setup](docs/integrations.md).
 
 ## What the engine handles
 
@@ -73,8 +76,8 @@ configuration. The engine does not provide model access or accounts.
 - **Deployment checks:** owner/forum authorization, local diagnostics, versioned migrations and verified state snapshots.
 
 The public edition has **one global worker**. Work sessions yield between verified steps;
-they do not interrupt a running step. There is no built-in scheduler, publication broker,
-attachment intake or message-history catch-up after an outage.
+they do not interrupt a running step. There is no built-in scheduler, publication broker
+or message-history catch-up after an outage. Still-image input is available for Codex.
 
 ## Choose a runner
 
@@ -126,7 +129,7 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone https://github.com/dalkedev/szpont-engine.git
+git clone --branch v0.6.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
 cd szpont-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -175,6 +178,27 @@ your installation. Offline tests do not establish real Discord permissions, mode
 or browser login. See [deployment](docs/deployment.md) for service setup and
 [runner setup](docs/runners.md) for Claude Code and OpenCode.
 
+### 4. Choose integrations
+
+With the engine stopped and the same private configuration loaded:
+
+```sh
+npm run integrations
+# Or configure explicitly:
+npm run integrations -- add github --yes
+npm run integrations -- login github
+npm run integrations -- add openai-docs --yes
+npm run integrations -- status
+```
+
+The catalog includes GitHub CLI, the optional Camoufox bridge, OpenAI Docs,
+Context7 and a custom MCP server. Setup adds maintained usage playbooks to your
+private `agent/INTEGRATIONS.md`; it does not download a collection of skills or
+import personal credentials. Camoufox needs a separately provisioned Linux host
+browser/display. See [integration setup](docs/integrations.md) for Docker builds,
+runner-specific configuration, removal and the difference between configuration
+and a live acceptance check.
+
 ## Discord commands
 
 | Input                  | Effect                                                                                   |
@@ -183,7 +207,7 @@ or browser login. See [deployment](docs/deployment.md) for service setup and
 | `!work 30m <goal>`     | Continue a fixed goal with checkpoints; 1–120 active minutes, at most 32 completed steps |
 | `!status`              | Inspect this thread's queue, readiness, work session and delivery state                  |
 | `!cancel MESSAGE_ID`   | Cancel queued work or stop this thread's active process                                  |
-| `!recover MESSAGE_ID`  | Inspect prior actions and deliberately continue failed or interrupted work               |
+| `!recover [MESSAGE_ID] [instruction]` | Reconcile the blocking or selected task, then continue its saved session       |
 | `!new-session`         | Cancel queued work and clear the session; retain the provider binding and history        |
 | `!result [MESSAGE_ID]` | Read a saved response without rerunning work; latest task by default                     |
 | `!help`                | Show commands without starting a model                                                   |
@@ -193,7 +217,8 @@ what was accepted. Invalid commands show usage rather than becoming model tasks.
 
 A verified work-session pause retains its session and checkpoint. A fresh explicit `!work`
 budget can continue it. Crashes, timeouts and malformed outcomes require inspection and manual
-recovery. See [work sessions](docs/work-sessions.md).
+recovery. In a blocked thread, a fresh explicit `!work` budget reconciles prior actions
+and continues the saved session. See [work sessions](docs/work-sessions.md).
 
 Codex threads also accept up to four still PNG, JPEG or WebP attachments, with a
 caption, without text, or alongside an explicit `!work` goal. Images are passed as
@@ -218,7 +243,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.5.0 uses SQLite schema 4**. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
+Version **0.6.0 retains SQLite schema 4**, introduced in 0.5.0. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
 
@@ -246,6 +271,7 @@ filesystem sandbox. See [demo and capture tooling](docs/demo.md) to reproduce th
 | [`runner.ts`](apps/discord-agent/src/runner.ts)                                                                                                     | Explicit dispatch to the recorded provider               |
 | [`codex.ts`](apps/discord-agent/src/codex.ts), [`claude.ts`](apps/discord-agent/src/claude.ts), [`opencode.ts`](apps/discord-agent/src/opencode.ts) | CLI protocols, process bounds and cancellation           |
 | [`workspace.ts`](apps/discord-agent/src/workspace.ts)                                                                                               | Prompt context, transcript export and scoped Git commits |
+| [`scripts/integrations.mjs`](scripts/integrations.mjs)                                                                                               | Local integration setup, managed configuration and playbooks |
 | [`packages/browser/`](packages/browser/)                                                                                                            | Optional Camoufox MCP tools and offline checks           |
 | [`examples/workspace/`](examples/workspace/)                                                                                                        | Synthetic workspace templates                            |
 

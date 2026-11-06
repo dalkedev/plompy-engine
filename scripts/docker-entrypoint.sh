@@ -43,6 +43,12 @@ case "${1:-engine}" in
     unset DISCORD_BOT_TOKEN SZPONT_GIT_SSH_COMMAND
     exec codex login status
     ;;
+  integrations)
+    shift
+    mkdir -p "$SZPONT_STATE_DIR"
+    unset DISCORD_BOT_TOKEN SZPONT_GIT_SSH_COMMAND GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+    exec flock --no-fork -n -E 75 "$SZPONT_STATE_DIR/engine.lock" node /opt/szpont/scripts/integrations.mjs "$@"
+    ;;
   smoke)
     exec node /opt/szpont/scripts/docker-smoke.mjs
     ;;

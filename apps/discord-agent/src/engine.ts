@@ -24,6 +24,7 @@ import { Store, type Job } from "./store.js";
 import { COMMAND_HELP, providerLabel, threadStatus } from "./status.js";
 import {
   parseWorkCommand,
+  parseRecoveryCommand,
   validateWorkOutcome,
   workflowPrompt,
 } from "./workflow.js";
@@ -58,7 +59,6 @@ const commandUsage = new Map([
   ["!status", "!status"],
   ["!help", "!help"],
   ["!cancel", "!cancel <task ID>"],
-  ["!recover", "!recover <task ID>"],
   ["!new-session", "!new-session"],
   ["!result", "!result [task ID]"],
 ]);
@@ -164,6 +164,38 @@ export class Engine {
             this.config.parentId,
           )
         : [];
+    if (/^!recover(?:\s|$)/.test(text)) {
+      if (!this.store.controlOnce(message.id)) return true;
+      let changed = false;
+      try {
+        const request = parseRecoveryCommand(text)!;
+        const target = request.id ?? this.store.blockingJob(thread)?.id;
+        if (!target) {
+          await this.notice(
+            thread,
+            "No failed or interrupted task is blocking this thread. Use !status or !recover <task ID> [instruction]. Nothing was queued.",
+          );
+          return true;
+        }
+        changed = this.store.recover(target, thread, message.id, {
+          note: redact(request.note, this.config.token),
+        });
+        await this.notice(
+          thread,
+          changed
+            ? `Manual recovery queued for ${target}. The saved runner will inspect prior state and action receipts first, then follow your recovery instruction. Queued follow-ups were replaced.`
+            : "This recovery request is already saved. Use !status for its state.",
+        );
+      } catch {
+        await this.notice(
+          thread,
+          "Cannot recover this task. Use !recover [task ID] [instruction] for a failed or interrupted task in this thread with remaining budget. To authorize fresh work after an exhausted budget, use !work 30m <goal>; the saved session and reconciliation checks are retained. Nothing was queued.",
+        );
+      } finally {
+        if (changed) void this.kick();
+      }
+      return true;
+    }
     if (/^!work(?:\s|$)/.test(text)) {
       if (!this.store.controlOnce(message.id)) return true;
       let request;
@@ -179,15 +211,23 @@ export class Engine {
       if (request) {
         let inserted;
         try {
-          inserted = this.store.enqueueWorkflow(
-            message.id,
-            thread,
-            redact(request.goal, this.config.token),
-            request.budgetMs,
-            32,
-            this.config.provider ?? "codex",
-            await images(),
-          );
+          const blocker = this.store.blockingJob(thread);
+          const goal = redact(request.goal, this.config.token);
+          const savedImages = await images();
+          inserted = blocker
+            ? this.store.recover(blocker.id, thread, message.id, {
+                work: { goal, budgetMs: request.budgetMs },
+                images: savedImages,
+              })
+            : this.store.enqueueWorkflow(
+                message.id,
+                thread,
+                goal,
+                request.budgetMs,
+                32,
+                this.config.provider ?? "codex",
+                savedImages,
+              );
         } catch {
           await this.notice(
             thread,
@@ -199,7 +239,7 @@ export class Engine {
           if (inserted)
             await this.notice(
               thread,
-              `Work session queued: ${message.id}. Active execution budget: ${Math.round(request.budgetMs / 60_000)} min; at most 32 completed steps. Queue and maintenance wait do not use this budget.`,
+              `Work session queued: ${message.id}. Active execution budget: ${Math.round(request.budgetMs / 60_000)} min; at most 32 completed steps. Queue and maintenance wait do not use this budget.${this.store.get(message.id)?.recovery_of ? " This fresh budget continues the saved session after reconciling prior actions; queued follow-ups were replaced." : ""}`,
             );
         } finally {
           void this.kick();
@@ -212,7 +252,7 @@ export class Engine {
       const usage = commandUsage.get(command ?? "");
       if (usage) {
         if (!this.store.controlOnce(message.id)) return true;
-        const requiresId = command === "!cancel" || command === "!recover";
+        const requiresId = command === "!cancel";
         const acceptsId = requiresId || command === "!result";
         const validArguments =
           extra.length === 0 &&
@@ -285,17 +325,6 @@ export class Engine {
               job && job.thread_id === thread
                 ? `${job.id}: ${job.status}\n\n${job.result ?? "No saved response."}`
                 : "Task not found.",
-            );
-            return true;
-          }
-          if (command === "!recover") {
-            if (!id) throw new Error("missing ID");
-            changed = this.store.recover(id, thread, message.id);
-            await this.notice(
-              thread,
-              changed
-                ? "Manual recovery queued. The saved runner will inspect prior state and action receipts first."
-                : "This recovery request is already saved. Use !status for its state.",
             );
             return true;
           }
@@ -457,6 +486,10 @@ export class Engine {
               goal: workflow.goal,
               step: workflow.step_count + 1,
               remainingMs: remaining,
+              stepBudgetMs: Math.max(
+                1,
+                Math.min(this.config.timeoutMs, remaining),
+              ),
               lastSummary: workflow.last_summary,
               nextAction: workflow.next_action,
             });
@@ -574,7 +607,7 @@ export class Engine {
           workflow &&
           (workflow.elapsed_ms >= workflow.budget_ms ||
             workflow.step_count >= workflow.max_steps)
-            ? "This uncertain turn exhausted its work budget or step cap. Use !status and !result to inspect it. Choose !new-session explicitly before starting a fresh !work budget; history is retained."
+            ? "This uncertain turn exhausted its work budget or step cap. Use !status and !result to inspect it. Authorize a fresh !work 30m <goal> to reconcile state and continue the saved session. History and prior spent budget are retained."
             : `Use !recover ${job.id} to reconcile state and continue.`;
         const text =
           workflow?.state === "paused"

@@ -1,4 +1,5 @@
-import { isAbsolute, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { lstatSync } from "node:fs";
 export const SNOWFLAKE = /^\d{17,20}$/;
 export const SESSION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -24,6 +25,7 @@ export interface Config {
   browserDir: string;
   codexBin: string;
   timeoutMs: number;
+  githubConfigDir?: string;
   provider?: ProviderId;
   claudeBin?: string;
   claudeHome?: string;
@@ -45,6 +47,28 @@ export function runnerHome(
     : provider === "claude"
       ? (config.claudeHome ?? resolve(config.stateDir, "..", "claude"))
       : (config.opencodeHome ?? resolve(config.stateDir, "..", "opencode"));
+}
+
+// Only the integration wizard's fixed private filename is discovered. Arbitrary
+// runner/project configuration remains disabled, and a missing file is read-only.
+function managedMcpConfig(home: string): string | undefined {
+  const path = resolve(home, "szpont-mcp.json");
+  try {
+    const info = lstatSync(path);
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      info.nlink !== 1 ||
+      info.size > 65_536 ||
+      (info.mode & 0o077) !== 0 ||
+      (process.getuid && info.uid !== process.getuid())
+    )
+      throw new Error("Unsafe managed MCP configuration; inspect it locally.");
+    return path;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw new Error("Unsafe managed MCP configuration; inspect it locally.");
+  }
 }
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const required = (key: string): string => {
@@ -93,6 +117,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     selected || env[key] !== undefined
       ? directory(key)
       : resolve(stateDir, "..", fallback);
+  const claudeHome = privatePath(
+    "CLAUDE_CONFIG_DIR",
+    provider === "claude",
+    "claude",
+  );
+  const opencodeHome = privatePath(
+    "SZPONT_OPENCODE_HOME",
+    provider === "opencode",
+    "opencode",
+  );
+  const claudeMcpConfig =
+    env.SZPONT_CLAUDE_MCP_CONFIG !== undefined
+      ? directory("SZPONT_CLAUDE_MCP_CONFIG")
+      : managedMcpConfig(claudeHome);
+  const opencodeConfig =
+    env.SZPONT_OPENCODE_CONFIG !== undefined
+      ? directory("SZPONT_OPENCODE_CONFIG")
+      : managedMcpConfig(opencodeHome);
   const claudeModel = setting("SZPONT_CLAUDE_MODEL");
   const claudeEffort = setting("SZPONT_CLAUDE_EFFORT");
   if (
@@ -117,43 +159,63 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     timeoutMs > 3_600_000
   )
     throw new Error("Invalid task timeout");
-  return {
+  const workspace = directory("SZPONT_WORKSPACE");
+  const githubConfigDir =
+    env.GH_CONFIG_DIR === undefined
+      ? resolve(stateDir, "..", "github")
+      : directory("GH_CONFIG_DIR");
+  if (
+    dirname(githubConfigDir) === githubConfigDir ||
+    /[\x00-\x1f\x7f]/.test(githubConfigDir)
+  )
+    throw new Error(
+      "GH_CONFIG_DIR must be a private path outside the workspace",
+    );
+  const config: Config = {
     token: required("DISCORD_BOT_TOKEN"),
     guildId,
     ownerId,
     botId,
     parentId,
-    workspace: directory("SZPONT_WORKSPACE"),
+    workspace,
     stateDir,
     artifactsDir: directory("SZPONT_ARTIFACTS_DIR"),
     codexHome: privatePath("CODEX_HOME", provider === "codex", "codex"),
     browserDir: resolve(env.SZPONT_BROWSER_DIR ?? "/var/lib/szpont/browser"),
     codexBin: setting("SZPONT_CODEX_BIN") ?? "codex",
     timeoutMs,
+    githubConfigDir,
     provider: provider as ProviderId,
     claudeBin: setting("SZPONT_CLAUDE_BIN") ?? "claude",
-    claudeHome: privatePath(
-      "CLAUDE_CONFIG_DIR",
-      provider === "claude",
-      "claude",
-    ),
+    claudeHome,
     ...(claudeModel ? { claudeModel } : {}),
     ...(claudeEffort ? { claudeEffort } : {}),
-    ...(env.SZPONT_CLAUDE_MCP_CONFIG !== undefined
-      ? { claudeMcpConfig: directory("SZPONT_CLAUDE_MCP_CONFIG") }
-      : {}),
+    ...(claudeMcpConfig ? { claudeMcpConfig } : {}),
     opencodeBin: setting("SZPONT_OPENCODE_BIN") ?? "opencode",
-    opencodeHome: privatePath(
-      "SZPONT_OPENCODE_HOME",
-      provider === "opencode",
-      "opencode",
-    ),
+    opencodeHome,
     ...(opencodeModel ? { opencodeModel } : {}),
-    ...(env.SZPONT_OPENCODE_CONFIG !== undefined
-      ? { opencodeConfig: directory("SZPONT_OPENCODE_CONFIG") }
-      : {}),
+    ...(opencodeConfig ? { opencodeConfig } : {}),
     opencodeAllowHostExecution: env.SZPONT_OPENCODE_HOST_EXECUTION === "allow",
   };
+  const overlaps = (left: string, right: string): boolean =>
+    [relative(left, right), relative(right, left)].some(
+      (part) =>
+        part === "" ||
+        (part !== ".." && !part.startsWith(`..${sep}`) && !isAbsolute(part)),
+    );
+  if (
+    [
+      workspace,
+      stateDir,
+      config.codexHome,
+      config.claudeHome,
+      config.opencodeHome,
+    ].some((path) => path && overlaps(path, githubConfigDir))
+  )
+    throw new Error(
+      "GH_CONFIG_DIR must be separate from the workspace, engine state and runner authentication directories",
+    );
+  return config;
 }
 export function childEnvironment(
   config: Config,
@@ -182,6 +244,10 @@ export function childEnvironment(
     SZPONT_WORKSPACE: config.workspace,
     SZPONT_ARTIFACTS_DIR: config.artifactsDir,
     SZPONT_BROWSER_DIR: config.browserDir,
+    // Keep gh away from the service user's implicit ~/.config/gh credentials.
+    // Only the integration setup command authenticates this dedicated directory.
+    GH_CONFIG_DIR:
+      config.githubConfigDir ?? resolve(config.stateDir, "..", "github"),
     NO_COLOR: "1",
     TERM: "dumb",
   };

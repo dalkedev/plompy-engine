@@ -62,6 +62,11 @@ test("runner child environments isolate provider configuration and never forward
     ANTHROPIC_API_KEY: "synthetic-key",
     OPENAI_API_KEY: "synthetic-key",
     GOOGLE_API_KEY: "synthetic-key",
+    GH_TOKEN: "synthetic-key",
+    GITHUB_TOKEN: "synthetic-key",
+    GH_ENTERPRISE_TOKEN: "synthetic-key",
+    GITHUB_ENTERPRISE_TOKEN: "synthetic-key",
+    GH_CONFIG_DIR: "/personal/github",
     DISCORD_BOT_TOKEN: env.DISCORD_BOT_TOKEN,
     OPENCODE_CONFIG: "/wrong/config",
     OPENCODE_PERMISSION: "allow",
@@ -82,6 +87,10 @@ test("runner child environments isolate provider configuration and never forward
       "ANTHROPIC_API_KEY",
       "OPENAI_API_KEY",
       "GOOGLE_API_KEY",
+      "GH_TOKEN",
+      "GITHUB_TOKEN",
+      "GH_ENTERPRISE_TOKEN",
+      "GITHUB_ENTERPRISE_TOKEN",
       "DISCORD_BOT_TOKEN",
       "UNRELATED_SECRET",
       "OPENCODE_CONFIG",
@@ -90,6 +99,7 @@ test("runner child environments isolate provider configuration and never forward
     ])
       assert.equal(child[key], undefined, key);
     assert.equal(child.PATH, source.PATH);
+    assert.equal(child.GH_CONFIG_DIR, "/tmp/private/github");
     assert.equal(
       child.CODEX_HOME,
       provider === "codex" ? config.codexHome : undefined,
@@ -106,6 +116,70 @@ test("runner child environments isolate provider configuration and never forward
       assert.equal(child.OPENCODE_PURE, "true");
       assert.equal(child.OPENCODE_DISABLE_DEFAULT_PLUGINS, undefined);
     }
+  }
+});
+test("GitHub uses a dedicated private auth directory and validates explicit overrides", () => {
+  const defaultConfig = loadConfig(env);
+  assert.equal(defaultConfig.githubConfigDir, "/tmp/private/github");
+  for (const value of [
+    "relative/github",
+    "",
+    "/",
+    "/tmp/private/workspace",
+    "/tmp/private/workspace/github",
+    "/tmp/private/github\nsecret",
+  ])
+    assert.throws(
+      () => loadConfig({ ...env, GH_CONFIG_DIR: value }),
+      /GH_CONFIG_DIR/,
+    );
+
+  const dedicated = "/tmp/github-integration";
+  const config = loadConfig({ ...env, GH_CONFIG_DIR: dedicated });
+  assert.equal(config.githubConfigDir, dedicated);
+  for (const provider of ["codex", "claude", "opencode"]) {
+    const child = childEnvironment(
+      { ...config, provider },
+      {
+        GH_CONFIG_DIR: "/personal/github",
+        GH_TOKEN: "synthetic-unrelated-token",
+        GITHUB_TOKEN: "synthetic-unrelated-token",
+      },
+    );
+    assert.equal(child.GH_CONFIG_DIR, dedicated);
+    assert.equal(child.GH_TOKEN, undefined);
+    assert.equal(child.GITHUB_TOKEN, undefined);
+  }
+  const withoutOptional = { ...config };
+  delete withoutOptional.githubConfigDir;
+  assert.equal(
+    childEnvironment(withoutOptional, {}).GH_CONFIG_DIR,
+    "/tmp/private/github",
+  );
+});
+test("GitHub credentials cannot overlap engine state or any provider home", () => {
+  for (const provider of ["codex", "claude", "opencode"]) {
+    const selected = {
+      ...env,
+      SZPONT_RUNNER: provider,
+      CLAUDE_CONFIG_DIR: "/tmp/private/claude",
+      SZPONT_OPENCODE_HOME: "/tmp/private/opencode",
+      SZPONT_OPENCODE_MODEL: "example/model",
+    };
+    for (const directory of [
+      selected.SZPONT_WORKSPACE,
+      selected.SZPONT_STATE_DIR,
+      selected.CODEX_HOME,
+      selected.CLAUDE_CONFIG_DIR,
+      selected.SZPONT_OPENCODE_HOME,
+    ])
+      for (const github of [directory, `${directory}/github`, "/tmp/private"])
+        assert.throws(
+          () => loadConfig({ ...selected, GH_CONFIG_DIR: github }),
+          /GH_CONFIG_DIR/,
+          `${provider}: ${github}`,
+        );
+    assert.equal(loadConfig(selected).githubConfigDir, "/tmp/private/github");
   }
 });
 test("session identifiers are validated for the recorded provider", () => {

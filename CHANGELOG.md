@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.6.0 — 2026-11-06
+
+### Guided integrations
+
+- Choose Codex, Claude Code or OpenCode before configuring integrations, with explicit `--runner` targeting and private managed MCP defaults for the host adapters. OpenCode model providers, including Go, use the OpenCode adapter; configuring tools does not switch existing Discord threads.
+- Add an integration setup CLI for GitHub, Camoufox, OpenAI Docs, Context7 and operator-reviewed MCP servers. Keep account authorization separate from local configuration checks; Camoufox still requires a separately provisioned browser and display.
+- Give GitHub CLI a dedicated private credential directory and Docker volume; keep parent GitHub tokens out of agent subprocesses.
+- Load bounded, runner-specific integration playbooks on each task. Preserve operator instructions, unrelated JSON settings and conflicting MCP entries; reject unsafe managed files.
+- Include the configurator and GitHub CLI in the Codex-only image, with the existing instance lock protecting setup. Exercise packaged setup offline without model calls, account actions or browser downloads.
+
+### Recovery without losing the thread
+
+- Let `!recover` select the task blocking the current thread, or accept an explicit task ID and owner instruction. Reconcile saved state and external action receipts before continuing the same provider-bound session.
+- Allow a fresh explicit `!work` budget in a blocked thread to reconcile prior actions and continue without requiring `!new-session`. Replace queued follow-ups atomically while retaining history, image inputs and previously charged execution.
+- Preserve the newest accepted recovery budget when recovering an earlier ancestor. Use the durable acceptance sequence rather than mutable timestamps or elapsed totals to order recovery state.
+- Include the actual subprocess deadline in workflow prompts and request a checkpoint before that deadline. This guidance does not guarantee timely model completion or renew an exhausted budget automatically.
+
+### Release boundary
+
+- Retain public SQLite schema 4; no new migration is introduced. Keep verified private backups and reconcile external effects before recovery or rollback.
+- Keep Claude Code and OpenCode as experimental host adapters, with operator-provided model access and isolation. The Docker image remains Codex-only; live Discord, model, browser and account acceptance remain deployment checks.
+- Align the browser package's public version constant and MCP initialization metadata with the coordinated release version.
+
 ## 0.5.0 — 2026-11-05
 
 ### Discord image input

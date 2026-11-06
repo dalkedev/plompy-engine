@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { loadConfig } from "../dist/config.js";
 import {
   claudeArgs,
   claudeReady,
@@ -134,6 +135,57 @@ test("Claude grants MCP tool permissions only for an explicit operator config", 
     defaults[defaults.indexOf("--allowedTools") + 1],
     /mcp__/,
   );
+});
+
+test("Claude consumes the wizard's discovered private MCP configuration in its actual child arguments", async (t) => {
+  const { config: fixtureConfig, root } = await fixture(t);
+  const path = join(fixtureConfig.claudeHome, "szpont-mcp.json");
+  await writeFile(
+    path,
+    JSON.stringify({
+      mcpServers: {
+        szpont_context7: { type: "http", url: "https://example.test/mcp" },
+      },
+    }),
+    { mode: 0o600 },
+  );
+  const capture = join(root, "integration-child.json");
+  await writeFile(
+    fixtureConfig.claudeBin,
+    script(
+      "import {writeFileSync} from 'node:fs';\n" +
+        `writeFileSync(${JSON.stringify(capture)},JSON.stringify({args:process.argv.slice(2),gh:process.env.GH_CONFIG_DIR}));\n` +
+        prelude +
+        success,
+    ),
+  );
+  const config = loadConfig({
+    DISCORD_BOT_TOKEN: fixtureConfig.token,
+    SZPONT_DISCORD_GUILD_ID: fixtureConfig.guildId,
+    SZPONT_DISCORD_OWNER_ID: fixtureConfig.ownerId,
+    SZPONT_DISCORD_BOT_ID: fixtureConfig.botId,
+    SZPONT_DISCORD_PARENT_CHANNEL_ID: fixtureConfig.parentId,
+    SZPONT_WORKSPACE: fixtureConfig.workspace,
+    SZPONT_STATE_DIR: fixtureConfig.stateDir,
+    SZPONT_ARTIFACTS_DIR: fixtureConfig.artifactsDir,
+    SZPONT_BROWSER_DIR: fixtureConfig.browserDir,
+    SZPONT_RUNNER: "claude",
+    CLAUDE_CONFIG_DIR: fixtureConfig.claudeHome,
+    SZPONT_CLAUDE_BIN: fixtureConfig.claudeBin,
+  });
+  assert.equal(config.claudeMcpConfig, path);
+  const result = await runClaude(
+    config,
+    "Synthetic integration check",
+    null,
+    () => {},
+  );
+  assert.equal(result.ok, true);
+  const child = JSON.parse(await readFile(capture, "utf8"));
+  assert.equal(child.args[child.args.indexOf("--mcp-config") + 1], path);
+  assert.ok(child.args.includes("--strict-mcp-config"));
+  assert.match(child.args[child.args.indexOf("--allowedTools") + 1], /mcp__\*/);
+  assert.equal(child.gh, config.githubConfigDir);
 });
 
 test("Claude readiness checks minimum version before the read-only login probe", async (t) => {
