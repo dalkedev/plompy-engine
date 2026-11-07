@@ -53,3 +53,16 @@ are implementation proposals, not attributed owner decisions. No live rollout.
   build and whitespace checks PASS. New image fixture uses explicit0700 so its
   input reaches the actual materialization boundary under standard umask022.
   Draft publication receipts remain separate from the tested source.
+
+
+## Follow-up acceptance ledger
+
+The requested continuation added verification evidence only, without runtime,
+dependency or configuration changes. The existing real CLI adapter was attempted
+once in a synthetic lab; it failed before session events with a read-only
+filesystem diagnostic and the Engine blocked. No unsafe path/config/auth workaround
+was attempted. A native-agent-backed injected bridge then exercised three reviewed
+steps with two actual independent children and fresh supervisors, plus a separate
+blocked-question / !recover scenario with the same native worker. Both bridge
+experiments completed; actual CLI integration remains unaccepted. See the linked
+verification record for scope and observed evidence.

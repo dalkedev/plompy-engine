@@ -92,6 +92,10 @@ a new private state location and reconcile later external actions; never lower
 `user_version` or remove tables to bypass compatibility checks. Snapshot tools
 in this source support schemas through 5 without migrating them.
 
-Local tests use synthetic workspaces and fake CLI processes. They establish
-protocol, persistence and scheduling behavior, not live Discord/model/subagent
-acceptance. This PR does not deploy or release the service.
+Deterministic tests use synthetic workspaces and fake CLI processes. A separate
+real native-agent experiment exercised delegation, independent review, a missing
+owner decision and explicit recovery through an injected test bridge. The
+[validation record](verification/2026-11-07-supervised-goals.md) distinguishes that
+limited evidence from actual CLI integration, which is blocked in this restricted
+executor. Live Discord delivery, real CLI session persistence and deployment
+acceptance remain unverified. This PR does not deploy or release the service.
