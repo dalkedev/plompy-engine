@@ -125,6 +125,10 @@ Execution, notification delivery and external effects are separate facts.
 A successful local turn does not prove a deployment, post or website action succeeded.
 [Architecture](docs/architecture.md) covers the state transitions and recovery contract.
 
+To continue a larger task under independent review, use `!goal 30m <goal>` or
+`!loop 2h <goal>` in a Codex thread. [Supervised goals](docs/supervised-goals.md)
+cover follow-up questions, pause/resume/stop and shared execution budgets.
+
 ## Quick start
 
 You need Linux, **Node.js 24.x**, Git, `flock`, your own Discord bot and an authenticated runner.
@@ -134,7 +138,7 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone --branch v0.6.1 --depth 1 https://github.com/dalkedev/szpont-engine.git
+git clone --branch v0.7.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
 cd szpont-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -209,6 +213,8 @@ and a live acceptance check.
 | Input                  | Effect                                                                                   |
 | ---------------------- | ---------------------------------------------------------------------------------------- |
 | A normal message       | Queue a task in this thread's saved session                                              |
+| `!goal 30m <goal>`     | Advance a fixed goal under a separate supervisor; `!loop` is an alias                    |
+| `!goal status / pause / resume / stop [MESSAGE_ID]` | Inspect or control this thread's supervised goal                           |
 | `!work 30m <goal>`     | Continue a fixed goal with checkpoints; 1–120 active minutes, at most 32 completed steps |
 | `!status`              | Inspect this thread's queue, readiness, work session and delivery state                  |
 | `!cancel MESSAGE_ID`   | Cancel queued work or stop this thread's active process                                  |
@@ -248,7 +254,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.6.1 retains SQLite schema 4**, introduced in 0.5.0. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
+Version **0.7.0 uses SQLite schema 5**, adding saved goal candidates and supervisor reviews. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
 
