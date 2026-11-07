@@ -92,10 +92,12 @@ a new private state location and reconcile later external actions; never lower
 `user_version` or remove tables to bypass compatibility checks. Snapshot tools
 in this source support schemas through 5 without migrating them.
 
-Deterministic tests use synthetic workspaces and fake CLI processes. A separate
-real native-agent experiment exercised delegation, independent review, a missing
-owner decision and explicit recovery through an injected test bridge. The
-[validation record](verification/2026-11-07-supervised-goals.md) distinguishes that
-limited evidence from actual CLI integration, which is blocked in this restricted
-executor. Live Discord delivery, real CLI session persistence and deployment
-acceptance remain unverified. This PR does not deploy or release the service.
+Deterministic tests use synthetic workspaces and fake CLI processes. Separate
+experiments exercised native delegation through an injected bridge and through
+the actual configured CLI in an operator-owned lab: the same worker resumed,
+fresh supervisors reviewed each step, blocked evidence required explicit recovery,
+and a new explicit goal reached completed. The
+[validation record](verification/2026-11-07-supervised-goals.md) records the exact
+boundaries, including fixture hooks and the private deployment adapter. Validate
+Discord delivery, configured tools and workspace persistence on your installation;
+a release does not update a private service automatically.
