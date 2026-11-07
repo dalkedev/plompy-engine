@@ -70,6 +70,14 @@ const commandUsage = new Map([
   ["!new-session", "!new-session"],
   ["!result", "!result [task ID]"],
 ]);
+class GoalPhaseAccountingError extends Error {
+  constructor(
+    readonly elapsedMs: number,
+    readonly baselineMs: number,
+  ) {
+    super("goal_phase_persistence_failed");
+  }
+}
 export class Engine {
   private busy = false;
   private intakePending = 0;
@@ -244,9 +252,10 @@ export class Engine {
     if (/^!recover(?:\s|$)/.test(text)) {
       if (!this.store.controlOnce(message.id)) return true;
       let changed = false;
+      let target: string | undefined;
       try {
         const request = parseRecoveryCommand(text)!;
-        const target = request.id ?? this.store.blockingJob(thread)?.id;
+        target = request.id ?? this.store.blockingJob(thread)?.id;
         if (!target) {
           await this.notice(
             thread,
@@ -264,9 +273,16 @@ export class Engine {
             : "This recovery request is already saved. Use !status for its state.",
         );
       } catch {
+        const interrupted = target
+          ? this.store.get(target)
+          : this.store.blockingJob(thread);
+        const budgetCommand =
+          interrupted?.thread_id === thread && this.store.goal(interrupted.id)
+            ? "!goal"
+            : "!work";
         await this.notice(
           thread,
-          "Cannot recover this task. Use !recover [task ID] [instruction] for a failed or interrupted task in this thread with remaining budget. To authorize fresh work after an exhausted budget, use !work 30m <goal>; the saved session and reconciliation checks are retained. Nothing was queued.",
+          `Cannot recover this task. Use !recover [task ID] [instruction] for a failed or interrupted task in this thread with remaining budget. To authorize fresh work after an exhausted budget, use ${budgetCommand} 30m <goal>; the saved session and reconciliation checks are retained${budgetCommand === "!goal" ? ", with supervision retained. A saved worker candidate carries forward when recovering the same blocked fixed goal" : ""}. Nothing was queued.`,
         );
       } finally {
         if (changed) void this.kick();
@@ -668,17 +684,28 @@ export class Engine {
               committed = true;
             }
           }
-        } catch {
+        } catch (error) {
           if (started !== undefined) spent = this.executionSpent(started);
           // A failure after committing a checkpoint/finish must not overwrite it.
-          if (!committed && this.store.get(job.id)?.status === "running")
-            this.store.finish(
-              job.id,
-              "interrupted",
-              "",
-              "engine_turn_interrupted",
-              spent,
-            );
+          if (!committed && this.store.get(job.id)?.status === "running") {
+            if (error instanceof GoalPhaseAccountingError)
+              this.store.finishGoalPhase(
+                job.id,
+                "interrupted",
+                "",
+                "engine_turn_interrupted",
+                error.elapsedMs,
+                error.baselineMs,
+              );
+            else
+              this.store.finish(
+                job.id,
+                "interrupted",
+                "",
+                "engine_turn_interrupted",
+                spent,
+              );
+          }
         } finally {
           if (typing) clearInterval(typing);
           await imageFiles?.cleanup().catch(() => {
@@ -723,20 +750,39 @@ export class Engine {
     signal: AbortSignal,
     images?: readonly string[],
   ): Promise<void> {
-    let started: number | undefined;
-    const finishFailure = (
+    let phase:
+      | { baselineMs: number; started: number; elapsedMs?: number }
+      | undefined;
+    const finishPhase = (
+      status: "failed" | "interrupted",
       output: string,
       error: string,
-      elapsed: number,
     ): void => {
-      this.store.finish(
-        job.id,
+      if (phase)
+        this.store.finishGoalPhase(
+          job.id,
+          status,
+          redact(output, this.config.token),
+          error,
+          phase.elapsedMs ?? this.executionSpent(phase.started),
+          phase.baselineMs,
+        );
+      else
+        this.store.finish(
+          job.id,
+          status,
+          redact(output, this.config.token),
+          error,
+        );
+      phase = undefined;
+    };
+    const finishFailure = (output: string, error: string): void => {
+      finishPhase(
         error === "task_timeout" || error === "owner_or_service_cancelled"
           ? "interrupted"
           : "failed",
-        redact(output, this.config.token),
+        output,
         error,
-        elapsed,
       );
     };
     try {
@@ -745,7 +791,10 @@ export class Engine {
       if (this.store.applyGoalControl(job.id)) return;
       if (!goal.pending_output) {
         const remaining = workflow.budget_ms - workflow.elapsed_ms;
-        started = this.monotonicNow();
+        phase = {
+          baselineMs: workflow.elapsed_ms,
+          started: this.monotonicNow(),
+        };
         const worker = await this.deps.run(
           {
             ...runnerConfig,
@@ -757,15 +806,13 @@ export class Engine {
           signal,
           { workflow: true, ...(images?.length ? { images } : {}) },
         );
-        const elapsed = this.executionSpent(started);
-        started = undefined;
+        phase.elapsedMs = this.executionSpent(phase.started);
         if (!worker.ok || signal.aborted) {
           finishFailure(
             worker.output,
             signal.aborted
               ? "owner_or_service_cancelled"
               : (worker.error ?? "goal_worker_failed"),
-            elapsed,
           );
           return;
         }
@@ -775,16 +822,11 @@ export class Engine {
             redact(worker.output, this.config.token),
           );
         } catch {
-          this.store.finish(
-            job.id,
-            "interrupted",
-            "",
-            "invalid_workflow_output",
-            elapsed,
-          );
+          finishPhase("interrupted", "", "invalid_workflow_output");
           return;
         }
-        this.store.saveGoalWorker(job.id, candidate, elapsed);
+        this.store.saveGoalWorker(job.id, candidate, phase.elapsedMs);
+        phase = undefined;
       }
       if (this.store.applyGoalControl(job.id)) return;
       goal = this.store.goal(job.id)!;
@@ -795,7 +837,7 @@ export class Engine {
         job.thread_id,
         `Goal ${job.id}: worker candidate saved; independent supervisor is reviewing step ${workflow.step_count + 1}.`,
       );
-      started = this.monotonicNow();
+      phase = { baselineMs: workflow.elapsed_ms, started: this.monotonicNow() };
       const review = await this.deps.run(
         {
           ...runnerConfig,
@@ -815,15 +857,13 @@ export class Engine {
         signal,
         { supervisor: true },
       );
-      const elapsed = this.executionSpent(started);
-      started = undefined;
+      phase.elapsedMs = this.executionSpent(phase.started);
       if (!review.ok || signal.aborted) {
         finishFailure(
           review.output,
           signal.aborted
             ? "owner_or_service_cancelled"
             : (review.error ?? "goal_supervisor_failed"),
-          elapsed,
         );
         return;
       }
@@ -831,13 +871,7 @@ export class Engine {
       try {
         outcome = validateGoalReview(redact(review.output, this.config.token));
       } catch {
-        this.store.finish(
-          job.id,
-          "interrupted",
-          "",
-          "invalid_goal_review",
-          elapsed,
-        );
+        finishPhase("interrupted", "", "invalid_goal_review");
         return;
       }
       const { progress, ...checkpoint } = outcome;
@@ -845,22 +879,29 @@ export class Engine {
         job.id,
         checkpoint,
         progress,
-        elapsed,
+        phase.elapsedMs,
       );
+      phase = undefined;
       if (result.continued)
         await this.notice(
           job.thread_id,
           `Goal ${job.id}: supervisor accepted step ${workflow.step_count + 1}; continuing after other eligible threads.\n\n${outcome.summary}`,
         );
     } catch {
-      if (this.store.get(job.id)?.status === "running")
-        this.store.finish(
-          job.id,
-          "interrupted",
-          "",
-          "goal_phase_interrupted",
-          started === undefined ? 0 : this.executionSpent(started),
-        );
+      try {
+        if (this.store.get(job.id)?.status === "running")
+          finishPhase("interrupted", "", "goal_phase_interrupted");
+      } catch (error) {
+        // The outer turn has one final persistence attempt. Do not let that
+        // fallback forget time if both the phase commit and its first failure
+        // record rolled back; it reconciles against the same phase baseline.
+        if (phase)
+          throw new GoalPhaseAccountingError(
+            phase.elapsedMs ?? this.executionSpent(phase.started),
+            phase.baselineMs,
+          );
+        throw error;
+      }
     }
   }
   private async notify(): Promise<void> {
@@ -869,13 +910,13 @@ export class Engine {
       this.store.notification(job.id, "sending");
       try {
         const workflow = this.store.workflow(job.id);
+        const supervised = this.store.goal(job.id);
         const recovery =
           workflow &&
           (workflow.elapsed_ms >= workflow.budget_ms ||
             workflow.step_count >= workflow.max_steps)
-            ? "This uncertain turn exhausted its work budget or step cap. Use !status and !result to inspect it. Authorize a fresh !work 30m <goal> to reconcile state and continue the saved session. History and prior spent budget are retained."
+            ? `This uncertain turn exhausted its work budget or step cap. Use !status and !result ${job.id} to inspect it. Authorize a fresh ${supervised ? "!goal" : "!work"} 30m <goal> to reconcile state and continue the saved session. History and prior spent budget are retained${supervised ? "; supervision and the saved worker candidate are retained when the fixed goal is unchanged" : ""}.`
             : `Use !recover ${job.id} to reconcile state and continue.`;
-        const supervised = this.store.goal(job.id);
         const text =
           supervised && job.status === "cancelled"
             ? `Goal ${job.id}: stopped. Saved history and any worker candidate are retained; stopping does not undo actions already taken.`

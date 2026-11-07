@@ -368,3 +368,56 @@ test("terminal review takes precedence over stop while blocked review preserves 
     if (n === 2) assert.equal(store.blockingJob(channel).id, task);
   }
 });
+
+test("phase reconciliation rejects ordinary work and invalid accounting without mutating state", (t) => {
+  const store = fixture(t);
+  store.enqueueWorkflow(id(1), thread, "Ordinary work", 60000);
+  store.claim();
+  const ordinary = rows(store);
+  assert.throws(
+    () =>
+      store.finishGoalPhase(id(1), "interrupted", "", "phase_failed", 100, 0),
+    /ownership/,
+  );
+  assert.deepEqual(rows(store), ordinary);
+  store.finish(id(1), "interrupted", "", "ordinary_failure", 0);
+  assert.equal(
+    store.workflow(id(1)).elapsed_ms,
+    1,
+    "Ordinary finish retains its conservative minimum",
+  );
+  store.enqueueGoal(id(2), other, "Supervised work", 60000);
+  store.claim();
+  store.saveGoalWorker(id(2), candidate(), 30000);
+  const saved = rows(store);
+  for (const [elapsed, baseline] of [
+    [-1, 0],
+    [NaN, 0],
+    [100, -1],
+    [100, 0.5],
+    [100, 30001],
+  ]) {
+    assert.throws(() =>
+      store.finishGoalPhase(
+        id(2),
+        "interrupted",
+        "",
+        "phase_failed",
+        elapsed,
+        baseline,
+      ),
+    );
+    assert.deepEqual(rows(store), saved);
+  }
+  store.finishGoalPhase(
+    id(2),
+    "interrupted",
+    "",
+    "post_commit_error",
+    30000,
+    0,
+  );
+  assert.equal(store.workflow(id(2)).elapsed_ms, 30000);
+  assert.equal(store.get(id(2)).status, "interrupted");
+  assert.equal(store.goal(id(2)).pending_output, JSON.stringify(candidate()));
+});

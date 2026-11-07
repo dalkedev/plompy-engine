@@ -1,12 +1,13 @@
 # Supervised goal validation
 
-Date: 2026-11-07. Runtime source under test: `d8cbb9c` (PR #7).
+Date: 2026-11-07. Runtime source: PR #7, including phase-accounting and
+supervised-budget recovery regressions.
 This record separates deterministic checks, real model coordination and live CLI
 integration. None establishes real Discord delivery or a deployed service.
 
 ## Deterministic regression and hosted checks
 
-The source passed 452 offline tests: 343 engine tests and 109 script tests, plus
+The updated source passed 460 offline tests: 351 engine tests and 109 script tests, plus
 TypeScript build, formatting, whitespace and public-tree checks. Tests use real
 SQLite state and fake CLI processes. Hosted workflow
 [42379049912](https://github.com/dalkedev/szpont-engine/actions/runs/42379049912)

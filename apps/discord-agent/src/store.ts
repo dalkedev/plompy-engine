@@ -1080,32 +1080,70 @@ export class Store {
     if (!Number.isSafeInteger(elapsedMs) || elapsedMs < 0)
       throw new Error("Invalid elapsed execution time");
     this.transaction(() => {
-      const job = this.get(id),
-        workflow = this.workflow(id);
-      if (!job || job.status !== "running")
-        throw new Error("Job ownership lost");
-      if (workflow) {
-        if (status === "succeeded")
-          throw new Error("Workflow completion requires a checkpoint");
-        this.db
-          .prepare(
-            "UPDATE workflows SET elapsed_ms=?,state='blocked' WHERE job_id=?",
-          )
-          .run(this.totalSpent(workflow.elapsed_ms, this.spent(elapsedMs)), id);
-      }
+      this.finishOwnedJob(
+        id,
+        status,
+        result,
+        error,
+        this.workflow(id) ? this.spent(elapsedMs) : elapsedMs,
+      );
+    });
+  }
+  /** Reconcile one supervised phase even if its commit succeeded before an error. */
+  finishGoalPhase(
+    id: string,
+    status: "failed" | "interrupted",
+    result: string,
+    error: string | null,
+    elapsedMs: number,
+    baselineMs: number,
+  ): void {
+    const measured = this.spent(elapsedMs);
+    if (!Number.isSafeInteger(baselineMs) || baselineMs < 0)
+      throw new Error("Invalid goal phase execution baseline");
+    this.transaction(() => {
+      const workflow = this.workflow(id);
+      if (!workflow || !this.goal(id) || workflow.elapsed_ms < baselineMs)
+        throw new Error("Goal phase accounting ownership lost");
+      const alreadyCharged = workflow.elapsed_ms - baselineMs;
+      this.finishOwnedJob(
+        id,
+        status,
+        result,
+        error,
+        Math.max(0, measured - alreadyCharged),
+      );
+    });
+  }
+  private finishOwnedJob(
+    id: string,
+    status: "succeeded" | "failed" | "interrupted",
+    result: string,
+    error: string | null,
+    charge: number,
+  ): void {
+    const job = this.get(id),
+      workflow = this.workflow(id);
+    if (!job || job.status !== "running") throw new Error("Job ownership lost");
+    if (workflow) {
+      if (status === "succeeded")
+        throw new Error("Workflow completion requires a checkpoint");
       this.db
         .prepare(
-          "UPDATE jobs SET status=?,result=?,error_code=?,finished_at=? WHERE id=?",
+          "UPDATE workflows SET elapsed_ms=?,state='blocked' WHERE job_id=?",
         )
-        .run(status, result, error, Date.now(), id);
-      if (status !== "succeeded")
-        this.db
-          .prepare(
-            "UPDATE conversations SET blocked_reason=? WHERE thread_id=?",
-          )
-          .run(status, job.thread_id);
-      this.dirty(job.thread_id);
-    });
+        .run(this.totalSpent(workflow.elapsed_ms, charge), id);
+    }
+    this.db
+      .prepare(
+        "UPDATE jobs SET status=?,result=?,error_code=?,finished_at=? WHERE id=?",
+      )
+      .run(status, result, error, Date.now(), id);
+    if (status !== "succeeded")
+      this.db
+        .prepare("UPDATE conversations SET blocked_reason=? WHERE thread_id=?")
+        .run(status, job.thread_id);
+    this.dirty(job.thread_id);
   }
   /** The actual failed task holding this thread, independent of queued followups. */
   blockingJob(threadId: string): Job | undefined {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — 2026-11-07
+
+- Add `!goal` and its `!loop` alias for bounded Codex work reviewed after each step by a fresh supervisor session. Keep the worker's session, save candidates before review, and share one execution budget between both phases.
+- Add durable status, pause, resume and stop controls, blocked follow-up questions and explicit recovery. Review failures retain the candidate rather than replaying its worker; no-progress reviews stop after three attempts.
+- Account for measured phase time even when saving a checkpoint fails, without double charging an already committed phase. Recommend `!goal` when renewing a supervised budget; an ordinary `!work` explicitly opts out of supervision.
+- Migrate public SQLite schemas 0–4 to schema 5 while preserving jobs, provider bindings, image inputs and sessions. Back up before upgrading; rollback requires matching pre-upgrade state and binaries.
+- Keep supervised goals Codex-only. Claude Code and OpenCode remain available for ordinary tasks. Supervisor filesystem access is read-only; configured MCP permissions still require operator review.
+
 ## 0.6.1 — 2026-11-06
 
 - Add `!queue` with current-thread task IDs, accepted order and waiting reasons. Share runner and predecessor predicates with the scheduler; keep other conversations and task content private. Inspection does not call a model, retry a task or predict a start time.

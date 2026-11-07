@@ -167,11 +167,12 @@ export function threadStatus(
       (blockedWorkflow.state === "paused" ||
         blockedWorkflow.elapsed_ms >= blockedWorkflow.budget_ms ||
         blockedWorkflow.step_count >= blockedWorkflow.max_steps);
+    const budgetCommand = blocker && store.goal(blocker.id) ? "!goal" : "!work";
     lines.push(
       blocker && !needsBudget
         ? `Next: use !recover ${blocker.id} to inspect prior actions and continue. Recovery replaces queued follow-ups in this thread. Use !new-session instead to cancel queued work and start fresh; history is retained.`
         : blocker
-          ? "Next: use !work 30m <goal> to authorize a fresh budget, reconcile prior actions and continue the saved session. Queued follow-ups are replaced and prior spent budget is retained. Use !new-session only if you want a fresh session."
+          ? `Next: use ${budgetCommand} 30m <goal> to authorize a fresh budget, reconcile prior actions and continue the saved session. Queued follow-ups are replaced and prior spent budget is retained.${budgetCommand === "!goal" ? " Supervision and the saved worker candidate are retained when the fixed goal is unchanged." : ""} Use !new-session only if you want a fresh session.`
           : "Next: use !new-session to clear this thread's block and start fresh. This cancels queued work; history is retained. No failed or interrupted task is eligible for recovery.",
     );
   } else if (counts.running > 0)

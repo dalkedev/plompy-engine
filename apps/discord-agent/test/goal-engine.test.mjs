@@ -507,3 +507,207 @@ test("fresh supervised recovery passes retained images to worker and keeps revie
   assert.equal(workers, 1);
   assert.equal(reviewers, 1);
 });
+
+function failNextEffectWrites(store, failures) {
+  let calls = 0;
+  store.db.function("fail_goal_effect", () => {
+    if (++calls <= failures)
+      throw new Error("Synthetic transient SQLite failure");
+    return 0;
+  });
+  store.db.exec(
+    "CREATE TEMP TRIGGER fail_goal_effect BEFORE UPDATE ON effects BEGIN SELECT fail_goal_effect(); END",
+  );
+}
+
+for (const phase of ["worker", "supervisor"])
+  for (const failures of [1, 2])
+    test(`${phase} phase execution stays charged after ${failures} rolled-back SQLite writes and recovery`, async (t) => {
+      const f = await fixture(t);
+      let workers = 0,
+        reviewers = 0;
+      f.deps.run = async (c, p, s, save, signal, options) => {
+        if (options?.supervisor) {
+          reviewers++;
+          f.clock.value += 20_000;
+          if (phase === "supervisor") failNextEffectWrites(f.store, failures);
+          return success(review(), sid2);
+        }
+        workers++;
+        save(sid);
+        f.clock.value += 30_000;
+        if (phase === "worker") failNextEffectWrites(f.store, failures);
+        return success(output());
+      };
+      const e = f.make();
+      await e.accept(f.message(1, "!goal 2m Fixed synthetic goal"));
+      await drain(e);
+      const executed = phase === "worker" ? 30_000 : 50_000;
+      assert.equal(f.store.get(id(1)).status, "interrupted");
+      assert.equal(f.store.workflow(id(1)).elapsed_ms, executed);
+      assert.equal(workers, 1);
+      assert.equal(reviewers, phase === "worker" ? 0 : 1);
+      assert.equal(f.store.goalReviews(id(1)).length, 0);
+      assert.equal(
+        Boolean(f.store.goal(id(1)).pending_output),
+        phase === "supervisor",
+      );
+      await e.kick();
+      assert.equal(
+        workers,
+        1,
+        "A persistence failure never retries the worker automatically",
+      );
+      f.store.recover(id(1), thread, id(2));
+      assert.ok(f.store.goal(id(2)));
+      assert.equal(f.store.workflow(id(2)).elapsed_ms, executed);
+      assert.equal(
+        f.store.workflow(id(2)).budget_ms - f.store.workflow(id(2)).elapsed_ms,
+        120_000 - executed,
+      );
+      assert.equal(
+        f.store.goal(id(2)).pending_output,
+        f.store.goal(id(1)).pending_output,
+      );
+    });
+
+test("an error after committing the worker candidate cannot charge that execution twice", async (t) => {
+  const f = await fixture(t);
+  const saveWorker = f.store.saveGoalWorker.bind(f.store);
+  let workers = 0,
+    reviewers = 0;
+  f.store.saveGoalWorker = (...args) => {
+    saveWorker(...args);
+    throw new Error("Synthetic error after the worker transaction committed");
+  };
+  f.deps.run = async (c, p, s, save, signal, options) => {
+    if (options?.supervisor) {
+      reviewers++;
+      f.clock.value += 20_000;
+      return success(review(), sid2);
+    }
+    workers++;
+    save(sid);
+    f.clock.value += 30_000;
+    return success(output());
+  };
+  const e = f.make();
+  await e.accept(f.message(1, "!goal 2m Fixed synthetic goal"));
+  await drain(e);
+  assert.equal(f.store.get(id(1)).status, "interrupted");
+  assert.equal(f.store.workflow(id(1)).elapsed_ms, 30_000);
+  assert.ok(f.store.goal(id(1)).pending_output);
+  assert.equal(workers, 1);
+  assert.equal(reviewers, 0);
+  await e.accept(f.message(2, `!recover ${id(1)} Inspect the saved candidate`));
+  await drain(e);
+  assert.equal(f.store.get(id(2)).status, "succeeded");
+  assert.equal(f.store.workflow(id(2)).elapsed_ms, 50_000);
+  assert.equal(workers, 1, "Recovery reviews the already committed candidate");
+  assert.equal(reviewers, 1);
+});
+
+test("an error after committing a supervisor checkpoint cannot overwrite or double-charge it", async (t) => {
+  const f = await fixture(t);
+  const acceptReview = f.store.reviewGoal.bind(f.store);
+  let workers = 0,
+    reviewers = 0,
+    ready = true;
+  f.store.reviewGoal = (...args) => {
+    acceptReview(...args);
+    ready = false;
+    throw new Error("Synthetic error after the review transaction committed");
+  };
+  f.deps.ready = async () => ready;
+  f.deps.run = async (c, p, s, save, signal, options) => {
+    if (options?.supervisor) {
+      reviewers++;
+      f.clock.value += 20_000;
+      return success(
+        review(
+          "continue",
+          "Accepted independent evidence",
+          "Verify the next artifact",
+        ),
+        sid2,
+      );
+    }
+    workers++;
+    save(sid);
+    f.clock.value += 30_000;
+    return success(output());
+  };
+  const e = f.make();
+  await e.accept(f.message(1, "!goal 2m Fixed synthetic goal"));
+  await drain(e);
+  assert.equal(f.store.get(id(1)).status, "queued");
+  assert.equal(f.store.get(id(1)).error_code, null);
+  assert.equal(f.store.workflow(id(1)).elapsed_ms, 50_000);
+  assert.equal(f.store.workflow(id(1)).step_count, 1);
+  assert.equal(
+    f.store.workflow(id(1)).last_summary,
+    "Accepted independent evidence",
+  );
+  assert.equal(f.store.goal(id(1)).pending_output, null);
+  assert.equal(f.store.goalReviews(id(1)).length, 1);
+  assert.equal(f.store.blockingJob(thread), undefined);
+  await e.kick();
+  assert.equal(workers, 1);
+  assert.equal(reviewers, 1);
+});
+
+test("exhausted supervised recovery guidance preserves the candidate and supervisor when followed", async (t) => {
+  const f = await fixture(t);
+  let workers = 0,
+    reviewers = 0;
+  f.deps.run = async (c, p, s, save, signal, options) => {
+    if (options?.supervisor) {
+      reviewers++;
+      f.clock.value += reviewers === 1 ? 30_000 : 10;
+      return reviewers === 1
+        ? { ok: false, output: "", error: "task_timeout", sessionId: sid2 }
+        : success(review(), sid2);
+    }
+    workers++;
+    save(sid);
+    f.clock.value += 30_000;
+    return success(output());
+  };
+  const e = f.make();
+  await e.accept(f.message(1, "!goal 1m Fixed synthetic goal"));
+  await drain(e);
+  assert.equal(f.store.get(id(1)).status, "interrupted");
+  assert.equal(f.store.workflow(id(1)).elapsed_ms, 60_000);
+  const candidate = f.store.goal(id(1)).pending_output;
+  assert.ok(candidate);
+  const notification = f.sent.find((x) =>
+    x.text.includes("This uncertain turn exhausted"),
+  )?.text;
+  assert.match(notification, /fresh !goal 30m <goal>/);
+  assert.doesNotMatch(notification, /!work/);
+  assert.match(
+    threadStatus(f.store, thread, true),
+    /Next: use !goal 30m <goal>/,
+  );
+  await e.accept(f.message(2, `!recover ${id(1)} Inspect evidence`));
+  await drain(e);
+  assert.equal(f.store.get(id(2)), undefined);
+  assert.match(f.sent.at(-1).text, /use !goal 30m <goal>/);
+  assert.doesNotMatch(f.sent.at(-1).text, /!work/);
+  const command = notification
+    .match(/fresh (!goal 30m <goal>)/)[1]
+    .replace("<goal>", "Fixed synthetic goal");
+  await e.accept(f.message(3, command));
+  await drain(e);
+  assert.ok(f.store.goal(id(3)));
+  assert.equal(f.store.get(id(3)).status, "succeeded");
+  assert.equal(f.store.get(id(3)).recovery_of, id(1));
+  assert.equal(f.store.goalReviews(id(3))[0].candidate, candidate);
+  assert.equal(f.store.workflow(id(1)).elapsed_ms, 60_000);
+  assert.equal(
+    workers,
+    1,
+    "Fresh budget reviews the saved candidate without repeating worker effects",
+  );
+  assert.equal(reviewers, 2);
+});

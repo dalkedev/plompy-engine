@@ -70,3 +70,8 @@ acceptance test. See [integration setup](integrations.md) and [work sessions](wo
 Version 0.6.1 retains the same state schema and adds read-only `!queue` inspection.
 Use it to distinguish recovery, runner readiness and an earlier accepted task from
 shared-worker waiting. It does not start a model, retry work or provide a start-time estimate.
+
+Version 0.7.0 adds [supervised goals](supervised-goals.md) and migrates public state
+to schema 5. Take a coordinated snapshot before upgrading and retain the matching
+binary and workspace for rollback. Verify actual worker session resume and a fresh
+supervisor on the deployment; offline tests do not establish model/MCP readiness.
