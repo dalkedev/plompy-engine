@@ -900,6 +900,7 @@ export class Store {
         workflow.state !== "paused" ||
         workflow.elapsed_ms >= workflow.budget_ms ||
         workflow.step_count >= workflow.max_steps ||
+        !this.queueHasCapacity(threadId) ||
         this.db
           .prepare(
             "SELECT 1 FROM conversations WHERE thread_id=? AND blocked_reason IS NOT NULL",
@@ -940,13 +941,7 @@ export class Store {
   ): void {
     if (!["codex", "claude", "opencode"].includes(defaultProvider))
       throw new Error("Invalid runner provider");
-    const counts = this.db
-      .prepare(
-        "SELECT COUNT(*) n,SUM(CASE WHEN thread_id=? THEN 1 ELSE 0 END) t FROM jobs WHERE status IN('queued','running')",
-      )
-      .get(threadId) as { n: number; t: number | null };
-    if (counts.n >= 30 || (counts.t ?? 0) >= 8)
-      throw new Error("Queue is full");
+    if (!this.queueHasCapacity(threadId)) throw new Error("Queue is full");
     this.db
       .prepare(
         "INSERT OR IGNORE INTO conversations(thread_id,created_at,provider) VALUES(?,?,?)",
@@ -969,6 +964,14 @@ export class Store {
         recoveryOf,
         provider,
       );
+  }
+  private queueHasCapacity(threadId: string): boolean {
+    const counts = this.db
+      .prepare(
+        "SELECT COUNT(*) n,SUM(CASE WHEN thread_id=? THEN 1 ELSE 0 END) t FROM jobs WHERE status IN('queued','running')",
+      )
+      .get(threadId) as { n: number; t: number | null };
+    return counts.n < 30 && (counts.t ?? 0) < 8;
   }
   private insertImages(id: string, images: readonly SavedImage[]): void {
     if (images.length && this.get(id)?.provider !== "codex")

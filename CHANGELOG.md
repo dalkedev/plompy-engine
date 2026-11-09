@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 — 2026-11-09
+
+- Keep the shared 30-job queue bound when resuming a safely paused supervised goal. A full queue leaves its saved candidate, control state and remaining budget unchanged; retry `!goal resume` after capacity is available.
+- Point unsuccessful goal controls to `!queue` as well as `!goal status`. Existing per-thread limits, supervision, providers and SQLite schema 6 are unchanged.
+
 ## 0.8.0 — 2026-11-09
 
 - Bind a code repository to a supervised goal with `--repo <absolute path>`. Capture its working-tree contents before and after each worker step, so commits and staging cannot hide code or test changes from the fresh supervisor.

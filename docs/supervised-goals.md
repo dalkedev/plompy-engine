@@ -65,7 +65,11 @@ Status reads local state without a model call.
 Pause and stop take effect after the current bounded subprocess succeeds. A
 paused worker candidate remains saved; resume reviews it before any new worker
 step. Resume requires remaining budget and no queued/running work or unresolved
-uncertainty in this thread. Stop preserves history and does not undo effects.
+uncertainty in this thread. It also respects the shared limit of 30 queued/running
+jobs. When the queue is full, the goal stays paused with its candidate and remaining
+budget unchanged; use `!queue` and retry `!goal resume` after capacity becomes
+available. A full queue does not require a new goal or budget.
+Stop preserves history and does not undo effects.
 If the current review completes or blocks the goal, that terminal result takes
 precedence over a pending pause/stop. A blocked result keeps its reconciliation
 target and thread block; no further work starts automatically.

@@ -175,6 +175,46 @@ test("queued controls take effect immediately and stop produces a pending termin
   assert.equal(store.resumeGoal(id(1), thread), false);
 });
 
+test("resuming a paused goal respects global queue capacity and keeps its saved candidate", (t) => {
+  const store = fixture(t);
+  store.enqueueGoal(id(1), thread, "Fixed goal", 60000);
+  store.claim();
+  store.saveGoalWorker(id(1), candidate(), 1000);
+  store.requestGoalControl(id(1), thread, "pause");
+  store.applyGoalControl(id(1));
+  for (let n = 0; n < 30; n++) {
+    store.enqueue(
+      id(100 + n),
+      String(930000000000000000n + BigInt(n)),
+      "Waiting work",
+    );
+  }
+  const before = rows(store);
+  assert.equal(store.resumeGoal(id(1), thread), false);
+  assert.deepEqual(
+    rows(store),
+    before,
+    "a full queue must not consume the pause or candidate",
+  );
+  assert.equal(store.get(id(1)).status, "interrupted");
+  assert.equal(store.goal(id(1)).pending_output, JSON.stringify(candidate()));
+  assert.equal(store.workflow(id(1)).elapsed_ms, 1000);
+
+  const waiting = store.get(id(100));
+  assert.equal(store.cancel(waiting.id, waiting.thread_id), true);
+  assert.equal(store.resumeGoal(id(1), thread), true);
+  assert.equal(
+    store.db
+      .prepare(
+        "SELECT COUNT(*) n FROM jobs WHERE status IN('queued','running')",
+      )
+      .get().n,
+    30,
+  );
+  assert.equal(store.goal(id(1)).pending_output, JSON.stringify(candidate()));
+  assert.equal(store.workflow(id(1)).elapsed_ms, 1000);
+});
+
 test("exhausted worker budget pauses before review and cannot be resumed or recovered without new budget", (t) => {
   const store = fixture(t);
   store.enqueueGoal(id(1), thread, "Fixed goal", 60000);

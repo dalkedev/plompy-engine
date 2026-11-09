@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "szpont-browser"
-version = "0.8.0"
+version = "0.8.1"
 description = "Persistent Camoufox browser tools over local MCP stdio"
 requires-python = ">=3.12,<3.15"
 dependencies = ["camoufox==0.5.9", "mcp==2.3.0"]

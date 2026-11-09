@@ -6,7 +6,7 @@ review. Paths and task details below are examples, not files supplied by the eng
 
 ## Before you start
 
-- Run version 0.8.0 with Node 24 and the protocol-tested Codex CLI 0.166.0, signed in
+- Run version 0.8.1 with Node 24 and the protocol-tested Codex CLI 0.166.0, signed in
   as the service user using the engine's private `CODEX_HOME`. See the
   [quick start](../README.md#quick-start) and [runner setup](runners.md).
 - Use the configured owner's thread in the private forum. It must be Codex-bound;
