@@ -1,5 +1,7 @@
 # Supervised goals
 
+For a practical walkthrough, see [your first supervised code goal](first-goal.md).
+
 Use a Codex-bound private Discord thread to ask the main worker to keep advancing
 a fixed goal, with a separate agent reviewing each step:
 
