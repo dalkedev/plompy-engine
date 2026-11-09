@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-11-09
+
+- Bind a code repository to a supervised goal with `--repo <absolute path>`. Capture its working-tree contents before and after each worker step, so commits and staging cannot hide code or test changes from the fresh supervisor.
+- Persist the baseline before execution and seal the resulting patch with the worker candidate. Pause, restart and reviewer recovery retain the original evidence; later live edits cannot silently replace it.
+- Give supervisors a bounded patch, changed-file inventory, explicit coverage limits, a private evidence file and the two most recent candidate/review receipts. Test-only changes remain valid when they match the goal; weakened assertions do not prove a behavior fix.
+- Bound capture time, file sizes, inventory and patch output. Keep ignored secrets out, avoid following symlinks or hard links, disable Git diff/filter helpers, and report incomplete or unavailable captures explicitly.
+- Migrate public SQLite state to schema 6 while retaining existing sessions, jobs, images and goal history. Existing goals have no implicit repository binding. Take a coordinated backup before upgrading; older binaries cannot open schema 6.
+
 ## 0.7.0 — 2026-11-07
 
 - Add `!goal` and its `!loop` alias for bounded Codex work reviewed after each step by a fresh supervisor session. Keep the worker's session, save candidates before review, and share one execution budget between both phases.

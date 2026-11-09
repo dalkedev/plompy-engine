@@ -290,6 +290,8 @@ test("schema migration preserves durable state and the prior FIFO ordering contr
   assert.deepEqual(after.goal_reviews, []);
   delete after.goals;
   delete after.goal_reviews;
+  assert.deepEqual(after.goal_code_evidence, []);
+  delete after.goal_code_evidence;
   for (const table of ["conversations", "jobs"]) {
     assert.ok(after[table].every((row) => row.provider === "codex"));
     for (const row of after[table]) delete row.provider;

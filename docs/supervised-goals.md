@@ -6,6 +6,7 @@ a fixed goal, with a separate agent reviewing each step:
 ```text
 !goal 2h Fix the CSV importer, verify regressions and prepare a draft PR.
 !loop 30m Implement the agreed CLI and report tested behavior.
+!goal 30m --repo "/absolute/artifacts/app" Fix the parser and verify regressions.
 ```
 
 `!loop` is an alias for `!goal`. Without a duration, the budget is 30 minutes.
@@ -14,6 +15,12 @@ The loop stops when the goal is complete or blocked; time is a ceiling. Both
 worker and supervisor consume the same execution budget. At most 32 reviewed
 steps run in one budget. This is not an unlimited token or spending allowance.
 No per-step confirmation is needed within the original authorization.
+
+Automatic code diffs require an explicit `--repo` binding. The repository must be
+inside the configured workspace/artifacts and separate from authentication,
+browser and engine state. Goals without a binding keep the existing behavior and
+explicitly report that automatic code evidence is unavailable. See
+[code diff evidence](goal-code-diffs.md) for scope, limits and recovery semantics.
 
 The main worker can coordinate available subagents. Subagent availability depends
 on the operator's Codex setup; the engine does not install or enable them, create
@@ -71,9 +78,9 @@ the worker just because review failed. If worker execution itself is uncertain,
 manual recovery first reconciles the previous attempt.
 
 An exhausted budget cannot be resumed. In a blocked thread, authorize a fresh
-budget using `!goal 30m <goal>`. When the fixed goal is identical, a saved candidate
-can carry forward to review; a changed goal retains history but starts a new
-candidate. A fresh ordinary `!work` deliberately starts an unsupervised budget.
+budget using `!goal 30m <goal>`. When the fixed goal and repository binding are identical, a saved candidate
+and its sealed evidence can carry forward to review; changing either retains
+history but starts a new candidate. A fresh ordinary `!work` deliberately starts an unsupervised budget.
 A safely paused goal can instead be followed by a new explicit goal in the same
 saved conversation. Session reset cancels paused goals as well as queued work.
 
@@ -84,16 +91,18 @@ a fresh explicit budget; nothing is replayed automatically. See
 
 ## Upgrade and validation
 
-This source change migrates public SQLite schemas 0–4 to **schema 5**, adding
-private goal candidates and review history. Take a coordinated pre-upgrade
-[state snapshot](state-backups.md) and retain the matching workspace/binary.
-Older engines reject schema 5. To roll back, restore the pre-upgrade snapshot into
+Version 0.8.0 migrates public SQLite schemas 0–5 to **schema 6**, retaining
+private candidates/review history and adding explicit repository bindings and
+sealed code evidence. Existing goals receive no implicit repository binding.
+Take a coordinated pre-upgrade [state snapshot](state-backups.md) and retain the
+matching workspace/binary. Version 0.7.0 and earlier reject schema 6. To roll back, restore the pre-upgrade snapshot into
 a new private state location and reconcile later external actions; never lower
 `user_version` or remove tables to bypass compatibility checks. Snapshot tools
-in this source support schemas through 5 without migrating them.
+in this source support schemas through 6 without migrating them.
 
-Deterministic tests use synthetic workspaces and fake CLI processes. Separate
-experiments exercised native delegation through an injected bridge and through
+Deterministic tests use synthetic workspaces and fake CLI processes. The code-diff
+regressions also use real local Git repositories; they do not establish live model
+review or deployment acceptance. Separate 0.7.0 experiments exercised native delegation through an injected bridge and through
 the actual configured CLI in an operator-owned lab: the same worker resumed,
 fresh supervisors reviewed each step, blocked evidence required explicit recovery,
 and a new explicit goal reached completed. The

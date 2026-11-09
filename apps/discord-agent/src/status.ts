@@ -25,6 +25,7 @@ export const COMMAND_HELP = [
   "!queue — list this thread's queued/running task IDs in accepted order and explain why each task is waiting; no model call.",
   "!work 30m <goal> or !work 2h <goal> — run checkpointed steps with 1–120 minutes of active execution, at most 32 completed steps. Other threads get turns between steps.",
   "!goal [30m|2h] <goal> / !loop [30m|2h] <goal> — continue under a fresh Codex supervisor; default 30 minutes shared execution, at most 32 reviewed steps.",
+  '!goal 30m --repo "/absolute/path" <goal> — bind a Git repository inside workspace/artifacts for automatic before/after code diffs. --no-repo explicitly detaches it; no flag retains the binding on recovery.',
   "!goal status|pause|resume|stop [task ID] — inspect or control this thread's supervised goal. Pause/stop wait for a successful phase boundary; resume keeps the remaining budget.",
   "!result [task ID] — read the saved response (latest task by default).",
   "!cancel <task ID> — cancel a queued task or stop this thread's active process.",

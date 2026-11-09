@@ -5,9 +5,11 @@ committed WAL pages. It opens the source read-only, verifies database integrity 
 foreign keys, and publishes a complete standalone database at a **new** path. No bot
 token, engine configuration, Discord connection or model call is needed.
 
-The tool supports legacy schemas 0–4 and current source schema 5. It does not migrate them, and
+The tool supports legacy schemas 0–5 and current source schema 6. It does not migrate them, and
 refuses a newer schema. Both `backup` and `restore` preserve jobs, sessions, workflow
-checkpoints, notification receipts, pending transcript/memory effects private image bytes, saved goal candidates and supervisor reviews.
+checkpoints, notification receipts, pending transcript/memory effects, private image
+bytes, saved goal candidates, supervisor reviews, repository bindings and sealed
+code evidence.
 
 ## Create a snapshot
 
@@ -20,7 +22,7 @@ permissions on existing directories. For example, with an already owned `/srv/sz
 install -d -m 700 /srv/szpont/backups
 node /absolute/source/scripts/state-snapshot.mjs backup \
   --source /srv/szpont/state/agent.sqlite \
-  --destination /srv/szpont/backups/pre-0.7.0.sqlite
+  --destination /srv/szpont/backups/pre-0.8.0.sqlite
 ```
 
 The engine may keep running during an online backup. SQLite copies a consistent
@@ -48,7 +50,7 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
    ```sh
    install -d -m 700 /srv/szpont/restored-state
    node /absolute/source/scripts/state-snapshot.mjs restore \
-     --source /srv/szpont/backups/pre-0.7.0.sqlite \
+     --source /srv/szpont/backups/pre-0.8.0.sqlite \
      --destination /srv/szpont/restored-state/agent.sqlite
    ```
 
@@ -62,8 +64,8 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
    Configure the matching private workspace separately. Keep only one engine instance.
    With Docker, use a separately restored state volume and stop the previous container
    before switching; a host path example is not a command to modify a container volume.
-5. Start the chosen engine version under its instance lock. Version 0.7.0 migrates
-   public schemas 0–4 to schema 5 at startup, preserving legacy provider
+5. Start the chosen engine version under its instance lock. Version 0.8.0 migrates
+   public schemas 0–5 to schema 6 at startup, preserving legacy provider
    identities as Codex. Inspect `!status`, interrupted jobs, workflow checkpoints
    and maintenance health. Recover uncertain work only after reconciling its action
    receipts; restoration itself never resumes a job.
@@ -73,6 +75,12 @@ database and never starts the engine, changes service configuration, alters queu
 statuses, resets a session or grants permission to repeat an action.
 
 ## Upgrade and rollback
+
+Version 0.8.0 adds repository bindings and private before/after evidence in schema 6.
+SQLite snapshots retain pending baselines and sealed patches. Derived per-review
+JSON files can be regenerated from the committed database; they are not the backup
+authority. A 0.7.0 binary rejects schema 6. Restore its compatible pre-upgrade
+snapshot and reconcile later actions before rolling back.
 
 Version 0.7.0 adds saved supervised-goal candidates and review history in schema 5.
 The snapshot tool preserves these private records. A 0.6.1 binary rejects schema 5;

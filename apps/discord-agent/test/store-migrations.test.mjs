@@ -57,7 +57,7 @@ test("fresh database receives current version and durable workflow/effect tables
   const path = pathFor(t),
     store = new Store(path);
   t.after(() => store.close());
-  assert.equal(SCHEMA_VERSION, 5);
+  assert.equal(SCHEMA_VERSION, 6);
   assert.equal(
     store.db.prepare("PRAGMA user_version").get().user_version,
     SCHEMA_VERSION,
@@ -201,7 +201,7 @@ test("schema 4 migration preserves existing work without treating it as supervis
   store.enqueueWorkflow(id(1), thread, "Ordinary workflow", 60000);
   const before = store.get(id(1));
   store.db.exec(
-    "DROP TABLE goal_reviews; DROP TABLE goals; PRAGMA user_version=4",
+    "DROP TABLE goal_code_evidence; DROP TABLE goal_reviews; DROP TABLE goals; PRAGMA user_version=4",
   );
   store.close();
   store = new Store(path);
@@ -215,12 +215,12 @@ test("schema 4 migration preserves existing work without treating it as supervis
   assert.deepEqual(store.db.prepare("PRAGMA foreign_key_check").all(), []);
 });
 
-test("schema 5 rejects missing or malformed goal storage before changing journal mode", (t) => {
+test("current schema rejects missing or malformed goal storage before changing journal mode", (t) => {
   for (const malformed of [false, true]) {
     const path = pathFor(t);
     const store = new Store(path);
     store.db.exec(
-      "DROP TABLE goal_reviews; DROP TABLE goals; PRAGMA journal_mode=DELETE",
+      "DROP TABLE goal_code_evidence; DROP TABLE goal_reviews; DROP TABLE goals; PRAGMA journal_mode=DELETE",
     );
     if (malformed)
       store.db.exec(
@@ -237,7 +237,7 @@ test("failed goal migration rolls back goal tables and schema version", (t) => {
   const path = pathFor(t);
   const store = new Store(path);
   store.db.exec(
-    "DROP TABLE goal_reviews; DROP TABLE goals; PRAGMA user_version=4; CREATE TABLE goal_reviews(collision TEXT)",
+    "DROP TABLE goal_code_evidence; DROP TABLE goal_reviews; DROP TABLE goals; PRAGMA user_version=4; CREATE TABLE goal_reviews(collision TEXT)",
   );
   store.close();
   assert.throws(() => new Store(path), /already exists/);
@@ -255,7 +255,7 @@ test("two processes waiting for the schema 4 migration both open the upgraded da
   const store = new Store(path);
   store.enqueue(id(1), thread, "Retain concurrent migration work");
   store.db.exec(
-    "DROP TABLE goal_reviews; DROP TABLE goals; PRAGMA user_version=4; BEGIN IMMEDIATE",
+    "DROP TABLE goal_code_evidence; DROP TABLE goal_reviews; DROP TABLE goals; PRAGMA user_version=4; BEGIN IMMEDIATE",
   );
   const module = new URL("../dist/store.js", import.meta.url).href;
   const run = () =>
@@ -288,6 +288,6 @@ test("two processes waiting for the schema 4 migration both open the upgraded da
   assert.equal(reopened.goal(id(1)), undefined);
   assert.equal(
     reopened.db.prepare("PRAGMA user_version").get().user_version,
-    5,
+    SCHEMA_VERSION,
   );
 });

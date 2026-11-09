@@ -1,4 +1,11 @@
 import { DatabaseSync } from "node:sqlite";
+import { isAbsolute, resolve } from "node:path";
+import {
+  validateRepositorySnapshot,
+  validateRepositoryDiffEvidence,
+  REPOSITORY_SNAPSHOT_MAX_BYTES as SNAPSHOT_MAX_BYTES,
+  REPOSITORY_EVIDENCE_MAX_BYTES as EVIDENCE_MAX_BYTES,
+} from "./repository-diff.js";
 import {
   isSessionId,
   MAX_MESSAGE,
@@ -9,7 +16,7 @@ import {
 import { validateSavedImages, type SavedImage } from "./images.js";
 import type { WorkOutcome } from "./workflow.js";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 export type JobStatus =
   | "queued"
   | "running"
@@ -45,11 +52,18 @@ export interface Workflow {
 }
 export interface Goal {
   job_id: string;
+  repository_path: string | null;
   pending_output: string | null;
   control: "active" | "pause" | "stop";
   stalled_count: number;
   last_review: string | null;
   last_candidate: string | null;
+}
+export interface GoalCodeEvidence {
+  job_id: string;
+  step: number;
+  before_snapshot: string | null;
+  evidence: string | null;
 }
 export interface GoalReview {
   job_id: string;
@@ -86,7 +100,13 @@ export type EffectError =
 export interface RecoveryOptions {
   note?: string;
   /** A fresh, explicitly authorized work budget; prior execution stays charged. */
-  work?: { goal: string; budgetMs: number; supervised?: boolean };
+  work?: {
+    goal: string;
+    budgetMs: number;
+    supervised?: boolean;
+    /** Undefined preserves a supervised binding; null explicitly detaches it. */
+    repositoryPath?: string | null;
+  };
   images?: readonly SavedImage[];
 }
 
@@ -179,13 +199,16 @@ export class Store {
       )
         throw new Error("Invalid database schema: image storage is missing");
       if (version >= 5) this.validateGoals();
+      if (version >= 6) this.validateGoalCodeEvidence();
       this.db.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000");
       if (version === 0) this.migrate();
       if (version < 2) this.migrateAcceptance();
       if (version < 3) this.migrateProviders();
       if (version < 4) this.migrateImages();
       if (version < 5) this.migrateGoals();
+      if (version < 6) this.migrateGoalCodeEvidence();
       this.validateGoals();
+      this.validateGoalCodeEvidence();
       this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL");
     } catch (error) {
       this.db.close();
@@ -362,7 +385,7 @@ export class Store {
       const version = (
         this.db.prepare("PRAGMA user_version").get() as { user_version: number }
       ).user_version;
-      if (version === 5) {
+      if (version >= 5 && version <= SCHEMA_VERSION) {
         this.validateGoals();
         return;
       }
@@ -381,6 +404,76 @@ export class Store {
         PRAGMA user_version=5;
       `);
     });
+  }
+  private validateGoalCodeEvidence(): void {
+    for (const [table, required] of [
+      ["goals", ["repository_path"]],
+      ["goal_code_evidence", ["job_id", "step", "before_snapshot", "evidence"]],
+    ] as const) {
+      const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as {
+        name: string;
+      }[];
+      if (
+        !required.every((name) =>
+          columns.some((column) => column.name === name),
+        )
+      )
+        throw new Error(
+          "Invalid database schema: goal code evidence storage is missing",
+        );
+    }
+  }
+  private migrateGoalCodeEvidence(): void {
+    this.transaction(() => {
+      const version = (
+        this.db.prepare("PRAGMA user_version").get() as { user_version: number }
+      ).user_version;
+      if (version === SCHEMA_VERSION) {
+        this.validateGoalCodeEvidence();
+        return;
+      }
+      if (version !== 5)
+        throw new Error(`Unsupported database schema version ${version}`);
+      this.db.exec(`
+        ALTER TABLE goals ADD COLUMN repository_path TEXT;
+        CREATE TRIGGER preserve_goal_repository BEFORE UPDATE OF repository_path ON goals
+          WHEN NEW.repository_path IS NOT OLD.repository_path BEGIN
+          SELECT RAISE(ABORT,'Goal repository binding is immutable');
+        END;
+        CREATE TABLE goal_code_evidence(
+          job_id TEXT NOT NULL REFERENCES goals(job_id),
+          step INTEGER NOT NULL CHECK(step BETWEEN 1 AND 32),
+          before_snapshot TEXT,evidence TEXT,
+          CHECK(before_snapshot IS NOT NULL OR evidence IS NOT NULL),
+          PRIMARY KEY(job_id,step));
+        CREATE TRIGGER preserve_sealed_goal_code_evidence BEFORE UPDATE ON goal_code_evidence
+          WHEN OLD.evidence IS NOT NULL BEGIN
+          SELECT RAISE(ABORT,'Sealed goal code evidence is immutable');
+        END;
+        PRAGMA user_version=6;
+      `);
+    });
+  }
+  private validateRepositoryBinding(path: string | null | undefined): void {
+    if (
+      path !== undefined &&
+      path !== null &&
+      (typeof path !== "string" ||
+        !isAbsolute(path) ||
+        resolve(path) !== path ||
+        Buffer.byteLength(path, "utf8") > 4096 ||
+        /[\x00-\x1f\x7f]/.test(path))
+    )
+      throw new Error("Invalid goal repository binding");
+  }
+  private parseCodeJson(text: string, limit: number): unknown {
+    if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > limit)
+      throw new Error("Invalid goal code evidence size");
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error("Invalid goal code evidence JSON");
+    }
   }
   private transaction<T>(operation: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
@@ -512,8 +605,10 @@ export class Store {
     goal: string,
     budgetMs: number,
     defaultProvider: ProviderId = "codex",
+    repositoryPath?: string,
   ): boolean {
     this.validateIdentity(id, threadId);
+    this.validateRepositoryBinding(repositoryPath);
     if (
       !goal.trim() ||
       goal.length > MAX_MESSAGE ||
@@ -532,7 +627,9 @@ export class Store {
           "INSERT INTO workflows(job_id,goal,budget_ms,max_steps,state) VALUES(?,?,?,32,'active')",
         )
         .run(id, goal, budgetMs);
-      this.db.prepare("INSERT INTO goals(job_id) VALUES(?)").run(id);
+      this.db
+        .prepare("INSERT INTO goals(job_id,repository_path) VALUES(?,?)")
+        .run(id, repositoryPath ?? null);
       this.dirty(threadId);
       return true;
     });
@@ -559,7 +656,49 @@ export class Store {
       })[]
     ).map((row) => ({ ...row, progress: Boolean(row.progress) }));
   }
-  saveGoalWorker(id: string, outcome: WorkOutcome, elapsedMs: number): void {
+  goalCodeEvidence(id: string, step?: number): GoalCodeEvidence | undefined {
+    const selected = step ?? (this.workflow(id)?.step_count ?? -1) + 1;
+    return this.db
+      .prepare("SELECT * FROM goal_code_evidence WHERE job_id=? AND step=?")
+      .get(id, selected) as GoalCodeEvidence | undefined;
+  }
+  saveGoalBaseline(id: string, snapshotJSON: string): void {
+    const snapshot = validateRepositorySnapshot(
+      this.parseCodeJson(snapshotJSON, SNAPSHOT_MAX_BYTES),
+    );
+    this.transaction(() => {
+      const job = this.get(id),
+        workflow = this.workflow(id),
+        goal = this.goal(id);
+      if (
+        !job ||
+        job.status !== "running" ||
+        !workflow ||
+        workflow.state !== "active" ||
+        !goal?.repository_path ||
+        goal.pending_output !== null ||
+        snapshot.root !== goal.repository_path
+      )
+        throw new Error("Goal baseline ownership or repository mismatch");
+      const step = workflow.step_count + 1;
+      const prior = this.goalCodeEvidence(id, step);
+      if (prior && prior.evidence !== null)
+        throw new Error("Sealed goal code evidence is immutable");
+      this.db
+        .prepare(
+          `INSERT INTO goal_code_evidence(job_id,step,before_snapshot,evidence) VALUES(?,?,?,NULL)
+        ON CONFLICT(job_id,step) DO UPDATE SET before_snapshot=excluded.before_snapshot`,
+        )
+        .run(id, step, snapshotJSON);
+      this.dirty(job.thread_id);
+    });
+  }
+  saveGoalWorker(
+    id: string,
+    outcome: WorkOutcome,
+    elapsedMs: number,
+    evidenceJSON?: string,
+  ): void {
     this.validateCheckpoint(outcome);
     const spent = this.spent(elapsedMs);
     this.transaction(() => {
@@ -576,6 +715,38 @@ export class Store {
         throw new Error("Goal ownership lost");
       if (goal.pending_output !== null)
         throw new Error("Goal candidate already saved");
+      if (goal.repository_path) {
+        if (evidenceJSON === undefined)
+          throw new Error("Bound goal requires code evidence");
+        const baseline = this.goalCodeEvidence(id);
+        if (!baseline?.before_snapshot || baseline.evidence !== null)
+          throw new Error("Goal code baseline is missing or already sealed");
+        const before = validateRepositorySnapshot(
+          this.parseCodeJson(baseline.before_snapshot, SNAPSHOT_MAX_BYTES),
+        );
+        const evidence = validateRepositoryDiffEvidence(
+          this.parseCodeJson(evidenceJSON, EVIDENCE_MAX_BYTES),
+        );
+        if (
+          evidence.root !== goal.repository_path ||
+          before.root !== goal.repository_path ||
+          evidence.beforeHash !== before.contentHash ||
+          evidence.beforeHead !== before.head
+        )
+          throw new Error("Goal code evidence does not match its baseline");
+        this.db
+          .prepare(
+            "UPDATE goal_code_evidence SET before_snapshot=?,evidence=? WHERE job_id=? AND step=?",
+          )
+          .run(
+            evidence.status === "unavailable" ? baseline.before_snapshot : null,
+            evidenceJSON,
+            id,
+            workflow.step_count + 1,
+          );
+      } else if (evidenceJSON !== undefined) {
+        throw new Error("Code evidence requires an owner-bound repository");
+      }
       const candidate = JSON.stringify({
         outcome: outcome.outcome,
         summary: outcome.summary,
@@ -1174,6 +1345,12 @@ export class Store {
     )
       throw new Error("Invalid recovery instruction");
     if (options.images !== undefined) validateSavedImages(options.images);
+    this.validateRepositoryBinding(options.work?.repositoryPath);
+    if (
+      options.work?.repositoryPath !== undefined &&
+      options.work.supervised !== true
+    )
+      throw new Error("Repository binding requires a supervised goal");
     if (
       options.work &&
       (!options.work.goal.trim() ||
@@ -1235,6 +1412,12 @@ export class Store {
           "Workflow budget is exhausted or paused; start a new explicit !work budget",
         );
       const priorGoal = workflow ? this.goal(workflow.job_id) : undefined;
+      const repositoryPath =
+        options.work?.repositoryPath === undefined
+          ? (priorGoal?.repository_path ?? null)
+          : options.work.repositoryPath;
+      const sameRepository =
+        repositoryPath === (priorGoal?.repository_path ?? null);
       const supervised = options.work
         ? options.work.supervised === true
         : Boolean(priorGoal);
@@ -1278,10 +1461,12 @@ export class Store {
             .run(newId, workflow.job_id);
       }
       if (supervised) {
-        const sameGoal = !options.work || options.work.goal === workflow?.goal;
+        const sameGoal =
+          (!options.work || options.work.goal === workflow?.goal) &&
+          sameRepository;
         this.db
           .prepare(
-            "INSERT INTO goals(job_id,pending_output,stalled_count,last_review,last_candidate) VALUES(?,?,?,?,?)",
+            "INSERT INTO goals(job_id,pending_output,stalled_count,last_review,last_candidate,repository_path) VALUES(?,?,?,?,?,?)",
           )
           .run(
             newId,
@@ -1289,6 +1474,7 @@ export class Store {
             !options.work ? (priorGoal?.stalled_count ?? 0) : 0,
             priorGoal?.last_review ?? null,
             sameGoal ? (priorGoal?.last_candidate ?? null) : null,
+            repositoryPath,
           );
         if (priorGoal && !options.work)
           this.db
@@ -1296,6 +1482,34 @@ export class Store {
               "INSERT INTO goal_reviews SELECT ?,step,candidate,review,progress,elapsed_ms,created_at FROM goal_reviews WHERE job_id=?",
             )
             .run(newId, priorGoal.job_id);
+        if (priorGoal && !options.work) {
+          // Reviewed rows are history, not a new candidate. Never copy an
+          // unsealed failed-worker baseline into a new execution attempt.
+          this.db
+            .prepare(
+              `INSERT INTO goal_code_evidence(job_id,step,before_snapshot,evidence)
+            SELECT ?,step,before_snapshot,evidence FROM goal_code_evidence
+            WHERE job_id=? AND evidence IS NOT NULL AND step<=?`,
+            )
+            .run(newId, priorGoal.job_id, workflow!.step_count);
+        }
+        if (sameGoal && priorGoal?.pending_output && workflow) {
+          const pending = this.goalCodeEvidence(
+            priorGoal.job_id,
+            workflow.step_count + 1,
+          );
+          if (pending?.evidence)
+            this.db
+              .prepare(
+                "INSERT INTO goal_code_evidence(job_id,step,before_snapshot,evidence) VALUES(?,?,?,?)",
+              )
+              .run(
+                newId,
+                options.work ? 1 : workflow.step_count + 1,
+                pending.before_snapshot,
+                pending.evidence,
+              );
+        }
       }
       this.db
         .prepare(

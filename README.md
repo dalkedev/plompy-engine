@@ -128,6 +128,9 @@ A successful local turn does not prove a deployment, post or website action succ
 To continue a larger task under independent review, use `!goal 30m <goal>` or
 `!loop 2h <goal>` in a Codex thread. [Supervised goals](docs/supervised-goals.md)
 cover follow-up questions, pause/resume/stop and shared execution budgets.
+Bind an explicit code repository with `!goal 30m --repo "/absolute/artifacts/app" <goal>`
+to give each supervisor an automatic before/after patch, including code and test
+changes. [Code diff evidence](docs/goal-code-diffs.md) explains scope and limits.
 
 ## Quick start
 
@@ -138,7 +141,7 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone --branch v0.7.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
+git clone --branch v0.8.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
 cd szpont-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -214,6 +217,7 @@ and a live acceptance check.
 | ---------------------- | ---------------------------------------------------------------------------------------- |
 | A normal message       | Queue a task in this thread's saved session                                              |
 | `!goal 30m <goal>`     | Advance a fixed goal under a separate supervisor; `!loop` is an alias                    |
+| `!goal 30m --repo "/absolute/path" <goal>` | Capture code changes in an explicit repository inside workspace/artifacts              |
 | `!goal status / pause / resume / stop [MESSAGE_ID]` | Inspect or control this thread's supervised goal                           |
 | `!work 30m <goal>`     | Continue a fixed goal with checkpoints; 1–120 active minutes, at most 32 completed steps |
 | `!status`              | Inspect this thread's queue, readiness, work session and delivery state                  |
@@ -254,7 +258,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.7.0 uses SQLite schema 5**, adding saved goal candidates and supervisor reviews. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
+Version **0.8.0 uses SQLite schema 6**, adding owner-bound repositories and durable code-diff evidence. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
 

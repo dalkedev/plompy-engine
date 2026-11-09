@@ -75,4 +75,7 @@ See [work sessions](work-sessions.md) and [state backups](state-backups.md) befo
 
 Supervised `!goal` / `!loop` sessions use these same budget ceilings and require
 a Codex-bound thread. They add no environment setting or model override. See
-[supervised goals](supervised-goals.md) before upgrading to source schema 5.
+[supervised goals](supervised-goals.md) before upgrading to schema 6 in 0.8.0.
+For automatic code evidence, bind an explicit repository with `--repo`; this is a
+per-goal option, not an environment variable. See [code diff evidence](goal-code-diffs.md)
+for allowed paths, capture limits and `--no-repo` recovery behavior.

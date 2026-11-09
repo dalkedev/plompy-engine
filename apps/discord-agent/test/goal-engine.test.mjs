@@ -1,7 +1,14 @@
 import { imageDigest } from "../dist/images.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readFile,
+  realpath,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setImmediate as yieldTurn } from "node:timers/promises";
@@ -710,4 +717,303 @@ test("exhausted supervised recovery guidance preserves the candidate and supervi
     "Fresh budget reviews the saved candidate without repeating worker effects",
   );
   assert.equal(reviewers, 2);
+});
+
+async function codeRepository(f) {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const exec = promisify(execFile);
+  const repository = join(f.config.artifactsDir, "project with spaces");
+  await mkdir(repository, { mode: 0o700 });
+  const git = (...args) =>
+    exec("git", ["-C", repository, ...args], {
+      env: {
+        ...process.env,
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_NOSYSTEM: "1",
+      },
+    });
+  await git("init", "-q");
+  await git("config", "user.name", "Synthetic Developer");
+  await git("config", "user.email", "synthetic@example.invalid");
+  await writeFile(join(repository, "src.js"), "export const value = 0;\n");
+  await writeFile(join(repository, "test.js"), "assert.equal(value, 0);\n");
+  await writeFile(join(repository, "README.md"), "Initial documentation\n");
+  await git("add", ".");
+  await git("commit", "-qm", "Synthetic baseline");
+  return {
+    repository: await realpath(repository),
+    git,
+    command: (goal = "Fix the value and assertions") =>
+      `!goal 2m --repo ${JSON.stringify(repository)} ${goal}`,
+  };
+}
+function privateEvidence(prompt) {
+  const match = /"privateEvidencePath":"([^"]+)"/.exec(prompt);
+  assert(match, "supervisor receives an exact private evidence path");
+  return readFile(JSON.parse('"' + match[1] + '"'), "utf8").then(JSON.parse);
+}
+
+test("bound goals send actual committed code/test changes and the next step uses a fresh baseline", async (t) => {
+  const f = await fixture(t);
+  const repo = await codeRepository(f);
+  await writeFile(
+    join(repo.repository, "README.md"),
+    "Preexisting dirty documentation\n",
+  );
+  let workers = 0,
+    reviews = 0;
+  const sessions = [];
+  const engine = f.make({
+    ...f.deps,
+    run: async (config, prompt, session, save, signal, options) => {
+      if (options?.workflow) {
+        workers++;
+        sessions.push(session);
+        if (!session) save(sid);
+        assert.match(prompt, /Owner-bound code repository/);
+        if (workers === 1) {
+          await writeFile(
+            join(repo.repository, "src.js"),
+            "export const value = 1;\n",
+          );
+          await writeFile(
+            join(repo.repository, "test.js"),
+            "assert.ok(true);\n",
+          );
+          await repo.git("add", "src.js", "test.js");
+          await repo.git("commit", "-qm", "Worker commit does not hide diff");
+        } else
+          await writeFile(
+            join(repo.repository, "test.js"),
+            "assert.equal(value, 1);\n",
+          );
+        return success(
+          output("completed", "Worker candidate; inspect actual files"),
+        );
+      }
+      reviews++;
+      assert.equal(session, null);
+      assert.equal(options?.supervisor, true);
+      const evidence = await privateEvidence(prompt);
+      assert.equal(evidence.status, "complete");
+      assert(
+        !evidence.changes.some((c) => c.path === "README.md"),
+        "preexisting dirty content is excluded",
+      );
+      if (reviews === 1) {
+        assert.deepEqual(evidence.changes.map((c) => c.path).sort(), [
+          "src.js",
+          "test.js",
+        ]);
+        assert.match(evidence.patch, /export const value = 1/);
+        assert.match(evidence.patch, /assert.ok\(true\)/);
+        assert.notEqual(evidence.beforeHead, evidence.afterHead);
+        return success(
+          JSON.stringify({
+            outcome: "continue",
+            summary: "Code changed, but assertion was weakened",
+            nextAction: "Restore the behavior assertion",
+            progress: true,
+          }),
+        );
+      }
+      assert.deepEqual(
+        evidence.changes.map((c) => c.path),
+        ["test.js"],
+      );
+      assert.match(evidence.patch, /assert.equal\(value, 1\)/);
+      assert.match(prompt, /assertion was weakened/);
+      return success(
+        JSON.stringify({
+          outcome: "completed",
+          summary: "Code and actual assertion reviewed",
+          nextAction: "",
+          progress: true,
+        }),
+      );
+    },
+  });
+  await engine.accept(f.message(70, repo.command()));
+  await drain(engine);
+  assert.equal(f.store.get(id(70)).status, "succeeded");
+  assert.equal(f.store.workflow(id(70)).state, "completed");
+  assert.equal(workers, 2);
+  assert.equal(reviews, 2);
+  assert.deepEqual(sessions, [null, sid]);
+  assert(f.store.goalCodeEvidence(id(70), 1).evidence);
+  assert(f.store.goalCodeEvidence(id(70), 2).evidence);
+});
+
+test("reviewer recovery reuses the sealed step diff after unrelated live mutations", async (t) => {
+  const f = await fixture(t);
+  const repo = await codeRepository(f);
+  let workers = 0,
+    reviews = 0,
+    sealed;
+  const engine = f.make({
+    ...f.deps,
+    run: async (config, prompt, session, save, signal, options) => {
+      if (options?.workflow) {
+        workers++;
+        if (!session) save(sid);
+        await writeFile(
+          join(repo.repository, "src.js"),
+          "export const value = 1;\n",
+        );
+        return success(output());
+      }
+      reviews++;
+      const evidence = await privateEvidence(prompt);
+      if (reviews === 1) {
+        sealed = evidence;
+        return {
+          ok: false,
+          output: "",
+          error: "task_timeout",
+          sessionId: null,
+        };
+      }
+      assert.deepEqual(evidence, sealed);
+      assert.doesNotMatch(evidence.patch, /999/);
+      return success(
+        JSON.stringify({
+          outcome: "completed",
+          summary: "Original saved evidence inspected",
+          nextAction: "",
+          progress: true,
+        }),
+      );
+    },
+  });
+  await engine.accept(f.message(71, repo.command()));
+  await drain(engine);
+  assert.equal(f.store.get(id(71)).status, "interrupted");
+  await writeFile(
+    join(repo.repository, "src.js"),
+    "export const value = 999;\n",
+  );
+  await engine.accept(
+    f.message(72, `!recover ${id(71)} Inspect the original candidate`),
+  );
+  await drain(engine);
+  assert.equal(f.store.get(id(72)).status, "succeeded");
+  assert.equal(workers, 1);
+  assert.equal(reviews, 2);
+  assert.equal(f.store.goal(id(72)).repository_path, repo.repository);
+});
+
+test("pause after worker retains code proof and resume does not rerun the worker", async (t) => {
+  const f = await fixture(t);
+  const repo = await codeRepository(f);
+  let workers = 0,
+    reviews = 0;
+  let engine;
+  const deps = {
+    ...f.deps,
+    run: async (config, prompt, session, save, signal, options) => {
+      if (options?.workflow) {
+        workers++;
+        save(sid);
+        await writeFile(
+          join(repo.repository, "src.js"),
+          "export const value = 1;\n",
+        );
+        await engine.accept(f.message(74, "!goal pause"));
+        return success(output());
+      }
+      reviews++;
+      const evidence = await privateEvidence(prompt);
+      assert.equal(evidence.changes[0].path, "src.js");
+      return success(
+        JSON.stringify({
+          outcome: "completed",
+          summary: "Paused candidate checked",
+          nextAction: "",
+          progress: true,
+        }),
+      );
+    },
+  };
+  engine = f.make(deps);
+  await engine.accept(f.message(73, repo.command()));
+  await drain(engine);
+  assert.equal(f.store.workflow(id(73)).state, "paused");
+  assert.equal(reviews, 0);
+  assert(f.store.goalCodeEvidence(id(73)).evidence);
+  engine.stop();
+  engine = f.make(deps);
+  await engine.accept(f.message(75, "!goal resume"));
+  await drain(engine);
+  assert.equal(f.store.workflow(id(73)).state, "completed");
+  assert.equal(workers, 1);
+  assert.equal(reviews, 1);
+});
+
+test("repo scope rejection and failed baseline cannot call the worker", async (t) => {
+  const f = await fixture(t);
+  let calls = 0;
+  const engine = f.make({
+    ...f.deps,
+    run: async () => {
+      calls++;
+      return success(output());
+    },
+  });
+  await engine.accept(
+    f.message(76, `!goal --repo ${JSON.stringify(f.config.codexHome)} Inspect`),
+  );
+  await drain(engine);
+  assert.equal(f.store.get(id(76)), undefined);
+  const empty = join(f.config.artifactsDir, "not-a-repository");
+  await mkdir(empty);
+  await engine.accept(
+    f.message(77, `!goal --repo ${JSON.stringify(empty)} Inspect`),
+  );
+  await drain(engine);
+  assert.equal(
+    f.store.get(id(77)).error_code,
+    "goal_diff_baseline_unavailable",
+  );
+  assert.equal(calls, 0);
+});
+
+test("failed post-worker capture preserves candidate with explicit unavailable evidence", async (t) => {
+  const f = await fixture(t);
+  const repo = await codeRepository(f);
+  const { captureRepository } = await import("../dist/repository-diff.js");
+  let captures = 0,
+    workers = 0;
+  const engine = f.make({
+    ...f.deps,
+    captureRepository: async (...args) => {
+      if (++captures === 2) throw new Error("synthetic capture failure");
+      return captureRepository(...args);
+    },
+    run: async (config, prompt, session, save, signal, options) => {
+      if (options?.workflow) {
+        workers++;
+        save(sid);
+        return success(output());
+      }
+      const evidence = await privateEvidence(prompt);
+      assert.equal(evidence.status, "unavailable");
+      assert.match(prompt, /No empty or clean diff/);
+      return success(
+        JSON.stringify({
+          outcome: "blocked",
+          summary: "Missing after snapshot is explicit",
+          nextAction: "Reconcile the missing code evidence",
+          progress: false,
+        }),
+      );
+    },
+  });
+  await engine.accept(f.message(78, repo.command()));
+  await drain(engine);
+  assert.equal(workers, 1);
+  assert.equal(f.store.workflow(id(78)).state, "blocked");
+  const saved = f.store.goalCodeEvidence(id(78), 1);
+  assert(saved.before_snapshot);
+  assert.equal(JSON.parse(saved.evidence).status, "unavailable");
 });

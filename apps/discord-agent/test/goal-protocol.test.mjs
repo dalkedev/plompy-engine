@@ -71,3 +71,80 @@ test("supervisor prompt labels candidate data, fixes scope and prohibits effects
   assert.match(prompt, /Do not.*(?:write|publish)/i);
   assert.match(prompt, /evidence/i);
 });
+
+test("explicit repository bindings parse without changing goal text or interpreting shell syntax", () => {
+  assert.deepEqual(
+    protocol.parseGoalCommand(
+      '!loop 2h --repo "/srv/project with spaces" -- Fix assertions',
+    ),
+    {
+      kind: "start",
+      goal: "Fix assertions",
+      budgetMs: 7200000,
+      repositoryPath: "/srv/project with spaces",
+    },
+  );
+  assert.equal(
+    protocol.parseGoalCommand(
+      "!goal --repo=/srv/project Read $(whoami) literally",
+    ).goal,
+    "Read $(whoami) literally",
+  );
+  assert.equal(
+    protocol.parseGoalCommand("!goal 30m --no-repo Review the design")
+      .repositoryPath,
+    null,
+  );
+  for (const text of [
+    "!goal --repo relative Fix",
+    "!goal --repo /srv/project",
+    '!goal --repo "/srv/project"suffix Fix',
+    '!goal --repo "/srv/escaped\\nname" Fix',
+    "!goal --no-repo",
+    "!goal --repo /srv/a --repo /srv/b Fix",
+  ])
+    assert.throws(() => protocol.parseGoalCommand(text));
+});
+
+test("large code inventories keep the evidence read path and bounded recent receipts visible", () => {
+  const evidence = {
+    version: 1,
+    root: "/synthetic/repo",
+    status: "partial",
+    beforeHash: "a".repeat(64),
+    afterHash: "b".repeat(64),
+    beforeHead: null,
+    afterHead: null,
+    patch: "x".repeat(96000),
+    omissions: [{ path: "*", reason: "patch_limit" }],
+    note: "Explicit bounded capture",
+    changes: Array.from({ length: 100 }, (_, i) => ({
+      path: String(i).padStart(3, "0") + "x".repeat(900),
+      kind: "added",
+      before: null,
+      after: { kind: "text", size: 1, mode: 33188, sha256: "c".repeat(64) },
+    })),
+  };
+  const path =
+    "/private/synthetic/state/goal-review-evidence/5555000000000001001/step-3.json";
+  const prompt = protocol.goalReviewPrompt({
+    goal: "Review synthetic code",
+    candidate: { outcome: "completed", summary: "Candidate", nextAction: "" },
+    lastSummary: null,
+    nextAction: null,
+    step: 3,
+    remainingMs: 60000,
+    codeDiff: { evidence, evidencePath: path },
+    history: [
+      { step: 1, candidate: "oldest-marker", review: "oldest-review" },
+      { step: 2, candidate: "recent-candidate", review: "recent-review" },
+      { step: 3, candidate: "latest-candidate", review: "latest-review" },
+    ],
+  });
+  assert(Buffer.byteLength(prompt) <= 65536);
+  assert(prompt.includes(path));
+  assert.match(prompt, /latest-review/);
+  assert.doesNotMatch(prompt, /oldest-marker/);
+  assert.match(prompt, /further bytes omitted/);
+  assert.match(prompt, /Partial or unavailable evidence is never a clean/);
+});
