@@ -28,3 +28,11 @@ image remains Codex-only and rejects other selected runners.
 Keep every provider's credentials, session history and configuration private.
 Changing the default does not migrate existing conversations or credentials.
 Provider failures never invoke an automatic fallback.
+
+## Known runtime findings
+
+Node 24.22.2 embeds SQLite 3.53.4, which is affected by CVE-2026-119375. No
+newer official Node 24 release was available when checked on 2026-11-09. Read the
+[runtime finding](docs/runtime-known-findings.md) before opening or restoring state
+from outside your trusted deployment. This remains an open runtime dependency
+finding; version 0.8.1's queue-capacity fix does not remediate it.
