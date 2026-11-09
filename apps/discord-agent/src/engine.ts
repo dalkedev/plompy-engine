@@ -294,7 +294,7 @@ export class Engine {
                 ? request.kind === "resume"
                   ? `Goal ${job.id} resumed with its remaining budget.`
                   : `Goal ${job.id}: ${request.kind} saved. A running process will finish its current bounded phase first; !cancel ${job.id} interrupts immediately and requires reconciliation.`
-                : "This goal cannot take that control in its current state. Use !goal status; exhausted budgets need a fresh explicit !goal budget, and uncertain turns need reconciliation.",
+                : "This goal cannot take that control in its current state. Use !goal status and !queue; resume also needs free queue capacity. Exhausted budgets need a fresh explicit !goal budget, and uncertain turns need reconciliation.",
             );
           }
         }
