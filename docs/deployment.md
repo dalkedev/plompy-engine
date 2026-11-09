@@ -79,8 +79,10 @@ supervisor on the deployment; offline tests do not establish model/MCP readiness
 Version 0.8.0 adds [owner-bound code diff evidence](goal-code-diffs.md) and migrates
 public state to schema 6. Stop the service and retain a coordinated pre-upgrade
 snapshot, workspace checkpoint and binary before switching versions. Version
-0.7.0 cannot open schema 6. Existing goals remain unbound until an explicit
-`--repo` start/recovery request; a normal goal does not discover code repositories.
+0.7.0 cannot open schema 6. Existing goals remain unbound. Use a new explicit
+`!goal --repo` command to select a repository; in a blocked thread this authorizes
+fresh recovery work. A plain `!recover` note does not change the binding, and a
+normal goal does not discover code repositories.
 Verify the chosen repository path, sealed before/after evidence and actual reviewer
 access on your deployment. Derived review files can be regenerated from SQLite;
 do not substitute a later live diff for a saved candidate during recovery.
