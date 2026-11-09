@@ -14,10 +14,10 @@ required values. Keep that environment file outside this public source checkout.
 paste its contents or account credentials into bug reports.
 
 The default inspection runs locally. It reads directory metadata, asks Git about the
-configured workspace, and runs the configured Codex executable with `--version`. It does
+configured workspace, and runs the selected runner executable with `--version`. It does
 not start the engine, connect to Discord, submit an inference request, inspect conversations,
 open SQLite, initialize a workspace, create directories, repair permissions, or check login.
-The diagnostic itself performs no write probe. Run only a Codex executable you trust.
+The diagnostic itself performs no write probe. Run only a runner executable you trust.
 
 Login status requires an explicit additional step:
 
@@ -25,9 +25,10 @@ Login status requires an explicit additional step:
 npm run doctor -- --check-login
 ```
 
-That opt-in executes `codex login status` using the configured private `CODEX_HOME` and the
-engine's child environment allowlist. It does not start interactive login or submit a task.
-Its stdout and stderr are never included in the report. A successful status command does
+For Codex, that opt-in executes `codex login status` using the configured private
+`CODEX_HOME` and the engine's child environment allowlist. Other runners use their
+[documented local readiness checks](runners.md#credentials-diagnostics-and-acceptance).
+The check does not start interactive login or submit a task. Its stdout and stderr are never included in the report. A successful status command does
 not prove that a later inference request has quota or will succeed.
 
 ## Checks
@@ -38,8 +39,8 @@ Every check has a stable identifier and one of `PASS`, `FAIL`, or `NOT_RUN`:
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `node_runtime`        | The current process uses Node 24.                                                                                                                                                                   |
 | `configuration`       | The compiled engine configuration loader accepts required values, identity formats, and timeout constraints. No account identity or token is verified remotely.                                     |
-| `path_separation`     | All five private directories use distinct absolute paths outside public source. Existing symlink aliases and overlapping ancestors are checked, including aliases leading to a missing destination. |
-| `private_directories` | Workspace, state, artifacts, Codex home, and browser directories already exist and are directories. The optional browser bridge need not be installed.                                              |
+| `path_separation`     | Workspace, state, artifacts, selected runner home and browser directories use distinct absolute paths outside public source. Existing symlink aliases and overlapping ancestors are checked, including aliases leading to a missing destination. |
+| `private_directories` | Workspace, state, artifacts, selected runner home and browser directories already exist and are directories. The optional browser bridge need not be installed.                                              |
 | `private_writability` | The current user has write and traversal access according to the operating system. No files are created to test this.                                                                               |
 | `workspace_git`       | The workspace is a Git work tree rooted at its configured path, with writable Git metadata outside public source. A repository inherited from a parent directory is rejected.                       |
 | `codex_version`       | The configured executable reports the protocol-tested `codex-cli 0.166.0` version. Other versions need adapter verification before use.                                                             |

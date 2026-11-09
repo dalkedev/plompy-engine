@@ -36,9 +36,10 @@ Back up the private workspace and SQLite state separately from the public source
 appropriate SQLite backup/checkpoint process rather than blindly copying only the main file
 while WAL is active. Treat auth caches, browser profiles and full backups as secrets.
 
-Use the [state snapshot tool](state-backups.md) for a verified online SQLite backup. Schema
-version 1 upgrades 0.2 databases transactionally without replaying work. Take a pre-upgrade
-snapshot and stop the engine before switching versions; old code must not open migrated state.
+Use the [state snapshot tool](state-backups.md) for a verified online SQLite backup.
+Version 0.8.0 migrates public schemas 0–5 transactionally to schema 6 without replaying
+work. Take a pre-upgrade snapshot and stop the engine before switching versions;
+0.7.0 and earlier must not open migrated state.
 
 After a timeout or crash, inspect `!status`, stored results, journals and actual external state.
 Then use `!recover MESSAGE_ID` if appropriate. A timeout alone never authorizes repeating an

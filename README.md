@@ -6,131 +6,38 @@
 
 **Run coding agents from private Discord threads.**
 
-Each thread keeps its own CLI session. Accepted tasks stay in SQLite.
-Useful context stays in a private Markdown workspace.
+One CLI session per thread. A durable queue for accepted work.
+Private Markdown context that survives the conversation.
 
 [![Offline checks](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml/badge.svg)](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml)
 [![Release](https://img.shields.io/github/v/release/dalkedev/szpont-engine?color=FF6B35&labelColor=111315)](https://github.com/dalkedev/szpont-engine/releases)
 [![Node.js 24](https://img.shields.io/badge/Node.js-24-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
 [![MIT license](https://img.shields.io/badge/license-MIT-FF6B35?labelColor=111315)](LICENSE)
 
-[See it work](#see-it-work) · [Quick start](#quick-start) · [Choose a runner](#choose-a-runner) · [Integrations](docs/integrations.md) · [Documentation](docs/index.md)
+[Quick start](#quick-start) · [Supervised goals](#from-a-task-to-a-reviewed-change) · [See it work](#see-it-work) · [Runners](#choose-a-runner) · [Documentation](docs/index.md)
 
 </div>
 
-Send a task from your phone, follow up in the same thread, and inspect the result when it finishes.
-The machine runs the coding CLI; Discord carries the conversation.
+szpont-engine connects a private Discord forum to coding agents on your own Linux machine.
+Send a task, follow up in the same thread, and return to a saved result. The engine keeps the
+runner session, accepted work and recovery state together, so a disconnected client does not
+mean starting the conversation again.
 
 Your phone can go back in your pocket.
-
-## See it work
-
-These captures show the **real Engine and Store running locally with synthetic messages,
-transport and runner responses**. They are documentation views of actual offline output,
-not screenshots of a connected Discord account or live model results. Text transcripts and
-[reproduction instructions](docs/demo.md) are included.
-
-### Follow up without starting over
-
-A second message resumes the saved session. A separate thread gets a separate session.
-
-![Offline demonstration of a follow-up preserving its session and another thread receiving a separate session](assets/screenshots/session.png)
-
-### Inspect an interruption before continuing
-
-A failed turn remains visible. Queued follow-ups wait; the owner chooses recovery explicitly.
-A delivery retry does not rerun the model.
-
-![Offline demonstration of saved failure state, a blocked follow-up and explicit recovery](assets/screenshots/recovery.png)
-
-“Queued” is a state, not an optimistic progress report.
-
-Use `!queue` to see which tasks are waiting and why: an earlier task in this thread,
-unverified runner readiness, a blocked conversation, or the shared worker. The view
-contains task IDs and states from this thread; it does not call a model or expose
-messages from other conversations. No invented countdown. Computers have enough timers.
-
-### Keep the runner attached to the conversation
-
-Choose a default for new threads. Existing conversations keep their provider and session,
-while unavailable providers do not block eligible work for others.
-
-![Offline demonstration of provider-bound conversations and independent readiness](assets/screenshots/providers.png)
-
-## What belongs in a thread?
-
-| Task                         | Example message                                                                       |
-| ---------------------------- | ------------------------------------------------------------------------------------- |
-| Investigate a failure        | `Reproduce the failing parser test, explain the cause, and prepare a focused fix.`    |
-| Build in bounded steps       | `!work 30m Add CSV export to the fixture app. Include tests and document the format.` |
-| Research before implementing | `Compare these two API designs. Save the trade-offs before changing code.`            |
-
-Choose repository, browser and documentation tools with `npm run integrations`.
-Choose Codex, Claude Code, or OpenCode first, then the integration. Use `--runner claude`
-or `--runner opencode` to target a runner directly. OpenCode can use Go, Zen or another
-configured model provider. The menu prepares your own CLI and explicit MCP configuration; the engine does
-not provide model access or accounts. See [integration setup](docs/integrations.md).
 
 ## What the engine handles
 
 - **Continuity:** one provider-bound CLI session per Discord thread; private Markdown instructions and notes.
 - **Durable intake:** SQLite WAL, deduplicated message IDs, bounded queues and atomic claims.
-- **Bounded work:** typed checkpoints, active execution budgets and fair turns between threads.
+- **Bounded work:** active execution budgets, typed checkpoints and fair turns between threads.
+- **Supervised goals:** a fresh Codex reviewer checks each candidate; an explicit repository binding adds saved code and test diffs.
 - **Honest recovery:** interrupted work remains visible; uncertain actions are never replayed automatically.
 - **Delivery and maintenance:** result receipts, transcript exports and scoped local Git commits have separate durable state.
 - **Deployment checks:** owner/forum authorization, local diagnostics, versioned migrations and verified state snapshots.
 
 The public edition has **one global worker**. Work sessions yield between verified steps;
-they do not interrupt a running step. There is no built-in scheduler, publication broker
-or message-history catch-up after an outage. Still-image input is available for Codex.
-
-## Choose a runner
-
-| Runner                         | CLI requirement | Where it runs                                                        |
-| ------------------------------ | --------------- | -------------------------------------------------------------------- |
-| **Codex** — default            | 0.166.0         | Linux host or the published Docker image                             |
-| **Claude Code** — experimental | >=2.1.285, <3   | Linux host with restricted mode and mandatory native Bash sandboxing |
-| **OpenCode** — experimental    | 1.19.5          | Operator-isolated Linux host; explicit host execution opt-in         |
-
-```sh
-SZPONT_RUNNER=codex     # or claude / opencode
-```
-
-This selects the default for **new conversations**. Existing threads and recovered jobs retain
-their original runner. The engine never switches tools after an authentication or model failure.
-Upstream CLI model aliases and provider fallback policies can still apply.
-
-The Docker image packages **Codex only**. Claude Code and OpenCode have different execution
-boundaries and private login paths; see [runner setup](docs/runners.md). Their protocol tests
-are offline; live account and host-boundary acceptance remain deployment checks.
-
-## How it fits together
-
-```mermaid
-flowchart LR
-    Discord["Private Discord thread"] --> Guard["Owner + forum checks"]
-    Guard --> Queue[(SQLite queue)]
-    Queue --> Worker["One worker"]
-    Worker --> Runner["Provider adapter"]
-    Runner --> Codex["Codex"]
-    Runner --> Claude["Claude Code"]
-    Runner --> OpenCode["OpenCode"]
-    Runner <--> Memory["Private Markdown + Git"]
-    Runner -. "optional MCP" .-> Browser["Camoufox"]
-    Worker --> Result["Saved result + delivery state"]
-    Result --> Discord
-```
-
-Execution, notification delivery and external effects are separate facts.
-A successful local turn does not prove a deployment, post or website action succeeded.
-[Architecture](docs/architecture.md) covers the state transitions and recovery contract.
-
-To continue a larger task under independent review, use `!goal 30m <goal>` or
-`!loop 2h <goal>` in a Codex thread. [Supervised goals](docs/supervised-goals.md)
-cover follow-up questions, pause/resume/stop and shared execution budgets.
-Bind an explicit code repository with `!goal 30m --repo "/absolute/artifacts/app" <goal>`
-to give each supervisor an automatic before/after patch, including code and test
-changes. [Code diff evidence](docs/goal-code-diffs.md) explains scope and limits.
+they do not interrupt a running step. Still-image input and supervised goals use Codex.
+There is no built-in scheduler, publication broker or message-history catch-up after an outage.
 
 ## Quick start
 
@@ -211,6 +118,139 @@ browser/display. See [integration setup](docs/integrations.md) for Docker builds
 runner-specific configuration, removal and the difference between configuration
 and a live acceptance check.
 
+## Working in a thread
+
+| Task                         | Example message                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| Investigate a failure        | `Reproduce the failing parser test, explain the cause, and prepare a focused fix.`    |
+| Build in bounded steps       | `!work 30m Add quantity limits to the fixture app. Include tests and document the rules.` |
+| Research before implementing | `Compare these two API designs. Save the trade-offs before changing code.`            |
+
+Choose repository, browser and documentation tools with `npm run integrations`.
+Choose Codex, Claude Code, or OpenCode first, then the integration. Use `--runner claude`
+or `--runner opencode` to target a runner directly. OpenCode can use Go, Zen or another
+configured model provider. The menu prepares your own CLI and explicit MCP configuration; the engine does
+not provide model access or accounts. See [integration setup](docs/integrations.md).
+
+## From a task to a reviewed change
+
+A normal message runs one task in the thread's saved session. Use `!work` for a larger task
+with checkpoints, or **`!goal` for steps checked by a separate supervisor**. `!loop` is an
+alias for `!goal`; both currently require a Codex thread.
+
+For a code change, bind the repository when you start. For example, in a private thread:
+
+```text
+!goal 30m --repo "/srv/szpont/artifacts/quantity-parser" Reject negative quantities, preserve zero as valid, and add regression tests. Run the parser tests and report the result.
+```
+
+This is an illustrative request for an existing project. Replace the path with the exact
+Git repository root inside your configured workspace or artifacts directory. The binding
+selects evidence to capture; it does not grant additional filesystem access.
+
+1. The worker advances the fixed goal and returns a candidate with a checkpoint.
+2. The engine saves the observed before/after changes in the bound repository.
+3. A fresh supervisor receives the candidate, code and test diff, and two recent review receipts.
+4. Its review determines whether to continue, mark the goal complete, or block for owner input or reconciliation.
+
+The capture compares file contents across the worker step, so staging or committing the
+change does not erase the review evidence. SQLite retains the sealed evidence for review
+retries. A reviewer can inspect whether the parser changed or an assertion merely became
+easier to satisfy. A green test is useful; moving the goalposts is less useful.
+
+Worker and supervisor share the execution budget. Use these commands in the same thread
+to inspect or control the goal:
+
+```text
+!goal status
+!goal pause
+!goal resume
+!goal stop
+```
+
+Code evidence is bounded and reports omissions. It records observed changes, not authorship;
+use separate working copies for independent goals. Without `--repo`, new and migrated goals
+have no automatic code diff, and the supervisor is explicitly told that it is unavailable.
+Existing bindings are retained during recovery unless explicitly changed.
+
+Start with [your first supervised goal](docs/first-goal.md), then read the
+[goal lifecycle](docs/supervised-goals.md) and [code evidence contract](docs/goal-code-diffs.md).
+
+## See it work
+
+These captures show the **real Engine and Store running locally with synthetic messages,
+transport and runner responses**. They are documentation views of actual offline output,
+not screenshots of a connected Discord account or live model results. Text transcripts and
+[reproduction instructions](docs/demo.md) are included.
+
+### Follow up without starting over
+
+A second message resumes the saved session. A separate thread gets a separate session.
+
+![Offline demonstration of a follow-up preserving its session and another thread receiving a separate session](assets/screenshots/session.png)
+
+### Inspect an interruption before continuing
+
+A failed turn remains visible. Queued follow-ups wait; the owner chooses recovery explicitly.
+A delivery retry does not rerun the model.
+
+![Offline demonstration of saved failure state, a blocked follow-up and explicit recovery](assets/screenshots/recovery.png)
+
+“Queued” is a state, not an optimistic progress report.
+
+Use `!queue` to see which tasks are waiting and why: an earlier task in this thread,
+unverified runner readiness, a blocked conversation, or the shared worker. The view
+contains task IDs and states from this thread; it does not call a model or expose
+messages from other conversations. No invented countdown. Computers have enough timers.
+
+### Keep the runner attached to the conversation
+
+Choose a default for new threads. Existing conversations keep their provider and session,
+while unavailable providers do not block eligible work for others.
+
+![Offline demonstration of provider-bound conversations and independent readiness](assets/screenshots/providers.png)
+
+## Choose a runner
+
+| Runner                         | CLI requirement | Where it runs                                                        |
+| ------------------------------ | --------------- | -------------------------------------------------------------------- |
+| **Codex** — default            | 0.166.0         | Linux host or the published Docker image                             |
+| **Claude Code** — experimental | >=2.1.285, <3   | Linux host with restricted mode and mandatory native Bash sandboxing |
+| **OpenCode** — experimental    | 1.19.5          | Operator-isolated Linux host; explicit host execution opt-in         |
+
+```sh
+SZPONT_RUNNER=codex     # or claude / opencode
+```
+
+This selects the default for **new conversations**. Existing threads and recovered jobs retain
+their original runner. The engine never switches tools after an authentication or model failure.
+Upstream CLI model aliases and provider fallback policies can still apply.
+
+The Docker image packages **Codex only**. Claude Code and OpenCode have different execution
+boundaries and private login paths; see [runner setup](docs/runners.md). Their protocol tests
+are offline; live account and host-boundary acceptance remain deployment checks.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    Discord["Private Discord thread"] --> Guard["Owner + forum checks"]
+    Guard --> Queue[(SQLite queue)]
+    Queue --> Worker["One worker"]
+    Worker --> Runner["Provider adapter"]
+    Runner --> Codex["Codex"]
+    Runner --> Claude["Claude Code"]
+    Runner --> OpenCode["OpenCode"]
+    Runner <--> Memory["Private Markdown + Git"]
+    Runner -. "optional MCP" .-> Browser["Camoufox"]
+    Worker --> Result["Saved result + delivery state"]
+    Result --> Discord
+```
+
+Execution, notification delivery and external effects are separate facts.
+A successful local turn does not prove a deployment, post or website action succeeded.
+[Architecture](docs/architecture.md) covers the state transitions and recovery contract.
+
 ## Discord commands
 
 | Input                  | Effect                                                                                   |
@@ -221,6 +261,7 @@ and a live acceptance check.
 | `!goal status / pause / resume / stop [MESSAGE_ID]` | Inspect or control this thread's supervised goal                           |
 | `!work 30m <goal>`     | Continue a fixed goal with checkpoints; 1–120 active minutes, at most 32 completed steps |
 | `!status`              | Inspect this thread's queue, readiness, work session and delivery state                  |
+| `!queue`               | Show accepted task IDs and explain why each waiting task is blocked                     |
 | `!cancel MESSAGE_ID`   | Cancel queued work or stop this thread's active process                                  |
 | `!recover [MESSAGE_ID] [instruction]` | Reconcile the blocking or selected task, then continue its saved session       |
 | `!new-session`         | Cancel queued work and clear the session; retain the provider binding and history        |
@@ -258,7 +299,8 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.8.0 uses SQLite schema 6**, adding owner-bound repositories and durable code-diff evidence. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
+Version **0.8.0 uses SQLite schema 6**, adding owner-bound repositories and durable code-diff
+evidence. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
 
@@ -274,6 +316,8 @@ The tests use synthetic data and fake CLIs. They exercise queueing, migrations, 
 resume, recovery, provider readiness, process limits and checkpoint validation without
 calling a model or posting messages. Container checks additionally exercise the actual Codex
 filesystem sandbox. See [demo and capture tooling](docs/demo.md) to reproduce the gallery.
+
+### Explore the code
 
 <details>
 <summary>Source map</summary>

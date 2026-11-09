@@ -1,5 +1,7 @@
 # Code diffs for supervised goals
 
+For a practical walkthrough, see [your first supervised code goal](first-goal.md).
+
 Bind the actual code repository when starting a goal:
 
 ```text
