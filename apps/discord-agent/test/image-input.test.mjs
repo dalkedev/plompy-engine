@@ -555,7 +555,7 @@ test("schema 3 upgrades to image storage without changing existing jobs or sessi
   f.store.setSession(thread, session);
   const before = f.store.get(id(1));
   f.store.db.exec(
-    "DROP TABLE goal_reviews; DROP TABLE goals; DROP TABLE job_images; PRAGMA user_version=3;",
+    "DROP TABLE goal_code_evidence; DROP TABLE goal_reviews; DROP TABLE goals; DROP TABLE job_images; PRAGMA user_version=3;",
   );
   f.reopen();
   assert.equal(
@@ -572,7 +572,7 @@ test("failed image migration leaves schema 3 data and version intact", async (t)
   const f = await fixture(t);
   f.store.enqueue(id(1), thread, "Preserved migration failure");
   f.store.db.exec(
-    "DROP TABLE goal_reviews; DROP TABLE goals; DROP TABLE job_images; PRAGMA user_version=3; CREATE TABLE job_images(collision TEXT);",
+    "DROP TABLE goal_code_evidence; DROP TABLE goal_reviews; DROP TABLE goals; DROP TABLE job_images; PRAGMA user_version=3; CREATE TABLE job_images(collision TEXT);",
   );
   assert.throws(
     () => new Store(join(f.config.stateDir, "agent.sqlite")),

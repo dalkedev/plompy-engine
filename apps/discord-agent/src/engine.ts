@@ -1,4 +1,6 @@
 import { performance } from "node:perf_hooks";
+import { realpath } from "node:fs/promises";
+import { isAbsolute, relative, sep } from "node:path";
 import {
   authorized,
   redact,
@@ -28,7 +30,16 @@ import {
   goalWorkerPrompt,
   goalReviewPrompt,
   validateGoalReview,
+  type GoalDiffContext,
 } from "./goals.js";
+import {
+  captureRepository,
+  compareRepository,
+  validateRepositoryDiffEvidence,
+  validateRepositorySnapshot,
+  type RepositoryDiffEvidence,
+} from "./repository-diff.js";
+import { exportReviewEvidence } from "./review-evidence.js";
 import {
   parseWorkCommand,
   parseRecoveryCommand,
@@ -55,6 +66,45 @@ export interface Dependencies {
   now?: () => number;
   /** Process-local elapsed time, independent of wall-clock timestamps. */
   monotonicNow?: () => number;
+  captureRepository?: typeof captureRepository;
+  compareRepository?: typeof compareRepository;
+}
+
+/** A repo binding never broadens the runner's existing filesystem scope. */
+async function goalRepository(config: Config, input: string): Promise<string> {
+  const path = await realpath(input);
+  const contains = (parent: string, child: string): boolean => {
+    const part = relative(parent, child);
+    return (
+      part === "" ||
+      (part !== ".." && !part.startsWith(`..${sep}`) && !isAbsolute(part))
+    );
+  };
+  const allowed = await Promise.all(
+    [config.workspace, config.artifactsDir].map((value) => realpath(value)),
+  );
+  if (!allowed.some((root) => contains(root, path)))
+    throw new Error(
+      "Goal repository must be inside the configured workspace or artifacts directory",
+    );
+  for (const value of [
+    config.stateDir,
+    config.codexHome,
+    config.claudeHome,
+    config.opencodeHome,
+    config.githubConfigDir,
+    config.browserDir,
+  ]) {
+    if (!value) continue;
+    // Optional adapter homes may not exist yet. Lexical configuration still
+    // excludes them; existing aliases are also checked in canonical form.
+    const privatePath = await realpath(value).catch(() => value);
+    if (contains(path, privatePath) || contains(privatePath, path))
+      throw new Error(
+        "Goal repository overlaps private engine or authentication state",
+      );
+  }
+  return path;
 }
 const defaults: Dependencies = {
   ready: runnerReady,
@@ -194,10 +244,18 @@ export class Engine {
             return true;
           }
           const goal = redact(request.goal, this.config.token);
+          const repositoryPath = request.repositoryPath
+            ? await goalRepository(this.config, request.repositoryPath)
+            : request.repositoryPath;
           const blocker = this.store.blockingJob(thread);
           changed = blocker
             ? this.store.recover(blocker.id, thread, message.id, {
-                work: { goal, budgetMs: request.budgetMs, supervised: true },
+                work: {
+                  goal,
+                  budgetMs: request.budgetMs,
+                  supervised: true,
+                  ...(repositoryPath !== undefined ? { repositoryPath } : {}),
+                },
               })
             : this.store.enqueueGoal(
                 message.id,
@@ -205,10 +263,11 @@ export class Engine {
                 goal,
                 request.budgetMs,
                 this.config.provider ?? "codex",
+                repositoryPath ?? undefined,
               );
           await this.notice(
             thread,
-            `Supervised goal queued: ${message.id}. Worker and fresh supervisor share ${Math.round(request.budgetMs / 60000)} minutes and at most 32 reviewed steps. Use !goal status, pause, resume or stop. Existing authorization applies throughout.`,
+            `Supervised goal queued: ${message.id}. Worker and fresh supervisor share ${Math.round(request.budgetMs / 60000)} minutes and at most 32 reviewed steps. ${this.store.goal(message.id)?.repository_path ? `Code diff repository: ${JSON.stringify(this.store.goal(message.id)!.repository_path)}.` : "No code repository bound; automatic diff evidence is unavailable. Add --repo <absolute path> to a goal to enable it."} Use !goal status, pause, resume or stop. Existing authorization applies throughout.`,
           );
         } else {
           const goal = request.id
@@ -242,7 +301,7 @@ export class Engine {
       } catch {
         await this.notice(
           thread,
-          "Cannot apply this goal command. Use !goal [30m|2h] <goal>, !goal status|pause|resume|stop [task ID], or !loop with the same syntax. Resume needs a safely paused goal, remaining budget and an otherwise idle thread. Nothing new was queued.",
+          "Cannot apply this goal command. Use !goal [30m|2h] [--repo <absolute path> | --no-repo] <goal>, !goal status|pause|resume|stop [task ID], or !loop with the same syntax. A code repository must be inside the configured workspace/artifacts and separate from private engine/authentication state. Resume needs a safely paused goal, remaining budget and an otherwise idle thread. Nothing new was queued.",
         );
       } finally {
         if (changed) void this.kick();
@@ -735,6 +794,9 @@ export class Engine {
     return [
       `Supervised goal ${id}: ${workflow.state}; task ${job.status}; control ${goal.control}.`,
       `Phase: ${goal.pending_output ? "saved worker candidate awaiting supervisor review" : "main worker"}.`,
+      goal.repository_path
+        ? `Code diff repository: ${JSON.stringify(goal.repository_path)}.`
+        : "Automatic code diff: unavailable (no repository bound).",
       `Reviewed steps: ${workflow.step_count}/${workflow.max_steps}; remaining shared budget: ${Math.max(0, Math.ceil((workflow.budget_ms - workflow.elapsed_ms) / 1000))} seconds; stalled reviews: ${goal.stalled_count}/3.`,
       ...(workflow.last_summary
         ? [`Last accepted review: ${workflow.last_summary}`]
@@ -790,6 +852,45 @@ export class Engine {
       let workflow = this.store.workflow(job.id)!;
       if (this.store.applyGoalControl(job.id)) return;
       if (!goal.pending_output) {
+        let baseline;
+        let previousAfterHash: string | null = null;
+        if (goal.repository_path) {
+          try {
+            const canonical = await goalRepository(
+              this.config,
+              goal.repository_path,
+            );
+            if (canonical !== goal.repository_path)
+              throw new Error("Goal repository identity changed");
+            baseline = validateRepositorySnapshot(
+              await (this.deps.captureRepository ?? captureRepository)(
+                canonical,
+                { signal, expectedRoot: canonical },
+              ),
+            );
+            if (workflow.step_count > 0) {
+              const previous = this.store.goalCodeEvidence(
+                job.id,
+                workflow.step_count,
+              );
+              if (previous?.evidence)
+                previousAfterHash = validateRepositoryDiffEvidence(
+                  JSON.parse(previous.evidence),
+                ).afterHash;
+            }
+            this.store.saveGoalBaseline(job.id, JSON.stringify(baseline));
+          } catch {
+            finishPhase(
+              "interrupted",
+              "Repository baseline could not be captured or saved. The worker did not start. Inspect the owner-bound repository path, access and state storage before explicit recovery.",
+              signal.aborted
+                ? "owner_or_service_cancelled"
+                : "goal_diff_baseline_unavailable",
+            );
+            return;
+          }
+          if (this.store.applyGoalControl(job.id)) return;
+        }
         const remaining = workflow.budget_ms - workflow.elapsed_ms;
         phase = {
           baselineMs: workflow.elapsed_ms,
@@ -800,7 +901,7 @@ export class Engine {
             ...runnerConfig,
             timeoutMs: Math.max(1, Math.min(this.config.timeoutMs, remaining)),
           },
-          goalWorkerPrompt(prompt),
+          goalWorkerPrompt(prompt, goal.repository_path),
           this.store.session(job.thread_id),
           (id) => this.store.setSession(job.thread_id, id, job.provider),
           signal,
@@ -825,7 +926,55 @@ export class Engine {
           finishPhase("interrupted", "", "invalid_workflow_output");
           return;
         }
-        this.store.saveGoalWorker(job.id, candidate, phase.elapsedMs);
+        let evidence: RepositoryDiffEvidence | undefined;
+        if (baseline) {
+          try {
+            const after = await (
+              this.deps.captureRepository ?? captureRepository
+            )(baseline.root, {
+              signal,
+              expectedRoot: baseline.root,
+              previousPaths: baseline.files.map((file) => file.path),
+            });
+            evidence = await (this.deps.compareRepository ?? compareRepository)(
+              baseline,
+              after,
+              {
+                signal,
+                temporaryDirectory: this.config.stateDir,
+              },
+            );
+          } catch {
+            evidence = {
+              version: 1,
+              root: baseline.root,
+              status: "unavailable",
+              beforeHash: baseline.contentHash,
+              afterHash: null,
+              beforeHead: baseline.head,
+              afterHead: null,
+              changes: [],
+              patch: "",
+              omissions: [],
+              error: "repository_capture_failed",
+              note: "The worker returned a candidate, but its post-worker repository capture failed. No empty or clean diff is claimed. Inspect the saved candidate and reconcile missing code evidence; do not replay its worker merely to regenerate a patch.",
+            };
+          }
+        }
+        if (
+          evidence &&
+          baseline &&
+          previousAfterHash &&
+          previousAfterHash !== baseline.contentHash
+        )
+          evidence.note +=
+            " Repository state or capture coverage differs from the previous reviewed phase. The step patch starts at its own fresh baseline; inspect possible intervening changes independently when relevant to the goal.";
+        this.store.saveGoalWorker(
+          job.id,
+          candidate,
+          phase.elapsedMs,
+          evidence ? JSON.stringify(evidence) : undefined,
+        );
         phase = undefined;
       }
       if (this.store.applyGoalControl(job.id)) return;
@@ -833,6 +982,22 @@ export class Engine {
       workflow = this.store.workflow(job.id)!;
       const remaining = workflow.budget_ms - workflow.elapsed_ms;
       const candidate = validateWorkOutcome(goal.pending_output!);
+      let codeDiff: GoalDiffContext | undefined;
+      const savedCode = this.store.goalCodeEvidence(job.id);
+      if (savedCode?.evidence) {
+        const evidence = validateRepositoryDiffEvidence(
+          JSON.parse(savedCode.evidence),
+        );
+        codeDiff = {
+          evidence,
+          evidencePath: await exportReviewEvidence(
+            this.config.stateDir,
+            job.id,
+            workflow.step_count + 1,
+            evidence,
+          ),
+        };
+      }
       await this.notice(
         job.thread_id,
         `Goal ${job.id}: worker candidate saved; independent supervisor is reviewing step ${workflow.step_count + 1}.`,
@@ -850,6 +1015,17 @@ export class Engine {
           nextAction: workflow.next_action,
           step: workflow.step_count + 1,
           remainingMs: Math.min(this.config.timeoutMs, remaining),
+          ...(codeDiff ? { codeDiff } : {}),
+          history: this.store
+            .goalReviews(job.id)
+            .slice(-2)
+            .map((entry) => ({
+              step: entry.step,
+              candidate: entry.candidate,
+              review: entry.review,
+              createdAt: entry.created_at,
+              elapsedMs: entry.elapsed_ms,
+            })),
           ...(job.recovery_of ? { recoveryContext: job.prompt } : {}),
         }),
         null,

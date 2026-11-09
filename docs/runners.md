@@ -39,8 +39,8 @@ or OpenCode session identifier is never passed to a different adapter. Existing
 session uniqueness is retained across all providers as an additional collision guard.
 
 Stop the engine and take a [verified state snapshot](state-backups.md) before
-upgrading. Version 0.7.0 uses schema 5 for private image persistence and supervised goal history;
-0.6.1 and earlier reject that schema. Earlier engines also reject schemas newer than their own. Rollback requires compatible pre-upgrade
+upgrading. Version 0.8.0 uses schema 6 for private images, supervised goal history and code-diff
+evidence; 0.7.0 and earlier reject that schema. Earlier engines also reject schemas newer than their own. Rollback requires compatible pre-upgrade
 state and separate reconciliation of later accepted work. Keep the binaries and
 private auth directories needed by existing conversations after changing a default.
 

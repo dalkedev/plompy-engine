@@ -19,6 +19,8 @@ import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { imageDigest } from "../apps/discord-agent/dist/images.js";
+import { createHash } from "node:crypto";
+import { repositorySnapshotHash } from "../apps/discord-agent/dist/repository-diff.js";
 import { Store, SCHEMA_VERSION } from "../apps/discord-agent/dist/store.js";
 import {
   MAX_SCHEMA_VERSION,
@@ -508,7 +510,7 @@ test("schema 4 backup and restore preserve image bytes across interrupted-job re
   await noStaging(f.directory);
 });
 
-test("schema 5 backup and restore retain a supervised candidate and control request", async (t) => {
+test("current schema backup and restore retain a supervised candidate and control request", async (t) => {
   const f = await fixture(t);
   const store = new Store(f.source);
   const candidate = {
@@ -522,13 +524,95 @@ test("schema 5 backup and restore retain a supervised candidate and control requ
   store.requestGoalControl(job, thread, "pause");
   store.close();
   const report = await snapshotState({ operation: "backup", ...f });
-  assert.equal(report.schemaVersion, 5);
+  assert.equal(report.schemaVersion, SCHEMA_VERSION);
   const reopened = new Store(f.destination);
   try {
     assert.equal(reopened.goal(job).pending_output, JSON.stringify(candidate));
     assert.equal(reopened.goal(job).control, "pause");
     assert.equal(reopened.workflow(job).elapsed_ms, 1000);
     assert.equal(reopened.get(job).status, "running");
+  } finally {
+    reopened.close();
+  }
+});
+
+test("schema 6 backup and restore keep private baseline and sealed code diff bytes", async (t) => {
+  const f = await fixture(t);
+  const store = new Store(f.source);
+  const repository = "/synthetic/code";
+  const text = 'export const secretFixture = "synthetic-only";\n';
+  const before = {
+    version: 1,
+    root: repository,
+    head: null,
+    capturedAt: new Date(0).toISOString(),
+    files: [
+      {
+        path: "src/code.js",
+        kind: "text",
+        size: Buffer.byteLength(text),
+        mode: 0o100644,
+        text,
+        sha256: createHash("sha256").update(text).digest("hex"),
+      },
+    ],
+    complete: true,
+    omissions: [],
+    contentHash: "",
+  };
+  before.contentHash = repositorySnapshotHash(before);
+  const evidence = {
+    version: 1,
+    root: repository,
+    status: "unavailable",
+    beforeHash: before.contentHash,
+    afterHash: null,
+    beforeHead: null,
+    afterHead: null,
+    changes: [],
+    patch: "",
+    omissions: [],
+    note: "Synthetic capture unavailable; do not infer no changes",
+    error: "repository_capture_failed",
+  };
+  store.enqueueGoal(
+    job,
+    thread,
+    "Synthetic bound repository",
+    60000,
+    "codex",
+    repository,
+  );
+  store.claim();
+  store.saveGoalBaseline(job, JSON.stringify(before));
+  store.saveGoalWorker(
+    job,
+    {
+      outcome: "continue",
+      summary: "Synthetic candidate",
+      nextAction: "Inspect diff limits",
+    },
+    1000,
+    JSON.stringify(evidence),
+  );
+  const original = store.goalCodeEvidence(job);
+  store.close();
+  const report = await snapshotState({ operation: "backup", ...f });
+  assert.equal(report.schemaVersion, 6);
+  assert.equal(MAX_SCHEMA_VERSION, 6);
+  const reopened = new Store(f.destination);
+  try {
+    assert.equal(reopened.goal(job).repository_path, repository);
+    assert.deepEqual(reopened.goalCodeEvidence(job), original);
+    assert.equal(
+      reopened.goalCodeEvidence(job).before_snapshot,
+      JSON.stringify(before),
+    );
+    assert.equal(
+      reopened.goalCodeEvidence(job).evidence,
+      JSON.stringify(evidence),
+    );
+    assert.equal(reopened.workflow(job).elapsed_ms, 1000);
   } finally {
     reopened.close();
   }
