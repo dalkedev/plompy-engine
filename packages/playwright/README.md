@@ -21,6 +21,26 @@ the official [Playwright browser documentation](https://playwright.dev/docs/brow
 describes those dependencies. A host that cannot run Chromium's sandbox must be
 fixed before using this integration. There is no automatic sandbox fallback.
 
+Ubuntu 24.04 and similar hosts may restrict unprivileged user namespaces through
+AppArmor. A confirmed `host-sandbox-unavailable` smoke failure needs administrator
+review. After installing the pinned browser, generate an exact-path policy:
+
+```sh
+node packages/playwright/apparmor-profile.mjs \
+  --cache-dir "$SZPONT_BROWSER_DIR/playwright/cache" > /private/chromium.apparmor
+```
+
+The generator only prints a policy; it changes no file, profile or kernel setting.
+An administrator must inspect it, install it as a root-owned file under
+`/etc/apparmor.d/`, and load it with `apparmor_parser`. It grants `userns` only to
+the exact provisioned Chromium executable. It is an allow profile for the
+browser's own sandbox, not a full AppArmor confinement policy. Browser versions
+have distinct paths: review and regenerate the policy after a browser update.
+The generator rejects pattern characters and non-ASCII paths. It never uses a
+wildcard profile, disables a kernel restriction, or changes Chromium's sandbox
+flags. See the [Chromium explanation](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)
+and [Ubuntu documentation](https://documentation.ubuntu.com/security/security-features/privilege-restriction/apparmor/).
+
 Then use the engine's integrations CLI to configure Playwright for the selected
 runner. `scripts/integrations/playwright.mjs` exposes
 `preparePlaywright({ config, publicRoot, browserBin?, nodeBin? })` for that CLI.

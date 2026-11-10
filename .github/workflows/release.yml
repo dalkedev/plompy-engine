@@ -56,6 +56,13 @@ jobs:
         run: |
           npm --prefix apps/discord-agent ci --ignore-scripts --no-audit --no-fund
           npm test
+      - name: Verify locked provider-tool packages offline
+        run: |
+          npm ci --prefix packages/mcp-bridge --ignore-scripts --no-audit --no-fund
+          npm ci --prefix packages/playwright --ignore-scripts --no-audit --no-fund
+          npm test --prefix packages/mcp-bridge
+          npm test --prefix packages/playwright
+          sudo "$(command -v node)" --test packages/playwright/runtime.test.mjs
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'

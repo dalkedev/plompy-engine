@@ -63,10 +63,19 @@ jobs:
         run: npm test --prefix packages/mcp-bridge
       - name: Test isolated browser provisioning
         run: npm test --prefix packages/playwright
+      - name: Verify executable ownership across distinct user IDs
+        run: sudo "$(command -v node)" --test packages/playwright/runtime.test.mjs
       - name: Install pinned Chromium and Linux dependencies
         run: |
           ./packages/playwright/node_modules/.bin/playwright install-deps chromium
           node packages/playwright/install-browser.mjs --cache-dir "$RUNNER_TEMP/szpont-playwright-cache"
+      - name: Allow only the provisioned Chromium sandbox on restricted Ubuntu hosts
+        run: |
+          if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || true)" = 1 ]; then
+            node packages/playwright/apparmor-profile.mjs --cache-dir "$RUNNER_TEMP/szpont-playwright-cache" > "$RUNNER_TEMP/szpont-playwright.apparmor"
+            sudo install -m 0644 "$RUNNER_TEMP/szpont-playwright.apparmor" /etc/apparmor.d/szpont-playwright-ci
+            sudo apparmor_parser -r -W /etc/apparmor.d/szpont-playwright-ci
+          fi
       - name: Click through a synthetic local page over real MCP
         env:
           SZPONT_PLAYWRIGHT_SMOKE_CACHE: ${{ runner.temp }}/szpont-playwright-cache

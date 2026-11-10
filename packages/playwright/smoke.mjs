@@ -22,6 +22,49 @@ const text = (result) =>
     .filter((item) => item.type === "text")
     .map((item) => item.text)
     .join("\n");
+export function failureCategory(value) {
+  const message = String(value).slice(0, 65_536);
+  if (
+    /No usable sandbox|Failed to move to new namespace|userns.*(?:denied|restricted)|apparmor.*(?:denied|userns)|Running as root without --no-sandbox/i.test(
+      message,
+    )
+  )
+    return "host-sandbox-unavailable";
+  if (
+    /error while loading shared libraries|Host system is missing dependencies|Missing libraries/i.test(
+      message,
+    )
+  )
+    return "host-libraries-missing";
+  if (
+    /Executable doesn't exist|browser executable.*(?:missing|not found)|ENOENT/i.test(
+      message,
+    )
+  )
+    return "browser-or-path-missing";
+  if (/Socket directory path is too long/i.test(message))
+    return "socket-path-too-long";
+  if (
+    /0700|trusted ancestors|cannot modify|unsafe parents|private.*permissions/i.test(
+      message,
+    )
+  )
+    return "unsafe-private-path-or-executable";
+  if (/timed? ?out|timeout/i.test(message)) return "deadline-exceeded";
+  if (/Connection closed|could not start/i.test(message))
+    return "mcp-startup-closed";
+  return "unexpected-acceptance-failure";
+}
+
+export function safeFailure(stage, error, childDiagnostics = "") {
+  return {
+    status: "FAIL",
+    stage,
+    category: failureCategory(`${error?.message ?? ""}\n${childDiagnostics}`),
+    note: "Synthetic localhost acceptance only; raw page, paths, environment and child output withheld. No sandbox fallback or download was attempted.",
+  };
+}
+
 async function call(client, name, args = {}) {
   const result = await client.callTool({ name, arguments: args }, undefined, {
     timeout: 30_000,
@@ -40,6 +83,8 @@ function reference(snapshot, line) {
 
 /** Real MCP/browser acceptance against only an owned synthetic loopback page. */
 export async function smoke(cacheDir) {
+  let stage = "prepare-private-paths",
+    diagnostics = "";
   process.umask(0o077);
   const scratch = await mkdtemp(
     join(await realpath(tmpdir()), "szpont-playwright-smoke-"),
@@ -75,12 +120,19 @@ export async function smoke(cacheDir) {
         stderr: "pipe",
       });
       // Never print a page, inherited environment or unbounded child diagnostics.
-      transport.stderr?.resume();
+      transport.stderr?.on("data", (chunk) => {
+        if (diagnostics.length < 16_384)
+          diagnostics += chunk
+            .toString("utf8")
+            .slice(0, 16_384 - diagnostics.length);
+      });
       clients.push(client);
       await client.connect(transport, { timeout: 30_000 });
       return client;
     };
+    stage = "mcp-initialize";
     const first = await connect();
+    stage = "mcp-tools-list";
     const tools = await first.listTools();
     for (const name of [
       "browser_navigate",
@@ -97,23 +149,29 @@ export async function smoke(cacheDir) {
       !tools.tools.some((tool) => /install/.test(tool.name)),
       "Runtime installer unexpectedly exposed",
     );
+    stage = "browser-navigate";
     await call(first, "browser_navigate", { url });
+    stage = "browser-snapshot";
     const snapshot = text(await call(first, "browser_snapshot"));
+    stage = "browser-type";
     await call(first, "browser_type", {
       element: "Name textbox",
       target: reference(snapshot, 'textbox "Name"'),
       text: "Playwright",
     });
+    stage = "browser-click";
     await call(first, "browser_click", {
       element: "Greet button",
       target: reference(snapshot, 'button "Greet"'),
     });
+    stage = "visible-result-assertion";
     assert.match(
       text(
         await call(first, "browser_wait_for", { text: "Hello, Playwright!" }),
       ),
       /Hello, Playwright!/,
     );
+    stage = "png-screenshot";
     const screenshot = await call(first, "browser_take_screenshot", {
       type: "png",
     });
@@ -127,6 +185,7 @@ export async function smoke(cacheDir) {
       type: "png",
       filename: "smoke.png",
     });
+    stage = "file-output-boundary";
     const outside = join(scratch, "outside.png");
     const traversal = await first.callTool(
       {
@@ -142,6 +201,7 @@ export async function smoke(cacheDir) {
       "File output escaped its isolated workspace",
     );
     await assert.rejects(lstat(outside), { code: "ENOENT" });
+    stage = "file-navigation-boundary";
     const canary = join(scratch, "private-canary.html");
     await writeFile(canary, "<!doctype html><h1>private-file-canary</h1>", {
       mode: 0o600,
@@ -160,6 +220,7 @@ export async function smoke(cacheDir) {
       "Local file navigation was unexpectedly allowed",
     );
     assert.ok(!text(fileNavigation).includes("<h1>private-file-canary</h1>"));
+    stage = "concurrent-context-isolation";
     await call(first, "browser_evaluate", {
       function:
         "() => { localStorage.setItem('owned-smoke', 'first-session'); return localStorage.getItem('owned-smoke'); }",
@@ -174,6 +235,7 @@ export async function smoke(cacheDir) {
       ),
       /null/,
     );
+    stage = "artifact-permissions-and-content";
     const sessions = await readdir(join(output, "playwright"));
     assert.equal(sessions.length, 2);
     for (const session of sessions) {
@@ -220,6 +282,10 @@ export async function smoke(cacheDir) {
         "no runtime install tool",
       ],
     };
+  } catch (error) {
+    const failure = new Error("Synthetic browser acceptance failed.");
+    failure.diagnostic = safeFailure(stage, error, diagnostics);
+    throw failure;
   } finally {
     await Promise.allSettled(clients.map((client) => client.close()));
     await new Promise((resolve) => server.close(resolve));
@@ -245,9 +311,11 @@ if (
   } else
     await smoke(cache)
       .then((result) => console.log(JSON.stringify(result)))
-      .catch(() => {
+      .catch((error) => {
         console.error(
-          "Playwright smoke FAILED. Check the pinned browser installation and host sandbox support locally. No external website or account was used.",
+          JSON.stringify(
+            error.diagnostic ?? safeFailure("prepare-private-paths", error),
+          ),
         );
         process.exitCode = 1;
       });

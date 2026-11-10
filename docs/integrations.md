@@ -158,6 +158,12 @@ display. To use an already provisioned compatible browser instead of the downloa
 one, supply `--browser-bin /absolute/browser/executable` when adding Playwright.
 That executable and its dependencies must be available to the service account.
 
+On Ubuntu hosts with restricted user namespaces, a `host-sandbox-unavailable`
+acceptance failure may require an administrator-reviewed, exact-executable
+AppArmor policy. The [Playwright package guide](../packages/playwright/README.md)
+includes the policy generator and explains the separate load step. Keep Chromium's
+sandbox enabled; the configurator never disables system restrictions.
+
 This choice currently targets a host installation. The core engine image does not
 include the optional Playwright package, Chromium or its system libraries. A
 headless browser still makes real network requests and can submit forms; use it
