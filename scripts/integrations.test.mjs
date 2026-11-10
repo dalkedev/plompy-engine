@@ -93,7 +93,18 @@ test("catalog and help need no environment and exclude private integrations", as
   const catalog = JSON.parse(output);
   assert.deepEqual(
     catalog.map((c) => c.id),
-    ["github", "camoufox", "openai-docs", "context7", "custom"],
+    [
+      "github",
+      "camoufox",
+      "playwright",
+      "perplexity",
+      "firecrawl",
+      "tinyfish",
+      "posthog",
+      "openai-docs",
+      "context7",
+      "custom",
+    ],
   );
   assert.doesNotMatch(output, /doublecrawl|elevenlabs|drive/i);
 });
@@ -402,4 +413,72 @@ test("CLI errors do not expose subprocess output", async (t) => {
   assert.equal(result.code, 1);
   assert.match(result.stderr, /Install GitHub CLI/);
   assert.doesNotMatch(result.stdout + result.stderr, /synthetic-private/);
+});
+
+for (const runner of ["claude", "opencode"])
+  for (const [id, url] of [
+    ["perplexity", "https://api.perplexity.ai/mcp"],
+    ["firecrawl", "https://mcp.firecrawl.dev/v2/mcp-oauth"],
+    ["tinyfish", "https://agent.tinyfish.ai/mcp"],
+    ["posthog", "https://mcp.posthog.com/mcp?readonly=true"],
+  ])
+    test(`${id} OAuth configuration is isolated to ${runner} and removal preserves other services`, async (t) => {
+      const f = await fixture(t, runner);
+      await f.invoke(["add", "openai-docs", "--yes"]);
+      await f.invoke(["add", id, "--yes"]);
+      const path =
+        runner === "claude"
+          ? f.env.SZPONT_CLAUDE_MCP_CONFIG
+          : f.env.SZPONT_OPENCODE_CONFIG;
+      const config = JSON.parse(await readFile(path, "utf8"));
+      const entry =
+        config[runner === "claude" ? "mcpServers" : "mcp"]["szpont_" + id];
+      assert.equal(entry.url, url);
+      const status = JSON.parse(await f.invoke(["status", id, "--json"]));
+      assert.equal(status.integrations[0].status, "configured");
+      assert.match(status.integrations[0].detail, /not tested/);
+      await f.invoke(["remove", id, "--yes"]);
+      const remaining = JSON.parse(await f.invoke(["status", "--json"]));
+      assert.deepEqual(
+        remaining.integrations.map((e) => e.id),
+        ["openai-docs"],
+      );
+    });
+
+test("Firecrawl keyless is explicit and unsupported authentication never registers a server", async (t) => {
+  const f = await fixture(t);
+  await assert.rejects(
+    f.invoke(["add", "tinyfish", "--auth", "keyless", "--yes"]),
+    /auth|support|mode/i,
+  );
+  await assert.rejects(
+    f.invoke(["add", "github", "--auth", "oauth", "--yes"]),
+    /Authentication options/,
+  );
+  await assert.rejects(
+    f.invoke(["add", "posthog", "--auth", "api-key", "--yes"]),
+    /credential|file/i,
+  );
+  await f.invoke(["add", "firecrawl", "--auth", "keyless", "--yes"]);
+  const value = JSON.parse(
+    await readFile(f.env.SZPONT_CLAUDE_MCP_CONFIG, "utf8"),
+  );
+  assert.equal(
+    value.mcpServers.szpont_firecrawl.url,
+    "https://mcp.firecrawl.dev/v2/mcp",
+  );
+  assert.equal(Object.keys(value.mcpServers).length, 1);
+});
+
+test("new playbooks distinguish isolated browsing, external research and analytics access", () => {
+  const text = playbook(
+    ["playwright", "perplexity", "firecrawl", "tinyfish", "posthog"].map(
+      (id) => ({ id, name: "szpont_" + id, provider: "opencode" }),
+    ),
+  );
+  assert.match(text, /fresh isolated headless session/);
+  assert.match(text, /read-only mode/);
+  assert.match(text, /does not install a tracking SDK/);
+  assert.match(text, /consumer subscription does not prove API entitlement/);
+  assert.match(text, /Other runners do not inherit/);
 });

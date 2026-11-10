@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0 — 2026-11-10
+
+- Add Playwright, Perplexity, Firecrawl, TinyFish and PostHog to the guided integrations menu for Codex, Claude Code and OpenCode, with maintained task instructions and explicit authentication modes.
+- Provision an optional pinned Playwright MCP server with isolated headless Chromium, sandboxing, private per-launch output and no runtime browser installation. Exercise navigation, snapshot references, typing, clicking, screenshots and concurrent session isolation on a synthetic local page.
+- Configure hosted MCP OAuth without initiating login during setup. Add an optional pinned stdio bridge for API keys held in separate private credential files; keep secrets out of managed configuration, arguments and the whole-agent environment. Bound requests, propagate cancellation, reject redirects and avoid replaying uncertain calls.
+- Support Firecrawl's explicit keyless mode and request PostHog's server-side read-only mode. The PostHog integration does not install an analytics SDK or collect engine telemetry.
+- Include the small API bridge in the Codex Docker image and test packaged configuration offline on both architectures. Browsers, model accounts and vendor access are provisioned separately.
+- Retain Node 26 LTS, SQLite schema 6, provider bindings, saved sessions and explicit recovery semantics.
+
 ## 0.10.0 — 2026-11-10
 
 - Require official Node 26 LTS, at least 26.13.0, and SQLite 3.54.0 or newer. Migrate the pinned container, CI, host instructions and developer version files together. Node 24 is no longer supported by this release.

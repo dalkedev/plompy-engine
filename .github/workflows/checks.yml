@@ -39,6 +39,55 @@ jobs:
           umask 0077
           node --test scripts/integrations-mcp.test.mjs scripts/state-snapshot.test.mjs
 
+  provider-tools:
+    name: Provider tools / MCP and Playwright
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Node runtime dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libatomic1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26.13.0'
+          package-manager-cache: false
+      - name: Keep the pinned Node executable outside the writable hosted tool cache
+        run: |
+          runtime_dir=$(sudo mktemp -d /tmp/szpont-ci-node-XXXXXX)
+          sudo chmod 0755 "$runtime_dir"
+          sudo install -m 0755 -o root -g root "$(command -v node)" "$runtime_dir/node"
+          cmp "$(command -v node)" "$runtime_dir/node"
+          printf '%s\n' "$runtime_dir" >> "$GITHUB_PATH"
+      - name: Install locked optional tools
+        run: |
+          npm ci --prefix packages/mcp-bridge --ignore-scripts --no-audit --no-fund
+          npm ci --prefix packages/playwright --ignore-scripts --no-audit --no-fund
+      - name: Test MCP transport and credential boundaries offline
+        run: npm test --prefix packages/mcp-bridge
+      - name: Test isolated browser provisioning
+        run: node --test packages/playwright/*.test.mjs
+      - name: Verify executable ownership across distinct user IDs
+        run: sudo "$(command -v node)" --test packages/playwright/runtime.test.mjs
+      - name: Install pinned Chromium and Linux dependencies
+        run: |
+          ./packages/playwright/node_modules/.bin/playwright install-deps chromium
+          node packages/playwright/install-browser.mjs --cache-dir "$RUNNER_TEMP/szpont-playwright-cache"
+      - name: Allow only the provisioned Chromium sandbox on restricted Ubuntu hosts
+        run: |
+          if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || true)" = 1 ]; then
+            node packages/playwright/apparmor-profile.mjs --cache-dir "$RUNNER_TEMP/szpont-playwright-cache" > "$RUNNER_TEMP/szpont-playwright.apparmor"
+            sudo install -m 0644 "$RUNNER_TEMP/szpont-playwright.apparmor" /etc/apparmor.d/szpont-playwright-ci
+            sudo apparmor_parser -r -W /etc/apparmor.d/szpont-playwright-ci
+          fi
+      - name: Click through a synthetic local page over real MCP
+        env:
+          SZPONT_PLAYWRIGHT_SMOKE_CACHE: ${{ runner.temp }}/szpont-playwright-cache
+        run: npm run smoke --prefix packages/playwright
+
   browser:
     name: Browser / Python 3.12
     runs-on: ubuntu-24.04

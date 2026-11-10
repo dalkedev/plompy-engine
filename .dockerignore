@@ -30,3 +30,15 @@
 !examples/workspace/**
 !examples/acceptance/
 !examples/acceptance/**
+
+!packages/
+!packages/mcp-bridge/
+!packages/mcp-bridge/package.json
+!packages/mcp-bridge/package-lock.json
+!packages/mcp-bridge/bridge.mjs
+!packages/mcp-bridge/src/
+!packages/mcp-bridge/src/**
+!packages/playwright/
+!packages/playwright/package.json
+!packages/playwright/launch.mjs
+!packages/playwright/runtime.mjs
