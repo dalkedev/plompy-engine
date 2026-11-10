@@ -38,7 +38,12 @@ export class DiscordTransport implements Transport {
   async validate(): Promise<void> {
     if (this.client.user?.id !== this.config.botId)
       throw new Error("Wrong bot identity");
-    const guild = await this.client.guilds.fetch(this.config.guildId);
+    // login() can resolve while the Gateway cache still contains an unavailable
+    // guild. Authorization and role checks require fresh REST data, not that cache.
+    const guild = await this.client.guilds.fetch({
+      guild: this.config.guildId,
+      force: true,
+    });
     if (guild.ownerId !== this.config.ownerId)
       throw new Error("Guild owner mismatch");
     const parent = await this.client.channels.fetch(this.config.parentId, {
