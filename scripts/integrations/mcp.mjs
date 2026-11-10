@@ -14,10 +14,17 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { isManagedReadonlyUrl } from "../../packages/mcp-bridge/src/services.mjs";
 
 const defaultExecute = promisify(execFile);
 const sourceRoot = fileURLToPath(new URL("../../", import.meta.url));
+const requireApp = createRequire(
+  new URL("../../apps/discord-agent/package.json", import.meta.url),
+);
+const playwrightLauncher = fileURLToPath(
+  new URL("../../packages/playwright/launch.mjs", import.meta.url),
+);
 const pathVariables = new Set([
   "SZPONT_BROWSER_PROFILE",
   "SZPONT_BROWSER_ARTIFACTS",
@@ -204,10 +211,34 @@ async function input(options) {
     throw new Error(
       "Use a safe MCP server name of 1-64 letters, digits, underscores, or hyphens.",
     );
+  const server = await normalizedServer(options.server, config);
+  if (options.toolApproval !== undefined) {
+    if (
+      !["approve", "prompt"].includes(options.toolApproval) ||
+      provider !== "codex" ||
+      name !== "szpont_playwright" ||
+      server.url ||
+      server.command !== process.execPath ||
+      server.env ||
+      ![5, 7].includes(server.args.length) ||
+      server.args[0] !== playwrightLauncher ||
+      server.args[1] !== "--output-dir" ||
+      server.args[3] !== "--browser-cache" ||
+      (server.args.length === 7 &&
+        (server.args[5] !== "--browser-bin" ||
+          !isAbsolute(server.args[6]) ||
+          /[\x00-\x1f\x7f]/.test(server.args[6])))
+    )
+      throw new Error(
+        "Tool approval is an explicit Codex-only option for the built-in Playwright launcher; arbitrary MCP servers and other runners are not supported.",
+      );
+    for (const path of [server.args[2], server.args[4]])
+      await privatePath(path, config);
+  }
   return {
     ...options,
     config,
-    server: await normalizedServer(options.server, config),
+    server,
   };
 }
 
@@ -241,7 +272,7 @@ function expected(provider, server) {
         };
 }
 
-function codexMatches(entry, server) {
+function codexMatches(entry, server, toolApproval) {
   if (!plain(entry) || entry.enabled !== true || !plain(entry.transport))
     return false;
   // Non-default restrictions, headers, injected variables, working directory, or
@@ -249,7 +280,9 @@ function codexMatches(entry, server) {
   if (
     Object.entries(entry).some(
       ([key, value]) =>
-        !["name", "enabled", "transport"].includes(key) && value !== null,
+        !["name", "enabled", "transport"].includes(key) &&
+        value !== null &&
+        !(key === "default_tools_approval_mode" && value === toolApproval),
     )
   )
     return false;
@@ -275,7 +308,7 @@ function codexMatches(entry, server) {
   );
 }
 
-async function codexCommand(options, args) {
+async function codexCommand(options, args, program = "mcp") {
   const { config, execute = defaultExecute, env = process.env } = options;
   const home = config.codexHome;
   await privatePath(home, config);
@@ -294,7 +327,7 @@ async function codexCommand(options, args) {
   );
   childEnv.CODEX_HOME = home;
   try {
-    return await execute(config.codexBin ?? "codex", ["mcp", ...args], {
+    return await execute(config.codexBin ?? "codex", [program, ...args], {
       env: childEnv,
       cwd: home,
       timeout: 10_000,
@@ -305,6 +338,7 @@ async function codexCommand(options, args) {
     });
   } catch (error) {
     if (
+      program === "mcp" &&
       args[0] === "get" &&
       error.code === 1 &&
       /^Error: No MCP server named '[a-zA-Z0-9_-]+' found\.\s*$/.test(
@@ -320,7 +354,13 @@ async function codexCommand(options, args) {
 
 async function inspectCodex(options) {
   const reply = await codexCommand(options, ["get", options.name, "--json"]);
-  if (reply.missing) return result(options.provider, options.name, "missing");
+  const raw = await readCodexTable(options);
+  if (reply.missing)
+    return result(
+      options.provider,
+      options.name,
+      raw === undefined ? "missing" : "conflict",
+    );
   let entry;
   try {
     entry = JSON.parse(reply.stdout);
@@ -332,7 +372,9 @@ async function inspectCodex(options) {
   return result(
     options.provider,
     options.name,
-    entry.name === options.name && codexMatches(entry, options.server)
+    entry.name === options.name &&
+      codexMatches(entry, options.server, options.toolApproval) &&
+      rawCodexMatches(raw, options.server, options.toolApproval)
       ? "configured"
       : "conflict",
   );
@@ -373,7 +415,52 @@ async function readCodexBytes(path) {
   return readFile(path, "utf8");
 }
 
-async function registerCodexRemote(options) {
+async function readCodexTable(options) {
+  const bytes = await readCodexBytes(
+    join(options.config.codexHome, "config.toml"),
+  );
+  if (bytes === null) return undefined;
+  let data;
+  try {
+    data = requireApp("smol-toml").parse(bytes);
+  } catch {
+    throw new Error(
+      "Private Codex TOML could not be parsed; install the locked engine dependencies and inspect configuration locally. Existing files were preserved.",
+    );
+  }
+  if (data.mcp_servers === undefined) return undefined;
+  if (!plain(data.mcp_servers))
+    throw new Error(
+      "Codex MCP configuration must contain a server table; existing files were preserved.",
+    );
+  return Object.hasOwn(data.mcp_servers, options.name)
+    ? data.mcp_servers[options.name]
+    : undefined;
+}
+
+function rawCodexMatches(raw, server, toolApproval) {
+  if (!plain(raw)) return false;
+  const actual = { ...raw };
+  if (actual.enabled === true) delete actual.enabled;
+  if (plain(actual.env)) actual.env = { ...actual.env };
+  if (
+    !server.url &&
+    plain(actual.env) &&
+    Object.keys(actual.env).length === 0 &&
+    !server.env
+  )
+    delete actual.env;
+  // `mcp get --json` omits approval overrides, tools and some other policy.
+  // The parsed table, rather than its CLI projection, is the ownership guard.
+  return isDeepStrictEqual(actual, {
+    ...server,
+    ...(toolApproval === undefined
+      ? {}
+      : { default_tools_approval_mode: toolApproval }),
+  });
+}
+
+async function registerCodexTable(options) {
   // `codex mcp add --url` performs OAuth discovery and may open an interactive
   // login immediately. This configuration-only wizard instead appends a single
   // quoted table, validates it with `mcp get` in an isolated private home, then
@@ -381,7 +468,14 @@ async function registerCodexRemote(options) {
   const home = options.config.codexHome;
   const path = join(home, "config.toml");
   const before = await readCodexBytes(path);
-  const after = `${before ?? ""}\n[mcp_servers.${JSON.stringify(options.name)}]\nurl = ${JSON.stringify(options.server.url)}\n`;
+  const fields = options.server.url
+    ? `url = ${JSON.stringify(options.server.url)}\n`
+    : `command = ${JSON.stringify(options.server.command)}\nargs = ${JSON.stringify(options.server.args)}\n`;
+  const approval =
+    options.toolApproval === undefined
+      ? ""
+      : `default_tools_approval_mode = ${JSON.stringify(options.toolApproval)}\n`;
+  const after = `${before ?? ""}\n[mcp_servers.${JSON.stringify(options.name)}]\n${fields}${approval}`;
   const staging = await mkdtemp(join(home, ".szpont-mcp-check-"));
   const temporary = join(home, `.szpont-mcp-${randomUUID()}.tmp`);
   try {
@@ -389,6 +483,15 @@ async function registerCodexRemote(options) {
       mode: 0o600,
       flag: "wx",
     });
+    if (options.toolApproval !== undefined) {
+      // Fail closed on CLIs which silently ignore newer TOML options. This only
+      // parses startup configuration: it does not start MCP, login or a model.
+      await codexCommand(
+        { ...options, config: { ...options.config, codexHome: staging } },
+        ["--strict-config", "--print-startup-config"],
+        "app-server",
+      );
+    }
     const staged = await inspectCodex({
       ...options,
       config: { ...options.config, codexHome: staging },
@@ -568,7 +671,8 @@ export async function registerMcp(options) {
         throw new Error(
           "An existing MCP entry differs; it was preserved. Choose another name or inspect it locally.",
         );
-      if (request.server.url) await registerCodexRemote(request);
+      if (request.server.url || request.toolApproval !== undefined)
+        await registerCodexTable(request);
       else {
         const args = ["add", request.name];
         for (const [key, value] of Object.entries(request.server.env ?? {}))

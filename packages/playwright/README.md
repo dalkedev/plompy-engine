@@ -49,6 +49,25 @@ launcher path. Configuration does not start a browser or download dependencies.
 An optional browser override must be an absolute regular executable that other
 users cannot modify; its compatibility remains the operator's responsibility.
 
+Codex MCP tool approval is separate from connecting the server. The default
+configuration and `--yes` do not grant unattended browser-tool approval. An
+operator who wants the built-in Playwright server to run without interactive
+tool prompts can explicitly register a new entry with:
+
+```sh
+npm run integrations -- add playwright --runner codex --yes --tool-approval approve
+```
+
+Only that server receives `default_tools_approval_mode = "approve"`; global
+approvals, other tools, task authorization and managed security controls remain
+separate. Browser actions can navigate and submit real forms. The alternative
+`--tool-approval prompt` requires approval prompts, which unattended sessions
+cannot answer. These options apply only to the built-in Codex Playwright entry.
+Existing entries, per-tool overrides and other operator restrictions are preserved
+as conflicts. Follow the [migration and validation guide](../../docs/integrations.md#explicit-codex-tool-approval-for-unattended-playwright)
+before changing an already configured entry. Codex's `mcp get` JSON alone is not
+proof of the effective approval setting.
+
 The launcher uses headless, isolated browser contexts with Chromium's sandbox
 enabled. Each launch gets a separate 0700 artifact directory and a short-lived
 0700 OS temporary directory. Temporary browser files are removed when that

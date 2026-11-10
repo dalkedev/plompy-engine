@@ -41,11 +41,11 @@ login. See [runner setup](runners.md) for those prerequisites.
 | `camoufox`    | This repository's local browser MCP bridge and a browser-use playbook                 | Python environment, pinned browser binary, Linux graphics dependencies and a private X11 display |
 | `openai-docs` | OpenAI's remote documentation MCP server                                              | Network access to the official documentation service                                             |
 | `context7`    | Context7's remote documentation MCP server                                            | Network access; any service limits or account requirements apply independently                   |
-| `playwright`  | Pinned local Playwright MCP, headless with an isolated browser session                 | Optional Node package, Chromium or a reviewed executable, and Linux browser libraries            |
-| `perplexity`  | Perplexity search and reasoning tools through OAuth or the API-key bridge               | Your own Perplexity API organization, authorization and usage allowance                           |
-| `firecrawl`   | Hosted Firecrawl tools through OAuth, API key, or limited keyless access                | Network access and the service's current team, plan and rate limits                              |
-| `tinyfish`    | Hosted TinyFish search, page extraction and remote browser tools                       | TinyFish authorization; funded usage for tools outside its free allowance                        |
-| `posthog`     | Hosted PostHog MCP with the catalog's read-only tool restriction                        | Your own PostHog project access through OAuth or a scoped personal API key                        |
+| `playwright`  | Pinned local Playwright MCP, headless with an isolated browser session                | Optional Node package, Chromium or a reviewed executable, and Linux browser libraries            |
+| `perplexity`  | Perplexity search and reasoning tools through OAuth or the API-key bridge             | Your own Perplexity API organization, authorization and usage allowance                          |
+| `firecrawl`   | Hosted Firecrawl tools through OAuth, API key, or limited keyless access              | Network access and the service's current team, plan and rate limits                              |
+| `tinyfish`    | Hosted TinyFish search, page extraction and remote browser tools                      | TinyFish authorization; funded usage for tools outside its free allowance                        |
+| `posthog`     | Hosted PostHog MCP with the catalog's read-only tool restriction                      | Your own PostHog project access through OAuth or a scoped personal API key                       |
 | `custom`      | A reviewed local command or remote HTTPS MCP server from a private JSON specification | The server, its dependencies and any separate authentication                                     |
 
 DoubleCrawl, ElevenLabs and Google Drive are not included in the catalog. The
@@ -170,6 +170,49 @@ headless browser still makes real network requests and can submit forms; use it
 within the active task's authority and inspect the target before consequential
 actions. Isolated browser state is not a host-process security boundary.
 
+### Explicit Codex tool approval for unattended Playwright
+
+The default registration above preserves Codex's normal MCP approval behavior.
+`--yes` confirms configuration changes; it does **not** approve browser tools.
+In an unattended Codex session with `approval_policy = "never"`, a browser action
+that needs approval can therefore be denied even when the MCP connection works.
+
+For a new built-in Playwright entry, an operator can explicitly opt in:
+
+```sh
+npm run integrations -- add playwright --runner codex --yes --tool-approval approve
+```
+
+This writes `default_tools_approval_mode = "approve"` only inside
+`mcp_servers.szpont_playwright` in the private Codex configuration. It applies to
+tools from that server, including actions that navigate, type, click or submit
+forms. It does not authorize an unrelated task, approve other MCP servers, change
+the session's global approval policy, or override managed security controls.
+Use `--tool-approval prompt` instead to require a prompt for this server's tools;
+an unattended session cannot answer those prompts. The flag is rejected for
+Claude Code, OpenCode, custom servers and other integrations.
+
+An existing entry is never silently upgraded. For an unmodified managed entry,
+stop the engine as instructed above, then remove and explicitly register it again:
+
+```sh
+npm run integrations -- remove playwright --runner codex --yes
+npm run integrations -- add playwright --runner codex --yes --tool-approval approve
+```
+
+Removal preserves browser data and artifacts. If the entry has operator-written
+tool restrictions, per-tool approval overrides, unknown settings or a changed
+transport, setup/removal reports a conflict and preserves it. Review that private
+configuration manually rather than deleting restrictions to make setup pass.
+
+The configurator parses the bounded raw TOML as well as `codex mcp get` output:
+the latter omits approval settings in Codex 0.166.0. It validates an opt-in
+candidate with `codex app-server --strict-config --print-startup-config` in a
+temporary private home, then installs it atomically only if the original bytes
+are unchanged. Validation does not launch Playwright, invoke a model, or test a
+website. A CLI that cannot validate the scoped setting fails without replacing
+configuration. See the [official Codex MCP configuration](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+
 ## Documentation tools
 
 These register explicit remote HTTPS MCP endpoints without downloading an MCP
@@ -205,12 +248,12 @@ same service account. Szpont's noninteractive worker does not complete browser
 sign-in for you. A native OAuth entry is useful only when that installed client
 can finish and retain the service's authorization; verify this on your deployment.
 
-| Service | Native OAuth URL | API-key URL and upstream authentication |
-| --- | --- | --- |
-| [Perplexity](https://docs.perplexity.ai/docs/getting-started/integrations/mcp-server) | `https://api.perplexity.ai/mcp` | Same URL; `Authorization: Bearer` |
-| [Firecrawl](https://docs.firecrawl.dev/mcp-server) | `https://mcp.firecrawl.dev/v2/mcp-oauth` | `https://mcp.firecrawl.dev/v2/mcp`; `Authorization: Bearer` |
-| [TinyFish](https://github.com/tinyfish-io/tinyfish-mcp-server) | `https://agent.tinyfish.ai/mcp` | Same URL; the managed bridge sends `X-API-Key` |
-| [PostHog](https://posthog.com/docs/model-context-protocol/faq) | `https://mcp.posthog.com/mcp?readonly=true` | `https://mcp.posthog.com/mcp`; `Authorization: Bearer` plus `x-posthog-read-only: true` |
+| Service                                                                               | Native OAuth URL                            | API-key URL and upstream authentication                                                 |
+| ------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [Perplexity](https://docs.perplexity.ai/docs/getting-started/integrations/mcp-server) | `https://api.perplexity.ai/mcp`             | Same URL; `Authorization: Bearer`                                                       |
+| [Firecrawl](https://docs.firecrawl.dev/mcp-server)                                    | `https://mcp.firecrawl.dev/v2/mcp-oauth`    | `https://mcp.firecrawl.dev/v2/mcp`; `Authorization: Bearer`                             |
+| [TinyFish](https://github.com/tinyfish-io/tinyfish-mcp-server)                        | `https://agent.tinyfish.ai/mcp`             | Same URL; the managed bridge sends `X-API-Key`                                          |
+| [PostHog](https://posthog.com/docs/model-context-protocol/faq)                        | `https://mcp.posthog.com/mcp?readonly=true` | `https://mcp.posthog.com/mcp`; `Authorization: Bearer` plus `x-posthog-read-only: true` |
 
 The PostHog query is a reviewed fixed catalog URL. It does not permit query
 parameters in arbitrary custom server URLs.
@@ -343,11 +386,11 @@ The interactive runner choice or explicit `--runner` determines where MCP
 configuration is registered. Without an explicit choice, the command uses
 `SZPONT_RUNNER`, or Codex when unset:
 
-| Runner      | Configuration                                                                                                                                                 |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Codex       | Remote endpoints use a minimal managed block in private `$CODEX_HOME/config.toml`; local stdio uses `codex mcp add`. Both are inspected with `codex mcp get`. |
-| Claude Code | `$CLAUDE_CONFIG_DIR/szpont-mcp.json`, with a `mcpServers` object; `SZPONT_CLAUDE_MCP_CONFIG` overrides this path                                              |
-| OpenCode    | `$SZPONT_OPENCODE_HOME/szpont-mcp.json`, with an `mcp` object; `SZPONT_OPENCODE_CONFIG` overrides this path                                                   |
+| Runner      | Configuration                                                                                                                                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Codex       | Private `$CODEX_HOME/config.toml`; remote entries and explicit Playwright approval use an atomically validated managed block. Other local stdio uses `codex mcp add`. Ownership checks compare parsed TOML and `codex mcp get`. |
+| Claude Code | `$CLAUDE_CONFIG_DIR/szpont-mcp.json`, with a `mcpServers` object; `SZPONT_CLAUDE_MCP_CONFIG` overrides this path                                                                                                                |
+| OpenCode    | `$SZPONT_OPENCODE_HOME/szpont-mcp.json`, with an `mcp` object; `SZPONT_OPENCODE_CONFIG` overrides this path                                                                                                                     |
 
 These paths use the runner's private home. When configuring a non-default runner
 without an explicit home, `claude` or `opencode` alongside `SZPONT_STATE_DIR` is
@@ -385,11 +428,11 @@ a new runner.
 
 ## Docker
 
-The **0.11.0 image includes this command and GitHub CLI**. After taking a verified
+The **0.11.1 image includes this command and GitHub CLI**. After taking a verified
 pre-upgrade snapshot, stop the engine and pull the selected release:
 
 ```sh
-export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.11.0
+export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.11.1
 docker compose stop engine
 docker compose pull engine
 docker compose run --rm -it engine integrations

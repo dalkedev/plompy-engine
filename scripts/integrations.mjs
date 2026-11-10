@@ -35,6 +35,7 @@ Browser: --browser-bin /absolute/browser (optional for Playwright; required for 
 Camoufox: --python /absolute/python --display :99
 Remote services: --auth oauth|api-key|keyless (service-dependent), --credential-file /private/credentials/service.key
 A credential-file implies api-key authentication. No secret values are accepted as arguments.
+Codex Playwright only: --tool-approval approve|prompt (explicit opt-in; --yes does not change tool approval)
 Playwright and API-key bridge dependencies require their documented optional npm ci step.
 Load the same private deployment environment as the engine and stop it before changes.
 --runner chooses which runner's tools to configure; it does not switch existing Discord threads or the service default.
@@ -162,6 +163,10 @@ async function registry(ctx) {
     if (
       !catalog.some((c) => c.id === e.id) ||
       !providers.includes(e.provider) ||
+      (e.toolApproval !== undefined &&
+        (e.id !== "playwright" ||
+          e.provider !== "codex" ||
+          !["approve", "prompt"].includes(e.toolApproval))) ||
       (e.id !== "github" && !/^szpont_[a-z0-9_]{1,48}$/.test(e.name)) ||
       names.has(`${e.provider}:${e.name}`)
     )
@@ -325,6 +330,7 @@ export async function integrationStatus(ctx, entry, execute = command) {
     ...ctx,
     name: entry.name,
     server: entry.server,
+    toolApproval: entry.toolApproval,
     execute,
   });
   return {
@@ -350,11 +356,16 @@ async function serverFor(ctx, id, options, ask) {
   const item = catalog.find((c) => c.id === id);
   if (!item) throw new Error("Unknown integration. Run integrations list.");
   if (id === "playwright")
-    return preparePlaywright({
-      config: ctx.config,
-      publicRoot: ctx.publicRoot,
-      browserBin: options["browser-bin"],
-    });
+    return {
+      ...(await preparePlaywright({
+        config: ctx.config,
+        publicRoot: ctx.publicRoot,
+        browserBin: options["browser-bin"],
+      })),
+      ...(options["tool-approval"] === undefined
+        ? {}
+        : { toolApproval: options["tool-approval"] }),
+    };
   if (Object.hasOwn(remoteServices, id)) {
     const modes = remoteServices[id].authModes;
     let auth =
@@ -484,6 +495,7 @@ export async function runIntegrations(
         "--spec",
         "--auth",
         "--credential-file",
+        "--tool-approval",
       ].includes(value)
     ) {
       if (!args[i + 1] || args[i + 1].startsWith("--"))
@@ -568,6 +580,16 @@ export async function runIntegrations(
     }
     if (id && !catalog.some((c) => c.id === id))
       throw new Error("Unknown integration. Use list.");
+    if (
+      options["tool-approval"] !== undefined &&
+      (action !== "add" ||
+        id !== "playwright" ||
+        selectedRunner !== "codex" ||
+        !["approve", "prompt"].includes(options["tool-approval"]))
+    )
+      throw new Error(
+        "--tool-approval approve|prompt applies only to add playwright --runner codex; other integrations and runners keep their own approval policy.",
+      );
     if (
       (options.auth !== undefined ||
         options["credential-file"] !== undefined) &&
@@ -688,7 +710,12 @@ export async function runIntegrations(
         if (id !== "github") {
           if (ctx.provider === "codex")
             await privateDirectory(ctx.config.codexHome);
-          await registerMcp({ ...ctx, name: entry.name, server: entry.server });
+          await registerMcp({
+            ...ctx,
+            name: entry.name,
+            server: entry.server,
+            toolApproval: entry.toolApproval,
+          });
         }
         value.integrations = next;
         await saveRegistry(ctx, value);
@@ -712,6 +739,12 @@ export async function runIntegrations(
           print(
             "MCP configuration was registered; a live tool call, login and account access have not been tested.",
           );
+        if (entry.toolApproval !== undefined)
+          print(
+            entry.toolApproval === "approve"
+              ? "Explicit Codex approval applies only to this built-in Playwright server. Browser tools can perform real website actions; task authorization and managed security controls still apply."
+              : "This Codex Playwright server explicitly prompts for tool approval; unattended runs cannot answer those prompts.",
+          );
       } else if (action === "remove") {
         const entries = value.integrations.filter(
           (e) => e.provider === ctx.provider && e.id === id,
@@ -724,6 +757,7 @@ export async function runIntegrations(
               ...ctx,
               name: entry.name,
               server: entry.server,
+              toolApproval: entry.toolApproval,
             });
         value.integrations = value.integrations.filter(
           (e) => !entries.includes(e),

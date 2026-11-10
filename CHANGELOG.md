@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.1 — 2026-11-10
+
+- Add an explicit `--tool-approval approve` option for the built-in Codex Playwright integration, enabling unattended browser actions without changing global approval settings. Keep the default and `--yes` behavior unchanged; support an explicit `prompt` policy as well.
+- Inspect the private raw TOML alongside Codex MCP status, preserving operator approval overrides, tool restrictions and unknown settings that the CLI status projection omits. Validate scoped policy with the installed CLI before atomically installing configuration.
+- Document migration from an existing managed entry and the difference between configured tools and verified browser execution. Retain SQLite schema 6, provider bindings and browser sandboxing.
+
 ## 0.11.0 — 2026-11-10
 
 - Add Playwright, Perplexity, Firecrawl, TinyFish and PostHog to the guided integrations menu for Codex, Claude Code and OpenCode, with maintained task instructions and explicit authentication modes.

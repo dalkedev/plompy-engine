@@ -22,7 +22,7 @@ and Discord IDs, then restrict the file to your account:
 ```sh
 chmod 600 /absolute/private/szpont.env
 export SZPONT_ENV_FILE=/absolute/private/szpont.env
-export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.11.0
+export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.11.1
 docker compose config --quiet
 docker compose pull
 docker compose run --rm engine init
