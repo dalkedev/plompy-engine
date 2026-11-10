@@ -57,10 +57,11 @@ jobs:
           package-manager-cache: false
       - name: Keep the pinned Node executable outside the writable hosted tool cache
         run: |
-          sudo install -d -m 0755 -o root -g root /opt/szpont-ci-node
-          sudo install -m 0755 -o root -g root "$(command -v node)" /opt/szpont-ci-node/node
-          cmp "$(command -v node)" /opt/szpont-ci-node/node
-          printf '/opt/szpont-ci-node\n' >> "$GITHUB_PATH"
+          runtime_dir=$(sudo mktemp -d /tmp/szpont-ci-node-XXXXXX)
+          sudo chmod 0755 "$runtime_dir"
+          sudo install -m 0755 -o root -g root "$(command -v node)" "$runtime_dir/node"
+          cmp "$(command -v node)" "$runtime_dir/node"
+          printf '%s\n' "$runtime_dir" >> "$GITHUB_PATH"
       - name: Install locked optional tools
         run: |
           npm ci --prefix packages/mcp-bridge --ignore-scripts --no-audit --no-fund
@@ -68,7 +69,7 @@ jobs:
       - name: Test MCP transport and credential boundaries offline
         run: npm test --prefix packages/mcp-bridge
       - name: Test isolated browser provisioning
-        run: npm test --prefix packages/playwright
+        run: node --test packages/playwright/*.test.mjs
       - name: Verify executable ownership across distinct user IDs
         run: sudo "$(command -v node)" --test packages/playwright/runtime.test.mjs
       - name: Install pinned Chromium and Linux dependencies
