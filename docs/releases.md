@@ -67,7 +67,7 @@ Do not run two engine instances against the same SQLite state at once. Version 0
 | 0.4.0          | 3                    |
 | 0.5.0–0.6.1    | 4                    |
 | 0.7.0          | 5                    |
-| 0.8.x          | 6                    |
+| 0.8.x–0.9.x    | 6                    |
 
 Before upgrading, create and verify a pre-upgrade snapshot using the [state backup guide](state-backups.md), and retain the matching workspace checkpoint and image digest. The 0.4.0 engine rejects schema 4, and 0.3.x rejects schema 3 and later. To roll back across an incompatible schema, stop the current engine, restore the compatible pre-upgrade snapshot into a new private state location, reconcile jobs and external actions accepted after that snapshot, and switch the matching binary and workspace together. Never lower `PRAGMA user_version` or remove provider columns or image tables as a downgrade shortcut.
 

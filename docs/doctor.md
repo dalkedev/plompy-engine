@@ -17,7 +17,9 @@ The default inspection runs locally. It reads directory metadata, asks Git about
 configured workspace, and runs the selected runner executable with `--version`. It does
 not start the engine, connect to Discord, submit an inference request, inspect conversations,
 open SQLite, initialize a workspace, create directories, repair permissions, or check login.
-The diagnostic itself performs no write probe. Run only a runner executable you trust.
+The diagnostic itself performs no write probe. Runner version/login probes can create
+or update runner-owned temporary helper files; they do not promise an unchanged
+runner-home tree. Run only a runner executable you trust.
 
 Login status requires an explicit additional step:
 
@@ -95,9 +97,9 @@ repository at the configured workspace root. For `codex_version`, install the do
 version and verify `SZPONT_CODEX_BIN`. For `codex_login`, complete your login separately as
 the service user with the same private `CODEX_HOME`, then repeat the opt-in check.
 
-This is a prerequisite snapshot, not a daemon health check or a security audit. It does not
-inspect bot/forum permissions, confirm that a worker is running, promise future filesystem
-access, or test provider availability. Filesystem state can change after inspection. Keep
+This is a prerequisite snapshot, not a daemon health check or a security audit. Without
+`--check-discord`, it does not inspect bot/forum permissions. It does not confirm that a
+worker is running, promise future filesystem access, or test provider availability. Filesystem state can change after inspection. Keep
 service supervision, private backups, and runtime monitoring separate from this command.
 
 ## Alternative runner diagnostics
