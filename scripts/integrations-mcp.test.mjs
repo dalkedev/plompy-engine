@@ -14,11 +14,38 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { inspectMcp, registerMcp, unregisterMcp } from "./integrations/mcp.mjs";
 import { bridgeEntry } from "./integrations/services.mjs";
 
 const secret = "SYNTHETIC-SECRET-MUST-NOT-APPEAR";
 const remote = { url: "https://docs.example.test/mcp" };
+const toml = createRequire(
+  new URL("../apps/discord-agent/package.json", import.meta.url),
+)("smol-toml");
+const playwrightLauncher = fileURLToPath(
+  new URL("../packages/playwright/launch.mjs", import.meta.url),
+);
+
+function playwrightOptions(f, fake, toolApproval) {
+  return {
+    ...f.options,
+    name: "szpont_playwright",
+    server: {
+      command: process.execPath,
+      args: [
+        playwrightLauncher,
+        "--output-dir",
+        join(f.privateRoot, "playwright-output"),
+        "--browser-cache",
+        join(f.privateRoot, "playwright-cache"),
+      ],
+    },
+    execute: fake.execute,
+    ...(toolApproval === undefined ? {} : { toolApproval }),
+  };
+}
 
 async function fixture(t, provider = "claude") {
   const directory = await mkdtemp(join(tmpdir(), "szpont-mcp-"));
@@ -49,30 +76,48 @@ async function fixture(t, provider = "claude") {
 }
 
 function codexFake() {
-  let entry = null;
+  let entry = null,
+    override = null;
   const calls = [];
   const execute = async (binary, args, options) => {
     calls.push({ binary, args, options });
+    const path = join(options.env.CODEX_HOME, "config.toml");
+    if (args[0] === "app-server") {
+      assert.deepEqual(args.slice(1), [
+        "--strict-config",
+        "--print-startup-config",
+      ]);
+      toml.parse(await readFile(path, "utf8"));
+      return { stdout: "{}", stderr: "" };
+    }
     const [, operation, name] = args;
     if (operation === "get") {
+      entry = override;
       if (!entry) {
-        let content = "";
+        let server;
         try {
-          content = await readFile(
-            join(options.env.CODEX_HOME, "config.toml"),
-            "utf8",
-          );
+          server = toml.parse(await readFile(path, "utf8")).mcp_servers?.[name];
         } catch {}
-        const found = content.match(
-          /\[mcp_servers\."szpont_docs"\]\nurl = ("[^\n]+")/,
-        );
-        if (found)
-          return {
-            stdout: JSON.stringify({
-              name,
-              enabled: true,
-              transport: { type: "streamable_http", url: JSON.parse(found[1]) },
-            }),
+        if (server)
+          entry = {
+            name,
+            enabled: server.enabled ?? true,
+            disabled_reason: null,
+            transport: server.url
+              ? { type: "streamable_http", url: server.url }
+              : {
+                  type: "stdio",
+                  command: server.command,
+                  args: server.args ?? [],
+                  env: server.env ?? {},
+                  env_vars: [],
+                  cwd: null,
+                },
+            enabled_tools: server.enabled_tools ?? null,
+            disabled_tools: server.disabled_tools ?? null,
+            startup_timeout_sec: null,
+            tool_timeout_sec: null,
+            // Pinned Codex omits approval and tools policy from this projection.
           };
       }
       if (!entry)
@@ -84,16 +129,13 @@ function codexFake() {
     }
     if (operation === "remove") {
       entry = null;
-      const path = join(options.env.CODEX_HOME, "config.toml");
       try {
         const content = await readFile(path, "utf8");
-        await writeFile(
-          path,
-          content.replace(
-            /\n\[mcp_servers\."szpont_docs"\]\nurl = "[^\n]+"\n/,
-            "",
-          ),
+        const start = content.indexOf(
+          `\n[mcp_servers.${JSON.stringify(name)}]\n`,
         );
+        assert.ok(start >= 0);
+        await writeFile(path, content.slice(0, start));
       } catch {}
       return { stdout: secret };
     }
@@ -133,6 +175,26 @@ function codexFake() {
         startup_timeout_sec: null,
         tool_timeout_sec: null,
       };
+      const before = await readFile(path, "utf8").catch(() => "");
+      const fields =
+        urlIndex >= 0
+          ? `url = ${JSON.stringify(args[urlIndex + 1])}\n`
+          : `command = ${JSON.stringify(entry.transport.command)}\nargs = ${JSON.stringify(entry.transport.args)}\n`;
+      const env = Object.keys(variables).length
+        ? `[mcp_servers.${JSON.stringify(name)}.env]\n${Object.entries(
+            variables,
+          )
+            .map(
+              ([key, value]) =>
+                `${JSON.stringify(key)} = ${JSON.stringify(value)}\n`,
+            )
+            .join("")}`
+        : "";
+      await writeFile(
+        path,
+        `${before}\n[mcp_servers.${JSON.stringify(name)}]\n${fields}${env}`,
+        { mode: 0o600 },
+      );
       return { stdout: secret, stderr: secret };
     }
     throw new Error("Unexpected fake command");
@@ -141,7 +203,7 @@ function codexFake() {
     execute,
     calls,
     set: (value) => {
-      entry = value;
+      override = value;
     },
     get: () => entry,
   };
@@ -699,4 +761,183 @@ test("readonly exception cannot admit arbitrary custom queries, encodings, crede
     }),
   );
   assert.deepEqual(await readdir(f.privateRoot), ["codex"]);
+});
+
+test("raw Codex tool policy omitted by mcp get is preserved as an operator conflict", async (t) => {
+  const f = await fixture(t, "codex"),
+    fake = codexFake();
+  const path = join(f.config.codexHome, "config.toml");
+  const bytes = `# Operator policy must survive CLI projections.\n[mcp_servers.\"szpont_docs\"]\nurl = ${JSON.stringify(remote.url)}\n[mcp_servers.\"szpont_docs\".tools.browser_click]\napproval_mode = \"prompt\"\n`;
+  await writeFile(path, bytes, { mode: 0o600 });
+  const options = { ...f.options, execute: fake.execute };
+  assert.equal((await inspectMcp(options)).status, "conflict");
+  await assert.rejects(registerMcp(options), /preserved/);
+  await assert.rejects(unregisterMcp(options), /preserved/);
+  assert.equal(await readFile(path, "utf8"), bytes);
+});
+
+for (const toolApproval of ["approve", "prompt"])
+  test(`Codex Playwright ${toolApproval} is explicit, atomic, scoped and idempotent`, async (t) => {
+    const f = await fixture(t, "codex"),
+      fake = codexFake();
+    const path = join(f.config.codexHome, "config.toml");
+    const before =
+      '# Keep unrelated configuration byte-for-byte.\nmodel = "synthetic-model"\n';
+    await writeFile(path, before, { mode: 0o600 });
+    const options = playwrightOptions(f, fake, toolApproval);
+    assert.equal((await registerMcp(options)).changed, true);
+    const bytes = await readFile(path, "utf8"),
+      parsed = toml.parse(bytes);
+    assert.equal(bytes.startsWith(before), true);
+    assert.equal(
+      parsed.mcp_servers.szpont_playwright.default_tools_approval_mode,
+      toolApproval,
+    );
+    assert.equal(parsed.default_tools_approval_mode, undefined);
+    assert.equal((await inspectMcp(options)).status, "configured");
+    assert.equal((await registerMcp(options)).changed, false);
+    assert.equal(
+      fake.calls.filter((call) => call.args[0] === "app-server").length,
+      1,
+    );
+    assert.equal(
+      fake.calls.some((call) => call.args[1] === "add"),
+      false,
+    );
+    await unregisterMcp(options);
+    assert.equal(await readFile(path, "utf8"), before);
+  });
+
+test("default Playwright does not enable tool approval and a later opt-in preserves the existing entry", async (t) => {
+  const f = await fixture(t, "codex"),
+    fake = codexFake(),
+    options = playwrightOptions(f, fake);
+  await registerMcp(options);
+  const path = join(f.config.codexHome, "config.toml"),
+    before = await readFile(path, "utf8");
+  assert.equal(
+    toml.parse(before).mcp_servers.szpont_playwright
+      .default_tools_approval_mode,
+    undefined,
+  );
+  await assert.rejects(
+    registerMcp({ ...options, toolApproval: "approve" }),
+    /preserved/,
+  );
+  assert.equal(await readFile(path, "utf8"), before);
+  assert.equal(
+    fake.calls.some((call) => call.args[0] === "app-server"),
+    false,
+  );
+});
+
+test("raw operator overrides and unknown settings cannot be erased through the lossy Codex projection", async (t) => {
+  const f = await fixture(t, "codex"),
+    fake = codexFake(),
+    options = playwrightOptions(f, fake, "approve");
+  const path = join(f.config.codexHome, "config.toml");
+  for (const tail of [
+    'default_tools_approval_mode = "prompt"\n',
+    'default_tools_approval_mode = "approve"\n[mcp_servers."szpont_playwright".tools.browser_click]\napproval_mode = "prompt"\n',
+    'default_tools_approval_mode = "approve"\nfuture_operator_policy = "synthetic-private-setting"\n',
+    'default_tools_approval_mode = "approve"\ndisabled_tools = ["browser_click"]\n',
+  ]) {
+    const before = `[mcp_servers."szpont_playwright"]\ncommand = ${JSON.stringify(options.server.command)}\nargs = ${JSON.stringify(options.server.args)}\n${tail}`;
+    await writeFile(path, before, { mode: 0o600 });
+    assert.equal((await inspectMcp(options)).status, "conflict");
+    await assert.rejects(registerMcp(options), /preserved/);
+    await assert.rejects(unregisterMcp(options), /preserved/);
+    assert.equal(await readFile(path, "utf8"), before);
+  }
+});
+
+test("approval never applies to custom commands, remote services, other runners or unsafe Playwright arguments", async (t) => {
+  const f = await fixture(t, "codex"),
+    fake = codexFake(),
+    options = playwrightOptions(f, fake, "approve");
+  for (const changes of [
+    { provider: "claude" },
+    { provider: "opencode" },
+    { name: "szpont_custom" },
+    { server: remote },
+    { toolApproval: "auto" },
+    { server: { ...options.server, command: "/untrusted/node" } },
+    {
+      server: {
+        ...options.server,
+        args: ["/custom/launcher.mjs", ...options.server.args.slice(1)],
+      },
+    },
+    {
+      server: {
+        ...options.server,
+        args: [...options.server.args, "--no-sandbox"],
+      },
+    },
+  ])
+    await assert.rejects(
+      registerMcp({ ...options, ...changes }),
+      /explicit Codex-only option/,
+    );
+  await assert.rejects(
+    registerMcp({
+      ...options,
+      server: {
+        ...options.server,
+        args: [
+          playwrightLauncher,
+          "--output-dir",
+          join(f.publicRoot, "output"),
+          "--browser-cache",
+          join(f.privateRoot, "cache"),
+        ],
+      },
+    }),
+    /public source/,
+  );
+  assert.equal(fake.calls.length, 0);
+  assert.deepEqual(await readdir(f.config.codexHome), []);
+});
+
+test("unsupported Codex policy validation fails before replacing any configuration", async (t) => {
+  const f = await fixture(t, "codex"),
+    fake = codexFake(),
+    options = playwrightOptions(f, fake, "approve");
+  const path = join(f.config.codexHome, "config.toml"),
+    before = '# preserved\nmodel = "synthetic"\n';
+  await writeFile(path, before, { mode: 0o600 });
+  const execute = async (...args) => {
+    if (args[1][0] === "app-server")
+      throw Object.assign(new Error(secret), {
+        code: 1,
+        stdout: secret,
+        stderr: secret,
+      });
+    return fake.execute(...args);
+  };
+  await assert.rejects(
+    registerMcp({ ...options, execute }),
+    (error) => !error.message.includes(secret),
+  );
+  assert.equal(await readFile(path, "utf8"), before);
+  assert.deepEqual(await readdir(f.config.codexHome), ["config.toml"]);
+});
+
+test("an external edit during scoped approval validation is preserved before the atomic commit", async (t) => {
+  const f = await fixture(t, "codex"),
+    fake = codexFake(),
+    options = playwrightOptions(f, fake, "approve");
+  const path = join(f.config.codexHome, "config.toml"),
+    edited = '# external operator edit\nmodel = "synthetic"\n';
+  await writeFile(path, "# original\n", { mode: 0o600 });
+  const execute = async (...args) => {
+    if (args[1][0] === "app-server") await writeFile(path, edited);
+    return fake.execute(...args);
+  };
+  await assert.rejects(
+    registerMcp({ ...options, execute }),
+    /changed during setup/,
+  );
+  assert.equal(await readFile(path, "utf8"), edited);
+  assert.deepEqual(await readdir(f.config.codexHome), ["config.toml"]);
 });

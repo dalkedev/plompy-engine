@@ -482,3 +482,60 @@ test("new playbooks distinguish isolated browsing, external research and analyti
   assert.match(text, /consumer subscription does not prove API entitlement/);
   assert.match(text, /Other runners do not inherit/);
 });
+
+test("Playwright tool approval is explicit and rejects unrelated actions, services and runners before writes", async (t) => {
+  const f = await fixture(t, "codex");
+  for (const args of [
+    ["add", "github"],
+    ["add", "perplexity"],
+    ["add", "custom"],
+    ["status", "playwright"],
+    ["remove", "playwright"],
+    ["add", "playwright", "--runner", "claude"],
+    ["add", "playwright", "--runner", "opencode"],
+  ]) {
+    await assert.rejects(
+      f.invoke([...args, "--tool-approval", "approve", "--yes"]),
+      /only to add playwright --runner codex/,
+    );
+  }
+  await assert.rejects(
+    f.invoke(["add", "playwright", "--tool-approval", "auto", "--yes"]),
+    /only to add playwright --runner codex/,
+  );
+  assert.deepEqual(await readdir(f.state), []);
+  assert.deepEqual(await readdir(join(f.workspace, "agent")), []);
+});
+
+test("a manifest cannot transfer Playwright approval to another provider or service", async (t) => {
+  const f = await fixture(t);
+  for (const entry of [
+    {
+      id: "perplexity",
+      provider: "claude",
+      name: "szpont_perplexity",
+      toolApproval: "approve",
+    },
+    {
+      id: "playwright",
+      provider: "claude",
+      name: "szpont_playwright",
+      toolApproval: "approve",
+    },
+    {
+      id: "playwright",
+      provider: "codex",
+      name: "szpont_playwright",
+      toolApproval: "auto",
+    },
+  ]) {
+    const path = join(f.state, "integrations.json"),
+      before = JSON.stringify({ schemaVersion: 1, integrations: [entry] });
+    await writeFile(path, before, { mode: 0o600 });
+    await assert.rejects(
+      f.invoke(["status", "--json"]),
+      /Invalid integration manifest/,
+    );
+    assert.equal(await readFile(path, "utf8"), before);
+  }
+});
