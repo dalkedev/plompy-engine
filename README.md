@@ -48,7 +48,7 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone --branch v0.10.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
+git clone --branch v0.11.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
 cd szpont-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -114,13 +114,21 @@ npm run integrations -- add openai-docs --yes
 npm run integrations -- status
 ```
 
-The catalog includes GitHub CLI, the optional Camoufox bridge, OpenAI Docs,
-Context7 and a custom MCP server. Setup adds maintained usage playbooks to your
-private `agent/INTEGRATIONS.md`; it does not download a collection of skills or
-import personal credentials. Camoufox needs a separately provisioned Linux host
-browser/display. See [integration setup](docs/integrations.md) for Docker builds,
-runner-specific configuration, removal and the difference between configuration
-and a live acceptance check.
+Choose GitHub, Playwright, Camoufox, Perplexity, Firecrawl, TinyFish, PostHog,
+OpenAI Docs, Context7 or a custom MCP server. Each entry belongs to the selected
+runner: **Codex, Claude Code or OpenCode**. The tools are not tied to a Codex-only
+browser session.
+
+Playwright uses pinned optional dependencies and a fresh headless browser context;
+Camoufox keeps a separately provisioned Linux browser and private display.
+Remote services use your own OAuth account or a private API-key file. PostHog
+starts in read-only mode; adding it does not add analytics tracking to the engine.
+
+Setup also writes maintained tool-use playbooks to private
+`agent/INTEGRATIONS.md`. It does not import personal credentials, purchase API
+access or call the services to test configuration. See [integration setup](docs/integrations.md)
+for prerequisites, authentication, Docker support and a real browser acceptance test.
+Your agent can click buttons. It still needs a reason to click **that** button.
 
 ## Working in a thread
 
@@ -303,7 +311,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.10.0 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
+Version **0.11.0 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
 evidence. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.

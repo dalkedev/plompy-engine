@@ -5,15 +5,15 @@ A release is a versioned public source snapshot and a container image. It does n
 ## Pull a release
 
 ```sh
-docker pull ghcr.io/dalkedev/szpont-engine:0.10.0
-docker buildx imagetools inspect ghcr.io/dalkedev/szpont-engine:0.10.0
+docker pull ghcr.io/dalkedev/szpont-engine:0.11.0
+docker buildx imagetools inspect ghcr.io/dalkedev/szpont-engine:0.11.0
 ```
 
 The release workflow publishes Linux `amd64` and `arm64` variants. A stable release publishes an exact version tag, a minor-series tag, `latest`, and `sha-<first 12 characters of commit>`. For example, `v0.6.1` produces `0.6.1`, `0.6`, `latest`, and its revision tag. A prerelease such as `v0.7.0-rc.1` publishes only its exact prerelease and revision tags; it cannot move `latest` or a stable minor-series tag.
 
 Tags are convenient aliases. For repeatable deployments, copy the full `ghcr.io/dalkedev/szpont-engine@sha256:...` reference from the successful workflow summary or manifest inspection and pin that digest in your deployment. The OCI labels identify the source repository, exact revision, version, and MIT license. The published image also includes BuildKit provenance and an SBOM.
 
-The engine image contains no browser profile or real account session. Version 0.10.0 packages and verifies **Codex only**; it rejects `SZPONT_RUNNER=claude` and `opencode` before initialization writes. Claude Code and OpenCode are [experimental host adapters](runners.md), requiring their own installed CLI, private authentication, permissions and acceptance checks. The optional Camoufox desktop/browser service is outside this image. A release does not supply model access or account allowances.
+The engine image contains no browser profile or real account session. Version 0.11.0 packages and verifies **Codex only**; it rejects `SZPONT_RUNNER=claude` and `opencode` before initialization writes. Claude Code and OpenCode are [experimental host adapters](runners.md), requiring their own installed CLI, private authentication, permissions and acceptance checks. The optional Camoufox desktop/browser service is outside this image. A release does not supply model access or account allowances.
 
 Version 0.5.0 introduced [private Discord image input](image-input.md) for Codex, including
 resumed turns. The other host adapters explicitly reject images. SQLite snapshots
@@ -35,8 +35,8 @@ moves backwards. It does not introduce another worker or a state migration.
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.10.0 -m 'Szpont Engine 0.10.0'
-git push origin refs/tags/v0.10.0
+git tag -a v0.11.0 -m 'Szpont Engine 0.11.0'
+git push origin refs/tags/v0.11.0
 ```
 
 The [release workflow](../.github/workflows/release.yml) runs only on `v*` tag pushes. It first requires the tagged commit to be reachable from `main`, validates all package and project-lock versions, checks the public tree, and runs the locked engine and browser suites. Each native amd64/arm64 runner then builds its OCI archive once, including provenance and an SBOM, and loads that archive's runtime for the offline smoke test. A configuration-digest check binds the loaded runtime (including its filesystem layer identities) to the OCI archive. Runtime state is created in throwaway volumes and is never included in the archive.
@@ -57,7 +57,7 @@ Official references: [Docker OCI exports](https://docs.docker.com/build/exporter
 
 Record the current image digest and stop the engine before taking a coordinated backup of its private state and workspace. Keep runner authentication and browser-profile backups private and separate. Start the desired pinned image with the same configured volumes, then inspect its logs and queue status before sending a synthetic owner task. A successful image build or offline smoke test does not establish Discord connectivity, account validity or live model access.
 
-Do not run two engine instances against the same SQLite state at once. Version 0.10.0 uses **schema 6** and migrates public schemas 0–5 to that schema, retaining saved candidates, reviews and code-diff evidence. Existing provider bindings and sessions are preserved; pre-schema-3 jobs and conversations retain Codex bindings, including conversations whose session has not started; changing `SZPONT_RUNNER` never converts them to another provider. New threads use the configured default. Session reset retains the thread's provider, and recovery retains the original job's provider.
+Do not run two engine instances against the same SQLite state at once. Version 0.11.0 uses **schema 6** and migrates public schemas 0–5 to that schema, retaining saved candidates, reviews and code-diff evidence. Existing provider bindings and sessions are preserved; pre-schema-3 jobs and conversations retain Codex bindings, including conversations whose session has not started; changing `SZPONT_RUNNER` never converts them to another provider. New threads use the configured default. Session reset retains the thread's provider, and recovery retains the original job's provider.
 
 | Engine version | Public SQLite schema |
 | -------------- | -------------------- |
@@ -106,3 +106,19 @@ Use the [runtime finding record](runtime-known-findings.md) and verify the actua
 service binary, not only the Node found in an operator's interactive shell. Linux
 Node 26 binaries also require libatomic; provision host prerequisites explicitly.
 The published supported image includes its required runtime libraries.
+
+
+## Provider tools in 0.11.0
+
+The integrations menu now offers Playwright, Perplexity, Firecrawl, TinyFish and
+PostHog for Codex, Claude Code and OpenCode. Host browser tooling is optional and
+pinned; the Docker image includes the small API-key MCP bridge but no browser.
+Native OAuth uses the selected runner's own login. API-key mode reads a dedicated
+private credential file without placing its contents in the registry, command
+arguments or the runner's environment. PostHog requests server-side read-only mode.
+
+Use the [integration guide](integrations.md) for installation and authentication.
+Configuration inspection and offline tests do not prove a live vendor login or
+API entitlement. External service quotas and billing remain separate. This
+release retains schema 6 and does not change recovery, session bindings or the
+Codex-only supervised workflow boundary.

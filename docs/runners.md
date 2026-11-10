@@ -24,6 +24,37 @@ change the service default or an existing thread's runner. A different model
 provider within OpenCode uses its existing adapter; another coding CLI requires
 a separate engine adapter.
 
+### The same integrations across runners
+
+The catalog includes Playwright, Perplexity, Firecrawl, TinyFish and PostHog in
+addition to GitHub, Camoufox and documentation tools. Select the target runner
+with `--runner`; model providers inside OpenCode share its MCP configuration.
+The [integration guide](integrations.md#hosted-research-and-analytics-tools)
+documents the exact endpoints, authentication choices and optional packages.
+
+For API-key services, an optional local stdio bridge reads a private `0600`
+credential file. Runner configuration contains its path rather than a raw key.
+The same bridge entry can be configured for each runner, but this does not give
+all runners access to each other's model-account credentials. External tool
+charges are separate from the coding CLI's model subscription or allowance.
+
+OAuth uses the service's native remote MCP endpoint. Configuration is supported
+across the three adapters; actual browser authorization and token persistence
+depend on the installed client and its private home. Finish that sign-in outside
+the noninteractive engine and verify it separately. In particular, Claude's
+restricted tool policy does not promise an automatic OAuth prompt or a completed
+sign-in during an unattended turn. An API-key bridge is an explicit alternative
+for a service that supports it; the engine does not switch authentication modes
+after a failed OAuth attempt.
+
+Playwright is an optional host package with a headless isolated session and its
+own browser prerequisites. It does not enable native Discord image input for
+Claude or OpenCode, and does not change either adapter's process boundary.
+PostHog is a read-only operator MCP connection, not an analytics SDK or automatic
+instrumentation of applications. Registration alone proves neither a browser
+launch nor a remote tool call. Check both through a harmless owner-authorized
+task after completing local setup and external authorization.
+
 ## Bindings and upgrades
 
 Set `SZPONT_RUNNER=codex|claude|opencode` in your private environment file before

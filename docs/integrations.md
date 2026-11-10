@@ -41,6 +41,11 @@ login. See [runner setup](runners.md) for those prerequisites.
 | `camoufox`    | This repository's local browser MCP bridge and a browser-use playbook                 | Python environment, pinned browser binary, Linux graphics dependencies and a private X11 display |
 | `openai-docs` | OpenAI's remote documentation MCP server                                              | Network access to the official documentation service                                             |
 | `context7`    | Context7's remote documentation MCP server                                            | Network access; any service limits or account requirements apply independently                   |
+| `playwright`  | Pinned local Playwright MCP, headless with an isolated browser session                 | Optional Node package, Chromium or a reviewed executable, and Linux browser libraries            |
+| `perplexity`  | Perplexity search and reasoning tools through OAuth or the API-key bridge               | Your own Perplexity API organization, authorization and usage allowance                           |
+| `firecrawl`   | Hosted Firecrawl tools through OAuth, API key, or limited keyless access                | Network access and the service's current team, plan and rate limits                              |
+| `tinyfish`    | Hosted TinyFish search, page extraction and remote browser tools                       | TinyFish authorization; funded usage for tools outside its free allowance                        |
+| `posthog`     | Hosted PostHog MCP with the catalog's read-only tool restriction                        | Your own PostHog project access through OAuth or a scoped personal API key                        |
 | `custom`      | A reviewed local command or remote HTTPS MCP server from a private JSON specification | The server, its dependencies and any separate authentication                                     |
 
 DoubleCrawl, ElevenLabs and Google Drive are not included in the catalog. The
@@ -130,6 +135,35 @@ The bridge exposes observed page navigation, snapshots, clicks, text entry,
 scrolling and screenshots. Page content remains untrusted. An existing browser
 login does not grant permission to send messages or publish content.
 
+## Playwright on a Linux host
+
+Playwright is a separate local browser choice. Install its optional locked package,
+then explicitly download its matching browser as the service account:
+
+```sh
+npm ci --prefix packages/playwright
+node packages/playwright/install-browser.mjs --cache-dir "$SZPONT_BROWSER_DIR/playwright/cache"
+npm run integrations -- add playwright --yes
+```
+
+The package pins Microsoft's `@playwright/mcp` to **0.0.85**. The managed launcher
+uses headless mode and an isolated session, keeps the Chromium sandbox enabled,
+and places its temporary output in private per-launch directories. It does not
+copy a personal browser profile or reuse an existing account session. These modes
+use the [official Playwright MCP options](https://github.com/microsoft/playwright-mcp).
+
+Install the browser's Linux system libraries separately as the host administrator.
+The registration command does not install packages, download browsers or start a
+display. To use an already provisioned compatible browser instead of the downloaded
+one, supply `--browser-bin /absolute/browser/executable` when adding Playwright.
+That executable and its dependencies must be available to the service account.
+
+This choice currently targets a host installation. The core engine image does not
+include the optional Playwright package, Chromium or its system libraries. A
+headless browser still makes real network requests and can submit forms; use it
+within the active task's authority and inspect the target before consequential
+actions. Isolated browser state is not a host-process security boundary.
+
 ## Documentation tools
 
 These register explicit remote HTTPS MCP endpoints without downloading an MCP
@@ -144,6 +178,114 @@ The catalog uses `https://developers.openai.com/mcp` and
 `https://mcp.context7.com/mcp`. Remote services can have availability, rate-limit
 or authentication requirements of their own. Setup records configuration; it
 does not claim a successful request or purchase a subscription.
+
+## Hosted research and analytics tools
+
+The four hosted integrations use the same catalog and managed MCP configuration
+for **Codex, Claude Code and OpenCode**. They do not change the thread's model or
+runner. Each defaults to native OAuth configuration:
+
+```sh
+npm run integrations -- add perplexity --yes
+npm run integrations -- add firecrawl --yes
+npm run integrations -- add tinyfish --yes
+npm run integrations -- add posthog --yes
+```
+
+These commands only register local configuration. They do not connect to the
+service, start an OAuth flow, authenticate remotely, list tools, or make a billable tool
+call. Complete the selected client's native MCP authorization separately as the
+same service account. Szpont's noninteractive worker does not complete browser
+sign-in for you. A native OAuth entry is useful only when that installed client
+can finish and retain the service's authorization; verify this on your deployment.
+
+| Service | Native OAuth URL | API-key URL and upstream authentication |
+| --- | --- | --- |
+| [Perplexity](https://docs.perplexity.ai/docs/getting-started/integrations/mcp-server) | `https://api.perplexity.ai/mcp` | Same URL; `Authorization: Bearer` |
+| [Firecrawl](https://docs.firecrawl.dev/mcp-server) | `https://mcp.firecrawl.dev/v2/mcp-oauth` | `https://mcp.firecrawl.dev/v2/mcp`; `Authorization: Bearer` |
+| [TinyFish](https://github.com/tinyfish-io/tinyfish-mcp-server) | `https://agent.tinyfish.ai/mcp` | Same URL; the managed bridge sends `X-API-Key` |
+| [PostHog](https://posthog.com/docs/model-context-protocol/faq) | `https://mcp.posthog.com/mcp?readonly=true` | `https://mcp.posthog.com/mcp`; `Authorization: Bearer` plus `x-posthog-read-only: true` |
+
+The PostHog query is a reviewed fixed catalog URL. It does not permit query
+parameters in arbitrary custom server URLs.
+
+### API keys through a private credential file
+
+For unattended clients, the optional provider-neutral stdio bridge reads a private
+key file and attaches the service's authentication header to its fixed HTTPS
+endpoint. Install that package explicitly before selecting API-key mode:
+
+```sh
+npm ci --prefix packages/mcp-bridge
+npm run integrations -- add perplexity \
+  --credential-file /absolute/private/credentials/perplexity.key \
+  --runner codex \
+  --yes
+```
+
+Prepare the key file using your private editor or secret manager. It contains the
+raw key on one line, with no JSON, shell assignment or `Bearer` prefix. Use an
+owned `0600` file in an owned `0700` directory; symlinks and hard links are refused.
+The file must stay outside the source checkout and every managed workspace,
+state, artifact, browser, GitHub and runner-configuration directory. A separate
+`/absolute/private/credentials` directory is appropriate. Pass its **path**, not
+a key, on the command line. Managed runner configuration records that path and
+the local bridge command, never the key itself.
+
+`--credential-file` selects `api-key` mode unless an explicitly supplied `--auth`
+conflicts. `--auth api-key` requires a credential file. `--auth oauth` uses the
+native URL and accepts no credential file. These options work for each of the four
+services and with `--runner codex|claude|opencode`. Choose one authentication mode
+for a managed entry; to change it, remove that matching entry and add it again
+while the engine is stopped. Removal does not revoke the external credential.
+
+The bridge provides a common transport, not an account or a secret vault. The
+service account must be able to read the credential file when a runner launches
+the bridge. Other processes with that account's filesystem access can also read
+it. Keep credentials and their backups outside conversations and public reports.
+
+### Service capabilities and billing
+
+**Perplexity** adds web search and research/reasoning tools. Both OAuth and API-key
+requests use Perplexity's API billing; OAuth selects an API organization that can
+pay for usage. Do not infer an API allowance from a consumer Pro/Max subscription
+or a Computer credit balance; review the selected API organization separately.
+See [MCP authentication and billing](https://docs.perplexity.ai/docs/getting-started/integrations/mcp-server)
+and the [official plan comparison](https://www.perplexity.ai/help-center/en/articles/11187416-which-perplexity-subscription-plan-is-right-for-you).
+
+**Firecrawl** also offers explicit keyless mode:
+
+```sh
+npm run integrations -- add firecrawl --auth keyless --yes
+```
+
+It uses the API endpoint without a credential file and currently exposes a limited
+Search, Scrape and Parse surface. OAuth and API keys can unlock more tools or usage
+according to the team's plan. A keyless entry is not unlimited access; check the
+[official mode and rate-limit guidance](https://docs.firecrawl.dev/mcp-server/keyless).
+
+**TinyFish** includes search and page extraction alongside remote browser sessions,
+automation and monitoring. Some operations create persistent remote resources or
+spend wallet credits. Its free search/fetch allowance does not make browser and
+automation work free. Use only the capabilities needed for the task and reconcile
+an uncertain remote run before retrying it. See [TinyFish's MCP tools and usage rules](https://docs.tinyfish.ai/mcp-integration).
+
+**PostHog** connects the operator's existing project to MCP. It does not install an
+analytics SDK, add website tracking, or collect Szpont usage telemetry. The catalog
+sets PostHog's actual server-side read-only filter for both authentication modes;
+this increment has no write-mode flag. Use a **personal API key** with the MCP
+Server preset and reviewed project permissions, not a project's public capture
+key. OAuth routes to the account's US/EU region. PostHog may charge for underlying
+data usage or AI-powered tools even though the MCP connection itself is free.
+The [PostHog FAQ](https://posthog.com/docs/model-context-protocol/faq) describes those
+limits and the read-only filter. Read-only access still returns project data to
+your agent; it is not a zero-cost or no-data-access mode.
+
+An agent's model allowance and every external service's allowance are separate.
+Adding a catalog entry does not buy credits or grant permission for unrelated
+account actions. No paid endpoint or real account is contacted by the offline
+integration tests; actual login, tool availability and billing remain deployment
+checks.
 
 ## Custom MCP server
 
@@ -237,11 +379,11 @@ a new runner.
 
 ## Docker
 
-The **0.10.0 image includes this command and GitHub CLI**. After taking a verified
+The **0.11.0 image includes this command and GitHub CLI**. After taking a verified
 pre-upgrade snapshot, stop the engine and pull the selected release:
 
 ```sh
-export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.10.0
+export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.11.0
 docker compose stop engine
 docker compose pull engine
 docker compose run --rm -it engine integrations
@@ -257,7 +399,16 @@ personal GitHub configuration into this volume.
 The `integrations` entrypoint takes the same exclusive state lock as the service;
 a competing engine or setup command exits with code 75. Stop the engine first.
 The container still supports Codex only and does not acquire a browser through
-this menu.
+this menu. The optional Playwright package and browser remain host-provisioned.
+The image built from this version includes the locked API-key bridge. Host
+installations still install that optional package explicitly. For API-key mode
+in Docker, provision a separate private, read-only credential bind mount in your
+own Compose override. The file and its parent must have the correct ownership
+for the container's service user, UID/GID `1000:1000`, and retain their private
+permissions. Supply the **container path** to `--credential-file`; a host-only
+path is not accessible there. Keep this mount separate from source and the
+managed state, workspace and authentication volumes. The supplied Compose file
+does not import a host credential directory automatically.
 
 ## Inspect and remove
 
@@ -273,9 +424,12 @@ GitHub's authentication check may contact GitHub. Missing executables, missing o
 conflicting MCP entries, and an unavailable GitHub login need their own
 resolution. A local status result does not prove that a browser launched, an MCP
 service connected, a model can use its tools, or a remote action completed.
+For the four hosted services, status inspects local configuration only; it does
+not authenticate with the service or perform a paid availability probe.
 
 Removal deletes only matching engine-managed MCP configuration and its generated
 workspace instructions. It preserves entries changed independently, existing
 browser profiles, GitHub credentials and accounts. To revoke access, also sign
 out through the relevant CLI or remove the application's authorization on the
-service itself. Inspect any partial external actions before resuming a task.
+service itself. API credential files and externally installed optional packages
+are preserved. Inspect any partial external actions before resuming a task.

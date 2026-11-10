@@ -6,7 +6,7 @@ code change and a separate review. Use private artifacts, not the public source 
 
 ## Before you start
 
-- Run version 0.10.0 with Node 26.13.0 or newer 26.x LTS and the protocol-tested Codex CLI 0.166.0, signed in
+- Run version 0.11.0 with Node 26.13.0 or newer 26.x LTS and the protocol-tested Codex CLI 0.166.0, signed in
   as the service user using the engine's private `CODEX_HOME`. See the
   [quick start](../README.md#quick-start) and [runner setup](runners.md).
 - Use the configured owner's thread in the private forum. It must be Codex-bound;

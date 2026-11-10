@@ -6,6 +6,8 @@ import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { catalog, playbook } from "./integrations/catalog.mjs";
+import { remoteServices, buildServiceEntry } from "./integrations/services.mjs";
+import { preparePlaywright } from "./integrations/playwright.mjs";
 import {
   inside,
   privateDirectory,
@@ -27,9 +29,13 @@ const managedMarker = "<!-- Managed by Szpont integrations CLI.";
 const help = `Usage: npm run integrations -- [command] [integration] [options]
 No command: interactive integration menu (TTY required).
 Commands: list, add <id>, status [id], login github, remove <id>
-Integrations: github, camoufox, openai-docs, context7, custom
+Integrations: github, camoufox, playwright, perplexity, firecrawl, tinyfish, posthog, openai-docs, context7, custom
 Options: --runner codex|claude|opencode, --yes, --login (GitHub), --json (list/status), --spec /private/server.json
-Camoufox: --python /absolute/python --browser-bin /absolute/camoufox-bin --display :99
+Browser: --browser-bin /absolute/browser (optional for Playwright; required for Camoufox)
+Camoufox: --python /absolute/python --display :99
+Remote services: --auth oauth|api-key|keyless (service-dependent), --credential-file /private/credentials/service.key
+A credential-file implies api-key authentication. No secret values are accepted as arguments.
+Playwright and API-key bridge dependencies require their documented optional npm ci step.
 Load the same private deployment environment as the engine and stop it before changes.
 --runner chooses which runner's tools to configure; it does not switch existing Discord threads or the service default.
 Configuration checks do not contact MCP servers or invoke a model. GitHub status checks authentication.
@@ -343,6 +349,32 @@ async function executable(path) {
 async function serverFor(ctx, id, options, ask) {
   const item = catalog.find((c) => c.id === id);
   if (!item) throw new Error("Unknown integration. Run integrations list.");
+  if (id === "playwright")
+    return preparePlaywright({
+      config: ctx.config,
+      publicRoot: ctx.publicRoot,
+      browserBin: options["browser-bin"],
+    });
+  if (Object.hasOwn(remoteServices, id)) {
+    const modes = remoteServices[id].authModes;
+    let auth =
+      options.auth ?? (options["credential-file"] ? "api-key" : undefined);
+    if (!auth && ask) {
+      const selected = await ask(
+        `Authentication (${modes.join(" / ")}; Enter uses oauth): `,
+      );
+      auth = selected || "oauth";
+    }
+    auth ??= "oauth";
+    const credentialFile =
+      options["credential-file"] ??
+      (auth === "api-key" && ask
+        ? await ask(
+            "Absolute private credential file path (never paste a token): ",
+          )
+        : undefined);
+    return buildServiceEntry(ctx, id, { auth, credentialFile });
+  }
   if (item.server) return { name: item.nameInConfig, server: item.server };
   if (id === "custom") {
     const input =
@@ -444,9 +476,15 @@ export async function runIntegrations(
     if (["--yes", "--json", "--login", "--help"].includes(value))
       options[value.slice(2)] = true;
     else if (
-      ["--runner", "--python", "--browser-bin", "--display", "--spec"].includes(
-        value,
-      )
+      [
+        "--runner",
+        "--python",
+        "--browser-bin",
+        "--display",
+        "--spec",
+        "--auth",
+        "--credential-file",
+      ].includes(value)
     ) {
       if (!args[i + 1] || args[i + 1].startsWith("--"))
         throw new Error(`Missing value for ${value}.`);
@@ -530,6 +568,14 @@ export async function runIntegrations(
     }
     if (id && !catalog.some((c) => c.id === id))
       throw new Error("Unknown integration. Use list.");
+    if (
+      (options.auth !== undefined ||
+        options["credential-file"] !== undefined) &&
+      (action !== "add" || !Object.hasOwn(remoteServices, id ?? ""))
+    )
+      throw new Error(
+        "Authentication options apply only to add perplexity, firecrawl, tinyfish or posthog.",
+      );
     if (["add", "remove", "login"].includes(action) && !id)
       throw new Error("Choose an integration ID. Use list.");
     if (

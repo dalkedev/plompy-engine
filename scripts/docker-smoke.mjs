@@ -42,7 +42,11 @@ assert.equal(
   process.versions.sqlite,
   "actual SQLite must match the linked runtime metadata",
 );
-assert.match(linkedSqlite, /^\d+\.\d+\.\d+$/, "SQLite must report a complete version");
+assert.match(
+  linkedSqlite,
+  /^\d+\.\d+\.\d+$/,
+  "SQLite must report a complete version",
+);
 const [sqliteMajor, sqliteMinor] = linkedSqlite.split(".").map(Number);
 assert.ok(
   sqliteMajor > 3 || (sqliteMajor === 3 && sqliteMinor >= 54),
@@ -57,7 +61,11 @@ assert.match(
   /libatomic\.so\.1\s+=>\s+\//,
   "the official Linux Node binary must resolve libatomic1",
 );
-assert.doesNotMatch(libraries, /not found/, "every Node shared library must resolve");
+assert.doesNotMatch(
+  libraries,
+  /not found/,
+  "every Node shared library must resolve",
+);
 assert.equal(process.env.HOME, "/tmp/szpont-home");
 assert.equal((await stat(process.env.HOME)).mode & 0o777, 0o700);
 const npmCache = execFileSync("npm", ["config", "get", "cache"], {
@@ -210,7 +218,7 @@ const configure = (args) =>
     { encoding: "utf8", timeout: 20_000 },
   );
 const integrations = JSON.parse(configure(["list", "--json"]));
-assert.equal(integrations.length, 5);
+assert.equal(integrations.length, 10);
 assert.match(configure(["add", "openai-docs", "--yes"]), /Configured/);
 const configured = JSON.parse(configure(["status", "openai-docs", "--json"]));
 assert.equal(configured.integrations[0].status, "configured");
@@ -219,6 +227,39 @@ assert.equal(
   JSON.parse(configure(["status", "--json"])).integrations.length,
   0,
 );
+// Every hosted OAuth entry must remain configuration-only with networking off.
+for (const id of ["perplexity", "firecrawl", "tinyfish", "posthog"]) {
+  assert.match(configure(["add", id, "--yes"]), /Configured/);
+  assert.equal(
+    JSON.parse(configure(["status", id, "--json"])).integrations[0].status,
+    "configured",
+  );
+  assert.match(configure(["remove", id, "--yes"]), /removed/);
+}
+// Test API-key registration with a synthetic token, never a real account request.
+const credentials = await mkdtemp("/tmp/szpont-smoke-credentials-");
+try {
+  const file = join(credentials, "synthetic.token");
+  await writeFile(file, "synthetic-mcp-token-not-a-real-credential", {
+    mode: 0o600,
+  });
+  assert.match(
+    configure(["add", "posthog", "--credential-file", file, "--yes"]),
+    /Configured/,
+  );
+  assert.equal(
+    JSON.parse(configure(["status", "posthog", "--json"])).integrations[0]
+      .status,
+    "configured",
+  );
+  assert.doesNotMatch(
+    await readFile(join(process.env.CODEX_HOME, "config.toml"), "utf8"),
+    /synthetic-mcp-token/,
+  );
+  assert.match(configure(["remove", "posthog", "--yes"]), /removed/);
+} finally {
+  await rm(credentials, { recursive: true, force: true });
+}
 await assert.rejects(access(join(process.env.GH_CONFIG_DIR, "hosts.yml")), {
   code: "ENOENT",
 });

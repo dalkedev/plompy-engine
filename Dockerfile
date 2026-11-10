@@ -14,8 +14,13 @@ RUN npm run build \
     && node --input-type=module -e 'import { assertSupportedRuntime } from "./dist/node-runtime.js"; assertSupportedRuntime();' \
     && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
+FROM build AS mcp-tools
+WORKDIR /tools
+COPY packages/mcp-bridge/package.json packages/mcp-bridge/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
 FROM node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS runtime
-ARG VERSION=0.10.0
+ARG VERSION=0.11.0
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Szpont Engine" \
       org.opencontainers.image.description="Self-hosted Discord agent engine with durable jobs and private Markdown memory" \
@@ -49,6 +54,12 @@ COPY apps/discord-agent/schemas ./apps/discord-agent/schemas
 COPY --from=build /build/node_modules ./apps/discord-agent/node_modules
 COPY scripts/init-workspace.mjs scripts/docker-smoke.mjs scripts/docker-sandbox-check.mjs scripts/state-snapshot.mjs scripts/integrations.mjs scripts/setup.mjs scripts/doctor.mjs scripts/acceptance.mjs scripts/installation-smoke.mjs ./scripts/
 COPY scripts/integrations ./scripts/integrations
+COPY --from=mcp-tools /tools/node_modules ./packages/mcp-bridge/node_modules
+COPY packages/mcp-bridge/package.json packages/mcp-bridge/bridge.mjs ./packages/mcp-bridge/
+COPY packages/mcp-bridge/src ./packages/mcp-bridge/src
+# Optional browser source is present; its browser and dependencies are not bundled.
+COPY packages/playwright/package.json packages/playwright/launch.mjs packages/playwright/runtime.mjs ./packages/playwright/
+
 COPY --chmod=0755 scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 COPY examples/workspace ./examples/workspace
 COPY examples/acceptance ./examples/acceptance

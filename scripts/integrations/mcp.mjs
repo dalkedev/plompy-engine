@@ -14,6 +14,7 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isManagedReadonlyUrl } from "../../packages/mcp-bridge/src/services.mjs";
 
 const defaultExecute = promisify(execFile);
 const sourceRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -138,7 +139,7 @@ async function normalizedServer(server, config) {
       url.protocol !== "https:" ||
       url.username ||
       url.password ||
-      url.search ||
+      (url.search && !isManagedReadonlyUrl(server.url)) ||
       url.hash
     )
       throw new Error(

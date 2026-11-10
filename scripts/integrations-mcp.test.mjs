@@ -15,6 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inspectMcp, registerMcp, unregisterMcp } from "./integrations/mcp.mjs";
+import { bridgeEntry } from "./integrations/services.mjs";
 
 const secret = "SYNTHETIC-SECRET-MUST-NOT-APPEAR";
 const remote = { url: "https://docs.example.test/mcp" };
@@ -613,4 +614,89 @@ test("unsafe provider/server names and browser paths inside public source are re
     }),
     /public source/,
   );
+});
+
+for (const provider of ["codex", "claude", "opencode"]) {
+  test(`${provider}: the fixed PostHog readonly OAuth URL remains native and configuration-only`, async (t) => {
+    const f = await fixture(t, provider);
+    const fake = codexFake();
+    const options = {
+      ...f.options,
+      server: { url: "https://mcp.posthog.com/mcp?readonly=true" },
+      ...(provider === "codex" ? { execute: fake.execute } : {}),
+    };
+    assert.equal((await registerMcp(options)).status, "configured");
+    assert.equal((await inspectMcp(options)).status, "configured");
+    if (provider === "codex")
+      assert.equal(
+        fake.calls.some((call) => call.args.includes("--url")),
+        false,
+      );
+    else
+      assert.equal(
+        JSON.parse(await readFile(f.path, "utf8"))[
+          provider === "claude" ? "mcpServers" : "mcp"
+        ].szpont_docs.url,
+        options.server.url,
+      );
+  });
+
+  test(`${provider}: API-key bridge configuration persists file references without key/header environment`, async (t) => {
+    const f = await fixture(t, provider),
+      fake = codexFake();
+    const credentialFile = join(
+      f.privateRoot,
+      "separate-credentials",
+      "token.txt",
+    );
+    const server = {
+      command: process.execPath,
+      args: [bridgeEntry, "perplexity", credentialFile],
+    };
+    const options = {
+      ...f.options,
+      server,
+      ...(provider === "codex" ? { execute: fake.execute } : {}),
+    };
+    assert.equal((await registerMcp(options)).status, "configured");
+    assert.equal((await inspectMcp(options)).status, "configured");
+    const serialized =
+      provider === "codex"
+        ? JSON.stringify(fake.get())
+        : await readFile(f.path, "utf8");
+    assert.equal(serialized.includes(secret), false);
+    assert.equal(serialized.includes(credentialFile), true);
+    assert.equal(serialized.includes("Authorization"), false);
+    if (provider === "codex")
+      assert.equal(
+        fake.calls.some((call) => call.args.includes("--env")),
+        false,
+      );
+    assert.equal((await unregisterMcp(options)).status, "removed");
+    assert.equal((await inspectMcp(options)).status, "missing");
+  });
+}
+
+test("readonly exception cannot admit arbitrary custom queries, encodings, credentials or extra headers", async (t) => {
+  const f = await fixture(t);
+  for (const url of [
+    "https://mcp.posthog.com/mcp?readonly=false",
+    "https://mcp.posthog.com/mcp?readonly=true&token=" + secret,
+    "https://mcp.posthog.com/mcp?%72eadonly=true",
+    "https://mcp.posthog.com/mcp?readonly=TRUE",
+    "https://other.example/mcp?readonly=true",
+    "https://mcp.posthog.com/mcp?readonly=true#fragment",
+  ]) {
+    await assert.rejects(registerMcp({ ...f.options, server: { url } }));
+  }
+  await assert.rejects(
+    registerMcp({
+      ...f.options,
+      server: {
+        url: "https://mcp.posthog.com/mcp?readonly=true",
+        headers: { Authorization: secret },
+      },
+    }),
+  );
+  assert.deepEqual(await readdir(f.privateRoot), ["codex"]);
 });
