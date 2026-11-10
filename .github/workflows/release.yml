@@ -56,6 +56,12 @@ jobs:
         run: |
           npm --prefix apps/discord-agent ci --ignore-scripts --no-audit --no-fund
           npm test
+      - name: Keep the pinned Node executable outside the writable hosted tool cache
+        run: |
+          sudo install -d -m 0755 -o root -g root /opt/szpont-ci-node
+          sudo install -m 0755 -o root -g root "$(command -v node)" /opt/szpont-ci-node/node
+          cmp "$(command -v node)" /opt/szpont-ci-node/node
+          printf '/opt/szpont-ci-node\n' >> "$GITHUB_PATH"
       - name: Verify locked provider-tool packages offline
         run: |
           npm ci --prefix packages/mcp-bridge --ignore-scripts --no-audit --no-fund
