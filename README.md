@@ -11,7 +11,7 @@ Private Markdown context that survives the conversation.
 
 [![Offline checks](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml/badge.svg)](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml)
 [![Release](https://img.shields.io/github/v/release/dalkedev/szpont-engine?color=FF6B35&labelColor=111315)](https://github.com/dalkedev/szpont-engine/releases)
-[![Node.js 24](https://img.shields.io/badge/Node.js-24-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
+[![Node.js 26](https://img.shields.io/badge/Node.js-26-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
 [![MIT license](https://img.shields.io/badge/license-MIT-FF6B35?labelColor=111315)](LICENSE)
 
 [Quick start](#quick-start) · [Supervised goals](#from-a-task-to-a-reviewed-change) · [See it work](#see-it-work) · [Runners](#choose-a-runner) · [Documentation](docs/index.md)
@@ -41,14 +41,14 @@ There is no built-in scheduler, publication broker or message-history catch-up a
 
 ## Quick start
 
-You need Linux, **Node.js 24.x**, Git, `flock`, your own Discord bot and an authenticated runner.
+You need Linux, **Node.js 26.13.0+ (26.x LTS)**, Git, `flock`, your own Discord bot and an authenticated runner.
 The default path below uses Codex CLI **0.166.0**.
 For containers, start with the [Docker guide](docs/docker.md).
 
 ### 1. Install and try the offline demo
 
 ```sh
-git clone --branch v0.9.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
+git clone --branch v0.10.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
 cd szpont-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -303,7 +303,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.9.0 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
+Version **0.10.0 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
 evidence. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.

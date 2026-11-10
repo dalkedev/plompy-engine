@@ -12,6 +12,7 @@ import {
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { Store, SCHEMA_VERSION } from "../apps/discord-agent/dist/store.js";
 import {
   imageDigest,
@@ -22,7 +23,41 @@ import { validateWorkOutcome } from "../apps/discord-agent/dist/workflow.js";
 import { snapshotState } from "./state-snapshot.mjs";
 
 assert.notEqual(process.getuid(), 0, "runtime must be non-root");
-assert.match(process.version, /^v24\./, "runtime must use Node 24");
+assert.equal(
+  process.version,
+  "v26.13.0",
+  "runtime must use the pinned Node 26 LTS image",
+);
+const runtimeDatabase = new DatabaseSync(":memory:");
+let linkedSqlite;
+try {
+  linkedSqlite = runtimeDatabase
+    .prepare("SELECT sqlite_version() AS version")
+    .get().version;
+} finally {
+  runtimeDatabase.close();
+}
+assert.equal(
+  linkedSqlite,
+  process.versions.sqlite,
+  "actual SQLite must match the linked runtime metadata",
+);
+assert.match(linkedSqlite, /^\d+\.\d+\.\d+$/, "SQLite must report a complete version");
+const [sqliteMajor, sqliteMinor] = linkedSqlite.split(".").map(Number);
+assert.ok(
+  sqliteMajor > 3 || (sqliteMajor === 3 && sqliteMinor >= 54),
+  "linked SQLite must be at least 3.54.0",
+);
+const libraries = execFileSync("ldd", [process.execPath], {
+  encoding: "utf8",
+  timeout: 10_000,
+});
+assert.match(
+  libraries,
+  /libatomic\.so\.1\s+=>\s+\//,
+  "the official Linux Node binary must resolve libatomic1",
+);
+assert.doesNotMatch(libraries, /not found/, "every Node shared library must resolve");
 assert.equal(process.env.HOME, "/tmp/szpont-home");
 assert.equal((await stat(process.env.HOME)).mode & 0o777, 0o700);
 const npmCache = execFileSync("npm", ["config", "get", "cache"], {

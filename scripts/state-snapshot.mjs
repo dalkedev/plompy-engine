@@ -16,7 +16,9 @@ import { fileURLToPath } from "node:url";
 
 // This tool deliberately does not import the engine, its configuration or any secrets.
 export const MAX_SCHEMA_VERSION = 6;
-const publicRoot = await realpath(fileURLToPath(new URL("../", import.meta.url)));
+const publicRoot = await realpath(
+  fileURLToPath(new URL("../", import.meta.url)),
+);
 const usage =
   "Usage: node scripts/state-snapshot.mjs backup|restore --source /private/input.sqlite --destination /private/new.sqlite";
 const withinPublic = (path) =>
@@ -59,11 +61,7 @@ async function validateSourceSidecars(path) {
       if (error.code === "ENOENT") continue;
       fail("path_check_failed");
     }
-    if (
-      !info.isFile() ||
-      info.nlink !== 1 ||
-      info.uid !== process.getuid?.()
-    )
+    if (!info.isFile() || info.nlink !== 1 || info.uid !== process.getuid?.())
       fail("source_sidecar_must_be_owned_regular_file");
   }
 }
@@ -99,8 +97,14 @@ async function digest(path) {
 
 /** Create a consistent verified database at a new private path; never replace a file. */
 export async function snapshotState({ operation, source, destination }) {
-  if (Number(process.versions.node.split(".")[0]) !== 24)
-    fail("node_24_required");
+  try {
+    const { assertSupportedRuntime } = await import(
+      "../apps/discord-agent/dist/node-runtime.js"
+    );
+    assertSupportedRuntime();
+  } catch {
+    fail("supported_runtime_required");
+  }
   if (!["backup", "restore"].includes(operation)) fail("invalid_operation");
   if (
     typeof source !== "string" ||
@@ -146,7 +150,9 @@ export async function snapshotState({ operation, source, destination }) {
     const reservation = await open(staged, "wx", 0o600);
     await reservation.close();
     db = new DatabaseSync(canonicalSource, { readOnly: true });
-    db.exec("PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA busy_timeout=5000");
+    db.exec(
+      "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA busy_timeout=5000",
+    );
     if (!sameFile(sourceInfo, await lstat(canonicalSource)))
       fail("source_changed_during_open");
     inspect(db);
@@ -204,7 +210,8 @@ export function parseSnapshotArguments(args) {
   const options = { operation };
   for (let index = 0; index < rest.length; index += 2) {
     const name = rest[index];
-    if (!["--source", "--destination"].includes(name)) fail("invalid_arguments");
+    if (!["--source", "--destination"].includes(name))
+      fail("invalid_arguments");
     const key = name.slice(2);
     if (options[key] !== undefined) fail("invalid_arguments");
     options[key] = rest[index + 1];
@@ -212,7 +219,10 @@ export function parseSnapshotArguments(args) {
   return options;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   try {
     const options = parseSnapshotArguments(process.argv.slice(2));
     console.log(options ? JSON.stringify(await snapshotState(options)) : usage);

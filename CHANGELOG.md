@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0 — 2026-11-10
+
+- Require official Node 26 LTS, at least 26.13.0, and SQLite 3.54.0 or newer. Migrate the pinned container, CI, host instructions and developer version files together. Node 24 is no longer supported by this release.
+- Verify the linked SQLite version from runtime metadata and a fresh in-memory SQL query before opening state. Reject unsupported or inconsistent runtimes during startup, setup, diagnostics and snapshots.
+- Address CVE-2026-119375 by using the patched SQLite embedded in the supported Node runtime; preserve the historical finding for older releases. No npm SQLite-driver replacement, custom Node build or database migration is involved.
+- Retain public SQLite schema 6, runner bindings, saved sessions and explicit recovery semantics. Take a coordinated private backup before changing the runtime or service release.
+
 ## 0.9.0 — 2026-11-10
 
 - Add guided private setup for Codex and the experimental host adapters, hidden token input, explicit token-file/stdin automation and shell-quoted mode-0600 configuration. Preserve existing resources and failed/concurrent workspaces of uncertain ownership.

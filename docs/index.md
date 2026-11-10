@@ -58,3 +58,6 @@ a separate local Git history and does not configure a public remote.
 
 The [0.9 installation validation record](validation-0.9.md) separates automated,
 host, Discord transport and model/soak results.
+
+The [Node 26 runtime record](runtime-known-findings.md) explains the 0.10.0
+minimum version, linked SQLite checks and remediation of the older runtime finding.

@@ -29,10 +29,14 @@ Keep every provider's credentials, session history and configuration private.
 Changing the default does not migrate existing conversations or credentials.
 Provider failures never invoke an automatic fallback.
 
-## Known runtime findings
+## SQLite runtime requirement
 
-Node 24.22.2 embeds SQLite 3.53.4, which is affected by CVE-2026-119375. No
-newer official Node 24 release was available when checked on 2026-11-09. Read the
-[runtime finding](docs/runtime-known-findings.md) before opening or restoring state
-from outside your trusted deployment. This remains an open runtime dependency
-finding; version 0.8.1's queue-capacity fix does not remediate it.
+Version 0.10.0 requires official Node 26 LTS (at least 26.13.0) with embedded
+SQLite 3.54.0 or newer. Runtime checks compare metadata with an in-memory SQLite
+query before opening state; an unsupported or inconsistent runtime is rejected.
+This replaces the affected Node 24 runtime shipped by 0.9.x and earlier.
+
+[CVE-2026-119375](docs/runtime-known-findings.md) concerns opening a less-trusted
+SQLite database and crafted sibling WAL. Older releases remain affected. An npm
+install or OS sqlite3 update does not replace Node's embedded SQLite. Keep state
+and backups private and accept only trusted provenance even with a patched runtime.

@@ -5,7 +5,9 @@ import { cleanupStaleImages } from "./images.js";
 import { Store } from "./store.js";
 import { Engine } from "./engine.js";
 import { DiscordTransport } from "./discord.js";
+import { assertSupportedRuntime } from "./node-runtime.js";
 async function main(): Promise<void> {
+  assertSupportedRuntime();
   const config = loadConfig();
   // The token remains only in the transport's memory and never enters child envs.
   delete process.env.DISCORD_BOT_TOKEN;

@@ -1,6 +1,10 @@
 # State backups and restore
 
-Use the standalone Node 24 tool to create a consistent SQLite snapshot, including
+Build the release first (`npm run build`); the standalone tool imports only the
+compiled runtime policy, not engine configuration, accounts or credentials. Use
+Node 26.13.0 or newer within the supported 26.x LTS line.
+
+Use the standalone Node 26 snapshot tool to create a consistent SQLite snapshot, including
 committed WAL pages. It opens the source read-only, verifies database integrity and
 foreign keys, and publishes a complete standalone database at a **new** path. No bot
 token, engine configuration, Discord connection or model call is needed.
@@ -13,7 +17,7 @@ code evidence.
 
 ## Create a snapshot
 
-Run as the dedicated service account, using its Node 24 runtime. Provision the source
+Run as the dedicated service account, using its Node 26.13.0 or newer 26.x LTS runtime. Provision the source
 and destination directories outside the public checkout, owned by that account with
 mode `0700`. The destination parent must already exist; the tool does not change
 permissions on existing directories. For example, with an already owned `/srv/szpont`:
@@ -44,7 +48,7 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
 ## Restore into a new state directory
 
 1. Stop the service and keep its instance lock held. Retain the current state folder;
-   restoration never overwrites it. Use the same service account and Node 24 runtime.
+   restoration never overwrites it. Use the same service account and Node 26.13.0 or newer 26.x LTS runtime.
 2. Create a fresh owned private directory and restore into a new file:
 
    ```sh
@@ -98,7 +102,6 @@ sessions are preserved. Schema-4 snapshots include all attachment bytes, includi
 images retained by manual recovery. The 0.4.0 engine rejects schema 4; rolling back
 requires its compatible pre-upgrade snapshot and reconciliation of later accepted
 work. Do not delete the image table or lower the schema version to force a downgrade.
-
 
 Version 0.4.0 adds immutable conversation-provider bindings and job-provider snapshots,
 and migrates public schemas 0, 1 and 2 to schema 3. Every legacy conversation and job
@@ -165,7 +168,6 @@ default. The snapshot tool preserves provider columns, immutable bindings and
 provider-specific session IDs. It does not start or replay jobs. The 0.3.x
 engines reject this state; restore a compatible pre-upgrade snapshot before
 rolling back and reconcile any later actions separately.
-
 
 ## Image attachments (schema 4)
 

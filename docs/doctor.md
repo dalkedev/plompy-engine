@@ -16,8 +16,8 @@ paste its contents or account credentials into bug reports.
 The default inspection runs locally. It reads directory metadata, asks Git about the
 configured workspace, and runs the selected runner executable with `--version`. It does
 not start the engine, connect to Discord, submit an inference request, inspect conversations,
-open SQLite, initialize a workspace, create directories, repair permissions, or check login.
-The diagnostic itself performs no write probe. Runner version/login probes can create
+open a filesystem SQLite database, initialize a workspace, create directories, repair permissions, or check login.
+The diagnostic itself performs no filesystem write probe. It opens and closes only an in-memory SQLite database to verify the linked version. Runner version/login probes can create
 or update runner-owned temporary helper files; they do not promise an unchanged
 runner-home tree. Run only a runner executable you trust.
 
@@ -62,7 +62,8 @@ Every check has a stable identifier and one of `PASS`, `FAIL`, or `NOT_RUN`:
 
 | Identifier            | What it establishes                                                                                                                                                                                                                              |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `node_runtime`        | The current process uses Node 24.                                                                                                                                                                                                                |
+| `node_runtime`        | The current process uses stable Node 26.13.0 or newer within Node 26.                                                                                                                                                                            |
+| `sqlite_runtime`      | Required: runtime SQLite metadata and a fresh in-memory SQL query agree on SQLite 3.54.0 or newer. No filesystem database is opened by this check.                                                                                               |
 | `configuration`       | The compiled engine configuration loader accepts required values, identity formats, and timeout constraints. No account identity or token is verified remotely.                                                                                  |
 | `path_separation`     | Workspace, state, artifacts, selected runner home and browser directories use distinct absolute paths outside public source. Existing symlink aliases and overlapping ancestors are checked, including aliases leading to a missing destination. |
 | `private_directories` | Workspace, state, artifacts, selected runner home and browser directories already exist and are directories. The optional browser bridge need not be installed.                                                                                  |

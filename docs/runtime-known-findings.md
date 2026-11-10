@@ -1,73 +1,76 @@
 # Runtime security findings
 
-## CVE-2026-119375: Node 24's bundled SQLite
+## CVE-2026-119375: remediation in 0.10.0
 
-**Open as of 2026-11-09.** Follow remediation in
-[tracking issue #11](https://github.com/dalkedev/szpont-engine/issues/11). The latest
-official Node 24 release, 24.22.2, embeds
-SQLite 3.53.4. SQLite versions before 3.54.0 are affected by
-[CVE-2026-119375](https://rustsec.org/advisories/RUSTSEC-2026-0459.html): a database
-opened alongside a crafted WAL with a mismatched page size can disclose process
-memory through query results. The advisory describes a local file-opening attack.
-This assessment does not establish remote code execution or prove exploitability
-through a Szpont command.
+Version 0.10.0 moves to **official Node 26 LTS, at least 26.13.0 and below 27**.
+Node 26.13.0 embeds SQLite **3.54.0**, which contains the upstream fix for
+[CVE-2026-119375](https://rustsec.org/advisories/RUSTSEC-2026-0459.html).
+Node 24 is no longer supported by this release. This is a runtime requirement
+change, not an update to an npm SQLite driver or the host's `sqlite3` command.
 
-The engine uses Node's built-in `node:sqlite`, rather than a separately updatable
-npm SQLite driver. Reinstalling npm dependencies or updating the operating system's
-`sqlite3` command does not replace the copy embedded in the official Node binary.
-The [official release index](https://nodejs.org/dist/index.json) listed no newer
-Node 24 release at the time of this check. See the
-[Node 24.22.2 release and checksums](https://nodejs.org/en/blog/release/v24.22.2).
+The vulnerability concerns opening a database beside a crafted WAL whose page
+size is smaller than the database's. Ordinary queries can disclose uninitialized
+page-cache memory. The vector requires opening files a less-trusted party could
+supply; no Szpont remote exploit or standalone code-execution claim was established.
+The upstream fix zero-initializes the unread buffer tail. Do not describe it as
+rejecting every mismatched WAL.
 
-### What the engine opens
+### Runtime enforcement
 
-- Normal startup opens `agent.sqlite` inside `SZPONT_STATE_DIR`. The engine creates
-  and sets this state directory to mode `0700`. Use the dedicated service account
-  and restrictive umask described in [deployment](deployment.md).
-- Discord attachment intake accepts validated still PNG, JPEG and WebP images.
-  It does not install uploaded SQLite files as engine state. This is a description
-  of the engine's transport, not a restriction on arbitrary tasks an operator
-  authorizes a coding agent to perform.
-- The operator-only [snapshot tool](state-backups.md) accepts a raw SQLite source
-  path. It opens that source, including any existing sidecars, before inspecting
-  its schema and integrity. Both backup and restore therefore require trusted
-  input provenance. Do not open a database or sidecars supplied by an untrusted
-  party, including after copying them into an owned private directory.
+Startup and Store construction validate the Node version and linked SQLite before
+opening a filesystem database. Setup and the standalone snapshot tool use the same
+policy. The required doctor checks distinguish Node support from SQLite support.
+SQLite metadata must agree with a fresh in-memory `SELECT sqlite_version()` result;
+missing, inconsistent or older linked versions are refused. A Node-major check
+alone is not remediation evidence.
 
-Private ownership reduces who can replace state; it does not fix SQLite, establish
-file provenance, or isolate another process running as the same account or root.
-Read-only opening, `trusted_schema=OFF`, schema checks and integrity checks are
-not a fix for this memory-safety issue: they already invoke the SQLite parser.
-Keep backups and their directories private and use only snapshots from your own
-trusted deployment.
-
-### Verification and remediation gate
-
-Inspect the runtime actually used by the service, without opening any database:
+Use only official supported binaries. A custom runtime can misrepresent its own
+metadata; these checks do not replace archive checksums or OCI identity checks.
+An undocumented vendor backport is not implicitly accepted by this version policy.
 
 ```sh
 node -p 'JSON.stringify({node:process.versions.node,sqlite:process.versions.sqlite})'
+npm run doctor
 ```
 
-A checksum-verified official macOS arm64 Node 24.22.2 binary was extracted and run
-in an isolated directory. Both `process.versions.sqlite` and an in-memory
-`SELECT sqlite_version()` returned `3.53.4`.
+The image pins both stages to
+`node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68`.
+Release validation checks the actual linked SQLite on native amd64 and arm64 images
+and promotes the tested OCI bytes without rebuilding. The package types, CI,
+installation instructions and local version files use the same Node 26 contract.
 
-The Dockerfile pins `node:24.22.2-bookworm-slim` to the immutable index digest
-`sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c`.
-A refreshed mutable tag or successful application CI does not demonstrate that
-its embedded SQLite is patched. No Docker runtime was executed during this check.
+### Upgrade and private state
 
-Keep this finding open until a supported official Node 24 release includes SQLite
-3.54.0 or newer, or the Node project documents a backport of this specific fix.
-Check the actual shipped binary on supported platforms and both Docker image
-architectures. Then update the immutable image pin, run the engine and snapshot
-regressions, and stage a backed-up deployment before switching it. Do not replace
-the runtime with an unreviewed major upgrade or a custom SQLite/Node rebuild.
+Public SQLite schema remains **6**. Back up state, workspace and enabled runner
+session storage together before upgrading. Stage the new binary as the dedicated
+service user, run the complete regression suite and WAL/snapshot/restore checks,
+then drain active work before switching the service. Keep a verified rollback
+binary and coordinated backup; do not rewrite schema metadata or replay uncertain
+jobs to make a downgrade work. See [deployment](deployment.md),
+[state backups](state-backups.md) and [releases](releases.md).
+
+The transport accepts validated still images, not raw databases as engine state.
+The operator snapshot tool does accept raw database paths and opens their sidecars.
+Continue accepting only your trusted state/backup provenance. File ownership does
+not establish where file contents came from.
+
+### Historical affected releases
+
+The Node 24.22.2 runtime shipped by 0.9.x and earlier embeds SQLite 3.53.4 and remains
+affected. On 2026-11-10 the official Node index still listed 24.22.2 as the latest
+Node 24 release; the actual embedded source did not contain this fix. Existing
+images and private installations do not acquire remediation from a new README or
+an npm install. They need a verified runtime and service upgrade.
+
+Checksum-verified official macOS arm64 and Linux x64 Node 26.13.0 binaries both
+reported SQLite 3.54.0 through runtime metadata and an in-memory SQL query during
+migration preparation. The previous Node 24 binary reported 3.53.4.
 
 Upstream references:
 
+- [Node 26.13.0 LTS release and checksums](https://nodejs.org/en/blog/release/v26.13.0)
+- [Official Node release index](https://nodejs.org/dist/index.json)
+- [Node 26.13.0 embedded SQLite header](https://github.com/nodejs/node/blob/v26.13.0/deps/sqlite/sqlite3.h)
 - [SQLite 3.54.0 release](https://sqlite.org/releaselog/3_54_0.html)
 - [SQLite fix](https://github.com/sqlite/sqlite/commit/e5bf119821f25be1d7f10ef0a2edbe175289166e)
-- [Node 24.22.2 embedded SQLite header](https://github.com/nodejs/node/blob/v24.22.2/deps/sqlite/sqlite3.h)
-- [Supported Node releases](https://nodejs.org/en/about/previous-releases)
+- [Tracking issue #11](https://github.com/dalkedev/szpont-engine/issues/11)

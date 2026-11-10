@@ -4,7 +4,7 @@ This image packages and verifies **Codex only**. `SZPONT_RUNNER` must be `codex`
 Claude Code and OpenCode are [experimental host adapters](runners.md) and require
 their own installation, auth storage and isolation acceptance.
 
-The engine image contains the compiled TypeScript service, Node 24.22.2, Codex CLI
+The engine image contains the compiled TypeScript service, Node 26.13.0, Codex CLI
 0.166.0, Git, GitHub CLI, ripgrep, `flock` and a small init process. It runs as UID/GID 1000,
 publishes no ports, and includes neither a browser nor authentication. Model access
 still requires your own supported Codex account and consumes that account's allowance.
@@ -22,7 +22,7 @@ and Discord IDs, then restrict the file to your account:
 ```sh
 chmod 600 /absolute/private/szpont.env
 export SZPONT_ENV_FILE=/absolute/private/szpont.env
-export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.9.0
+export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.10.0
 docker compose config --quiet
 docker compose pull
 docker compose run --rm engine init
