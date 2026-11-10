@@ -17,7 +17,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { formatReport, runDoctor } from "./doctor.mjs";
+import { createRequire } from "node:module";
+import { formatReport, runDoctor, runDiscordChecks } from "./doctor.mjs";
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -131,7 +132,9 @@ function assertPrivateOutput(result, data) {
 test("healthy offline inspection passes, omits login and leaves deployment bytes, modes and modification times unchanged", async (t) => {
   const data = await fixture(t);
   const before = await snapshot(data.temporary);
-  const result = await data.inspect();
+  const result = await data.inspect({
+    fetchImpl: () => assert.fail("Default doctor must remain offline"),
+  });
   assert.equal(result.ok, true);
   assert.deepEqual(
     result.checks.map(({ id, status }) => [id, status]),
@@ -144,6 +147,10 @@ test("healthy offline inspection passes, omits login and leaves deployment bytes
       ["workspace_git", "PASS"],
       ["codex_version", "PASS"],
       ["codex_login", "NOT_RUN"],
+      ["discord_bot_identity", "NOT_RUN"],
+      ["discord_guild_owner", "NOT_RUN"],
+      ["discord_private_forum", "NOT_RUN"],
+      ["discord_bot_permissions", "NOT_RUN"],
     ],
   );
   assert.deepEqual(await snapshot(data.temporary), before);
@@ -456,4 +463,509 @@ test("OpenCode diagnostics require explicit host execution and distinguish local
     /remote authorization and model access were not tested/,
   );
   assertPrivateOutput(ready, data);
+});
+
+const discordConfig = {
+  token: secret,
+  guildId: "111111111111111111",
+  ownerId: "222222222222222222",
+  botId: "333333333333333333",
+  parentId: "444444444444444444",
+};
+const botRole = "555555555555555555";
+const anotherRole = "666666666666666666";
+const view = 1n << 10n;
+const attach = 1n << 15n;
+const history = 1n << 16n;
+const threadReply = 1n << 38n;
+const requiredDiscordPermissions = view | attach | history | threadReply;
+const discordCheckIds = [
+  "discord_bot_identity",
+  "discord_guild_owner",
+  "discord_private_forum",
+  "discord_bot_permissions",
+];
+
+function discordFixture() {
+  const { botId, guildId, ownerId, parentId } = discordConfig;
+  const paths = [
+    "/users/@me",
+    `/guilds/${guildId}`,
+    `/channels/${parentId}`,
+    `/guilds/${guildId}/members/${botId}`,
+  ];
+  const payloads = [
+    { id: botId, bot: true },
+    {
+      id: guildId,
+      owner_id: ownerId,
+      roles: [
+        { id: guildId, permissions: String(requiredDiscordPermissions) },
+        { id: botRole, permissions: "0" },
+        { id: anotherRole, permissions: "0" },
+      ],
+    },
+    {
+      id: parentId,
+      type: 15,
+      guild_id: guildId,
+      permission_overwrites: [
+        { id: guildId, type: 0, allow: "0", deny: String(view) },
+        { id: botId, type: 1, allow: String(view), deny: "0" },
+      ],
+    },
+    { user: { id: botId }, roles: [botRole] },
+  ];
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    const index = calls.length;
+    calls.push({ url, options });
+    assert.equal(url, `https://discord.com/api/v10${paths[index]}`);
+    assert.equal(options.method, "GET");
+    assert.equal(options.redirect, "error");
+    assert.equal(options.headers.Authorization, `Bot ${secret}`);
+    assert.equal(options.headers.Accept, "application/json");
+    assert.ok(options.signal instanceof AbortSignal);
+    assert.equal(options.body, undefined);
+    return Response.json(payloads[index]);
+  };
+  return {
+    paths,
+    payloads,
+    calls,
+    fetchImpl,
+    inspect: (options = {}) =>
+      runDiscordChecks({
+        config: discordConfig,
+        enabled: true,
+        fetchImpl,
+        ...options,
+      }),
+  };
+}
+
+function assertDiscordPrivate(checks) {
+  for (const rendered of [JSON.stringify(checks), formatReport({ checks })]) {
+    for (const value of [
+      secret,
+      ...Object.values(discordConfig).filter((x) => x !== secret),
+      botRole,
+      anotherRole,
+      "https://discord.com",
+      "PRIVATE_DISCORD_BODY",
+    ])
+      assert.equal(
+        rendered.includes(value),
+        false,
+        "Discord diagnostics must stay sanitized",
+      );
+  }
+}
+
+test("Discord opt-in checks use only four fixed GET reads and do not modify deployment state", async (t) => {
+  const data = await fixture(t);
+  const network = discordFixture();
+  const before = await snapshot(data.temporary);
+  const result = await data.inspect({
+    checkDiscord: true,
+    fetchImpl: network.fetchImpl,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(network.calls.length, 4);
+  assert.deepEqual(
+    result.checks
+      .filter((c) => c.id.startsWith("discord_"))
+      .map(({ id, status, required }) => [id, status, required]),
+    discordCheckIds.map((id) => [id, "PASS", true]),
+  );
+  assert.equal(resultFor(result, "codex_login").status, "NOT_RUN");
+  assert.deepEqual(await snapshot(data.temporary), before);
+  assertDiscordPrivate(result.checks);
+  assertPrivateOutput(result, data);
+});
+
+test("Discord and login opt-ins can run together without changing their independent contracts", async (t) => {
+  const data = await fixture(t);
+  const network = discordFixture();
+  const result = await data.inspect({
+    checkDiscord: true,
+    checkLogin: true,
+    fetchImpl: network.fetchImpl,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(resultFor(result, "codex_login").status, "PASS");
+  assert.equal(await readFile(data.marker, "utf8"), "explicit login check");
+  assert.equal(network.calls.length, 4);
+  assertDiscordPrivate(result.checks);
+});
+
+test("invalid local configuration never sends the token to Discord", async (t) => {
+  const data = await fixture(t);
+  delete data.env.SZPONT_DISCORD_GUILD_ID;
+  const result = await data.inspect({
+    checkDiscord: true,
+    fetchImpl: () =>
+      assert.fail("invalid configuration must not make a request"),
+  });
+  assert.equal(result.ok, false);
+  for (const id of discordCheckIds) {
+    assert.equal(resultFor(result, id).status, "NOT_RUN");
+    assert.equal(resultFor(result, id).required, true);
+  }
+});
+
+test("explicit Discord reads remain separate from unrelated missing local directories", async (t) => {
+  const data = await fixture(t);
+  data.env.SZPONT_STATE_DIR = join(data.temporary, "absent-state");
+  const network = discordFixture();
+  const result = await data.inspect({
+    checkDiscord: true,
+    fetchImpl: network.fetchImpl,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(resultFor(result, "private_directories").status, "FAIL");
+  assert.equal(resultFor(result, "discord_bot_permissions").status, "PASS");
+  assert.equal(network.calls.length, 4);
+});
+
+test("wrong bot identity, non-bot tokens and guild owner mismatch stop dependent REST reads", async () => {
+  for (const [index, patch] of [
+    [0, { id: "999999999999999999" }],
+    [0, { bot: false }],
+    [1, { owner_id: "999999999999999999" }],
+    [1, { id: "999999999999999999" }],
+  ]) {
+    const data = discordFixture();
+    Object.assign(data.payloads[index], patch);
+    const checks = await data.inspect();
+    assert.equal(checks[index].status, "FAIL");
+    assert.ok(checks.slice(index + 1).every((c) => c.status === "NOT_RUN"));
+    assert.equal(data.calls.length, index + 1);
+    assertDiscordPrivate(checks);
+  }
+});
+
+test("startup privacy rejects wrong channel type or guild, public access and additional explicit readers", async () => {
+  const changes = [
+    (p) => (p[2].type = 0),
+    (p) => (p[2].guild_id = "999999999999999999"),
+    (p) => (p[2].id = "999999999999999999"),
+    (p) => (p[2].permission_overwrites[0].deny = "0"),
+    (p) => (p[2].permission_overwrites[0].allow = String(view)),
+    (p) => (p[1].roles[0].permissions = "8"), // Administrator bypasses a deny.
+    (p) =>
+      p[2].permission_overwrites.push({
+        id: anotherRole,
+        type: 0,
+        allow: String(view),
+        deny: "0",
+      }),
+    (p) =>
+      p[2].permission_overwrites.push({
+        id: "999999999999999999",
+        type: 1,
+        allow: String(view),
+        deny: String(view),
+      }),
+  ];
+  for (const change of changes) {
+    const data = discordFixture();
+    change(data.payloads);
+    const checks = await data.inspect();
+    assert.equal(checks[2].status, "FAIL");
+    assert.equal(checks[3].status, "NOT_RUN");
+    assert.equal(data.calls.length, 3);
+    assertDiscordPrivate(checks);
+  }
+});
+
+test("REST forum privacy matches the actual startup validator and installed Discord role-permission resolver", async () => {
+  const require = createRequire(
+    new URL("../apps/discord-agent/package.json", import.meta.url),
+  );
+  const {
+    Collection,
+    GuildChannel,
+    PermissionsBitField,
+  } = require("discord.js");
+  const { DiscordTransport } = await import(
+    "../apps/discord-agent/dist/discord.js"
+  );
+  const variations = [
+    () => {},
+    (p) => (p[1].roles[0].permissions = "8"),
+    (p) => (p[2].permission_overwrites[0].deny = "0"),
+    (p) => (p[2].permission_overwrites[0].allow = String(view)),
+    (p) => (p[2].permission_overwrites[1].allow = "0"),
+    (p) =>
+      p[2].permission_overwrites.push({
+        id: discordConfig.ownerId,
+        type: 1,
+        allow: String(view),
+        deny: "0",
+      }),
+    (p) =>
+      p[2].permission_overwrites.push({
+        id: anotherRole,
+        type: 0,
+        allow: String(view),
+        deny: "0",
+      }),
+    (p) =>
+      p[2].permission_overwrites.push({
+        id: anotherRole,
+        type: 0,
+        allow: "0",
+        deny: String(view),
+      }),
+  ];
+  for (const change of variations) {
+    const data = discordFixture();
+    change(data.payloads);
+    const guild = {
+      id: discordConfig.guildId,
+      ownerId: discordConfig.ownerId,
+      roles: {},
+    };
+    const everyone = {
+      id: guild.id,
+      guild,
+      permissions: new PermissionsBitField(
+        data.payloads[1].roles[0].permissions,
+      ),
+    };
+    guild.roles.everyone = everyone;
+    const forum = {
+      type: data.payloads[2].type,
+      guildId: data.payloads[2].guild_id,
+      guild,
+      permissionOverwrites: {
+        cache: new Collection(
+          data.payloads[2].permission_overwrites.map((o) => [
+            o.id,
+            {
+              ...o,
+              allow: new PermissionsBitField(o.allow),
+              deny: new PermissionsBitField(o.deny),
+            },
+          ]),
+        ),
+      },
+      permissionsFor(role) {
+        return GuildChannel.prototype.rolePermissions.call(this, role, true);
+      },
+    };
+    let startupPassed = true;
+    try {
+      await DiscordTransport.prototype.validate.call({
+        config: discordConfig,
+        client: {
+          user: { id: discordConfig.botId },
+          guilds: { fetch: async () => guild },
+          channels: { fetch: async () => forum },
+        },
+      });
+    } catch {
+      startupPassed = false;
+    }
+    const checks = await data.inspect();
+    assert.equal(checks[2].status === "PASS", startupPassed);
+  }
+});
+
+test("each required bot permission is checked with BigInt including the thread bit above 32 bits", async () => {
+  for (const permission of [view, attach, history, threadReply]) {
+    const data = discordFixture();
+    data.payloads[1].roles[0].permissions = String(
+      requiredDiscordPermissions & ~permission,
+    );
+    if (permission === view)
+      data.payloads[2].permission_overwrites[1].allow = "0";
+    const checks = await data.inspect();
+    assert.equal(checks[2].status, "PASS");
+    assert.equal(checks[3].status, "FAIL");
+    assert.equal(data.calls.length, 4);
+  }
+});
+
+test("effective bot permissions follow everyone, aggregated role, member and administrator precedence", async () => {
+  for (const memberDeny of [false, true]) {
+    const data = discordFixture();
+    data.payloads[1].roles[0].permissions = String(
+      requiredDiscordPermissions & ~attach,
+    );
+    data.payloads[2].permission_overwrites.push(
+      { id: botRole, type: 0, allow: "0", deny: String(attach) },
+      { id: anotherRole, type: 0, allow: String(attach), deny: "0" },
+    );
+    data.payloads[3].roles.push(anotherRole);
+    if (memberDeny)
+      data.payloads[2].permission_overwrites[1].deny = String(attach);
+    const checks = await data.inspect();
+    assert.equal(checks[3].status, memberDeny ? "FAIL" : "PASS");
+  }
+  const admin = discordFixture();
+  admin.payloads[1].roles[0].permissions = "0";
+  admin.payloads[1].roles[1].permissions = "8";
+  assert.equal((await admin.inspect())[3].status, "PASS");
+});
+
+test("malformed permission/member objects fail closed without exposing returned values", async () => {
+  for (const change of [
+    (p) => (p[1].roles = null),
+    (p) => (p[1].roles[0].permissions = -1),
+    (p) => (p[1].roles[0].permissions = "9".repeat(33)),
+    (p) => (p[2].permission_overwrites[0].deny = "PRIVATE_DISCORD_BODY"),
+    (p) => (p[2].permission_overwrites[0].type = 2),
+    (p) => p[2].permission_overwrites.push(p[2].permission_overwrites[0]),
+    (p) => (p[3].roles = ["999999999999999999"]),
+    (p) => (p[3].user.id = "999999999999999999"),
+  ]) {
+    const data = discordFixture();
+    change(data.payloads);
+    const checks = await data.inspect();
+    assert.ok(checks.some((c) => c.status === "FAIL"));
+    assertDiscordPrivate(checks);
+  }
+});
+
+test("authorization, missing resources, rate limits and server failures never read error bodies or retry", async () => {
+  for (const status of [301, 401, 403, 404, 429, 500, 503]) {
+    let calls = 0,
+      cancelled = false;
+    const checks = await runDiscordChecks({
+      config: discordConfig,
+      enabled: true,
+      fetchImpl: async () => {
+        calls++;
+        return {
+          status,
+          body: {
+            cancel: async () => {
+              cancelled = true;
+            },
+            getReader: () =>
+              assert.fail("error response body must not be read"),
+          },
+        };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(cancelled, true);
+    assert.equal(checks[0].status, "FAIL");
+    assert.ok(checks.slice(1).every((c) => c.status === "NOT_RUN"));
+    assertDiscordPrivate(checks);
+  }
+});
+
+test("raw transport errors and malformed UTF-8/JSON stay private", async () => {
+  for (const fetchImpl of [
+    async () => {
+      throw new Error(
+        `${secret} https://discord.com PRIVATE_DISCORD_BODY ${discordConfig.botId}`,
+      );
+    },
+    async () => new Response(`PRIVATE_DISCORD_BODY ${secret}`),
+    async () => new Response(new Uint8Array([0xff])),
+    async () => Response.json(null),
+  ]) {
+    const checks = await runDiscordChecks({
+      config: discordConfig,
+      enabled: true,
+      fetchImpl,
+    });
+    assert.equal(checks[0].status, "FAIL");
+    assertDiscordPrivate(checks);
+  }
+});
+
+test("response byte limits reject both declared and streamed overflow before interpreting private bodies", async () => {
+  for (const declared of [false, true]) {
+    let pulls = 0,
+      cancelled = false;
+    const body = new ReadableStream({
+      pull(controller) {
+        pulls++;
+        controller.enqueue(new Uint8Array(600_000).fill(65));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const checks = await runDiscordChecks({
+      config: discordConfig,
+      enabled: true,
+      fetchImpl: async () =>
+        new Response(
+          body,
+          declared
+            ? {
+                headers: { "content-length": "1048577" },
+              }
+            : undefined,
+        ),
+    });
+    assert.equal(checks[0].status, "FAIL");
+    assert.equal(cancelled, true);
+    assert.ok(pulls <= 3, "overflow must stop retaining or reading chunks");
+    assertDiscordPrivate(checks);
+  }
+});
+
+test("timeouts bound an unresponsive fetch and an unresponsive response body without retrying", async () => {
+  for (const stalledBody of [false, true]) {
+    let calls = 0,
+      aborted = false,
+      cancelled = false;
+    const checks = await runDiscordChecks({
+      config: discordConfig,
+      enabled: true,
+      requestTimeoutMs: 10,
+      fetchImpl: async (_url, { signal }) => {
+        calls++;
+        signal.addEventListener("abort", () => {
+          aborted = true;
+        });
+        if (!stalledBody) return new Promise(() => {});
+        return new Response(
+          new ReadableStream({
+            cancel() {
+              cancelled = true;
+            },
+          }),
+        );
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(aborted, true);
+    assert.equal(checks[0].status, "FAIL");
+    if (stalledBody) assert.equal(cancelled, true);
+    assertDiscordPrivate(checks);
+  }
+});
+
+test("the overall Discord deadline bounds a sequence of otherwise responsive reads", async () => {
+  const data = discordFixture();
+  const checks = await data.inspect({
+    totalTimeoutMs: 20,
+    requestTimeoutMs: 100,
+    fetchImpl: async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 12));
+      return data.fetchImpl(...args);
+    },
+  });
+  assert.ok(checks.some((c) => c.status === "FAIL"));
+  assert.ok(data.calls.length <= 2);
+  assertDiscordPrivate(checks);
+});
+
+test("CLI exposes Discord opt-in in help but help never makes a network request", async () => {
+  const { stdout, stderr } = await execute(
+    process.execPath,
+    [script, "--help", "--check-discord", "--check-login", "--json"],
+    { env: { PATH: process.env.PATH } },
+  );
+  assert.match(stdout, /--check-discord/);
+  assert.match(stdout, /read-only Discord REST/);
+  assert.equal(stderr, "");
 });

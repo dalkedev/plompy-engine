@@ -52,6 +52,25 @@ case "${1:-engine}" in
   smoke)
     exec node /opt/szpont/scripts/docker-smoke.mjs
     ;;
+  installation-smoke)
+    unset DISCORD_BOT_TOKEN SZPONT_GIT_SSH_COMMAND GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+    exec node /opt/szpont/scripts/installation-smoke.mjs
+    ;;
+  doctor)
+    shift
+    # Each one-shot container has a fresh tmpfs, independent of the service.
+    # Prepare only its configured ephemeral browser directory; do not repair
+    # missing persistent volumes or initialize a workspace.
+    mkdir -p "$SZPONT_BROWSER_DIR"
+    unset SZPONT_GIT_SSH_COMMAND GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+    exec node /opt/szpont/scripts/doctor.mjs "$@"
+    ;;
+  setup|acceptance)
+    cli_command=$1
+    shift
+    unset DISCORD_BOT_TOKEN SZPONT_GIT_SSH_COMMAND GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+    exec node "/opt/szpont/scripts/$cli_command.mjs" "$@"
+    ;;
   sandbox-check)
     unset DISCORD_BOT_TOKEN SZPONT_GIT_SSH_COMMAND
     exec node /opt/szpont/scripts/docker-sandbox-check.mjs

@@ -19,6 +19,11 @@ run() {
     --security-opt no-new-privileges:true \
     --security-opt "seccomp=$repository_root/scripts/docker-seccomp.json" \
     --tmpfs /tmp:rw,nosuid,nodev,size=256m,mode=1777 \
+    -e DISCORD_BOT_TOKEN=synthetic-offline-smoke-token \
+    -e SZPONT_DISCORD_GUILD_ID=111111111111111111 \
+    -e SZPONT_DISCORD_OWNER_ID=222222222222222222 \
+    -e SZPONT_DISCORD_BOT_ID=333333333333333333 \
+    -e SZPONT_DISCORD_PARENT_CHANNEL_ID=444444444444444444 \
     -v "$prefix-workspace:/var/lib/szpont/workspace" \
     -v "$prefix-state:/var/lib/szpont/state" \
     -v "$prefix-artifacts:/var/lib/szpont/artifacts" \
@@ -31,7 +36,9 @@ if run init; then
   echo "FAIL: a second init replaced an existing workspace." >&2
   exit 1
 fi
+run doctor --json
 run sandbox-check
+run installation-smoke
 run smoke
 run smoke
 echo "PASS: image can reopen synthetic private volumes without replacing the workspace."

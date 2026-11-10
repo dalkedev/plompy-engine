@@ -309,9 +309,13 @@ test("public-source and symlink aliases into source are refused before any write
 test("insecure existing JSON and insecure private parent are refused", async (t) => {
   const f = await fixture(t);
   await writeFile(f.path, "{}", { mode: 0o644 });
+  // Creation modes are masked by the caller's umask; this fixture must be insecure.
+  await chmod(f.path, 0o644);
+  assert.equal((await stat(f.path)).mode & 0o777, 0o644);
   await assert.rejects(registerMcp(f.options), /private permissions/);
   await chmod(f.path, 0o600);
   await chmod(f.privateRoot, 0o755);
+  assert.equal((await stat(f.privateRoot)).mode & 0o777, 0o755);
   await assert.rejects(registerMcp(f.options), /private permissions/);
   assert.equal(await readFile(f.path, "utf8"), "{}");
 });
@@ -554,6 +558,8 @@ test("Codex private home/config symlinks and insecure config are refused before 
   };
   const configPath = join(f.config.codexHome, "config.toml");
   await writeFile(configPath, "synthetic = true", { mode: 0o644 });
+  await chmod(configPath, 0o644);
+  assert.equal((await stat(configPath)).mode & 0o777, 0o644);
   await assert.rejects(
     registerMcp({ ...f.options, execute }),
     /private permissions/,

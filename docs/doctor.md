@@ -31,20 +31,43 @@ For Codex, that opt-in executes `codex login status` using the configured privat
 The check does not start interactive login or submit a task. Its stdout and stderr are never included in the report. A successful status command does
 not prove that a later inference request has quota or will succeed.
 
+## Opt-in Discord inspection
+
+```sh
+npm run doctor -- --check-discord
+npm run --silent doctor -- --check-login --check-discord --json
+```
+
+This explicitly authorizes up to four GET requests to the fixed Discord API origin:
+bot identity, configured guild/owner, forum privacy and effective bot reply permissions.
+The inspection mirrors the engine's startup privacy rules and separately checks
+View Channel, Send Messages in Threads, Read Message History and Attach Files.
+It does not request Administrator, create channels, connect a Gateway, send messages,
+change permissions or call a model. The bot token stays in authorization headers;
+responses and private IDs are not printed.
+
+Each request has at most five seconds; the whole inspection has a fifteen-second
+budget and a one-MiB JSON-response limit. Redirects and automatic retries are disabled.
+A rate-limit or network failure is a failed inspection, not evidence of wrong credentials.
+Default offline reports mark these four `discord_*` checks `NOT_RUN`; explicitly
+requested checks are required for overall success. Message Content Intent, incoming
+Gateway events, actual thread delivery, provider entitlement and quota remain live
+acceptance checks. A REST PASS does not establish those results.
+
 ## Checks
 
 Every check has a stable identifier and one of `PASS`, `FAIL`, or `NOT_RUN`:
 
-| Identifier            | What it establishes                                                                                                                                                                                 |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `node_runtime`        | The current process uses Node 24.                                                                                                                                                                   |
-| `configuration`       | The compiled engine configuration loader accepts required values, identity formats, and timeout constraints. No account identity or token is verified remotely.                                     |
+| Identifier            | What it establishes                                                                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `node_runtime`        | The current process uses Node 24.                                                                                                                                                                                                                |
+| `configuration`       | The compiled engine configuration loader accepts required values, identity formats, and timeout constraints. No account identity or token is verified remotely.                                                                                  |
 | `path_separation`     | Workspace, state, artifacts, selected runner home and browser directories use distinct absolute paths outside public source. Existing symlink aliases and overlapping ancestors are checked, including aliases leading to a missing destination. |
-| `private_directories` | Workspace, state, artifacts, selected runner home and browser directories already exist and are directories. The optional browser bridge need not be installed.                                              |
-| `private_writability` | The current user has write and traversal access according to the operating system. No files are created to test this.                                                                               |
-| `workspace_git`       | The workspace is a Git work tree rooted at its configured path, with writable Git metadata outside public source. A repository inherited from a parent directory is rejected.                       |
-| `codex_version`       | The configured executable reports the protocol-tested `codex-cli 0.166.0` version. Other versions need adapter verification before use.                                                             |
-| `codex_login`         | `NOT_RUN` by default. With `--check-login`, the configured CLI's status command exits successfully.                                                                                                 |
+| `private_directories` | Workspace, state, artifacts, selected runner home and browser directories already exist and are directories. The optional browser bridge need not be installed.                                                                                  |
+| `private_writability` | The current user has write and traversal access according to the operating system. No files are created to test this.                                                                                                                            |
+| `workspace_git`       | The workspace is a Git work tree rooted at its configured path, with writable Git metadata outside public source. A repository inherited from a parent directory is rejected.                                                                    |
+| `codex_version`       | The configured executable reports the protocol-tested `codex-cli 0.166.0` version. Other versions need adapter verification before use.                                                                                                          |
+| `codex_login`         | `NOT_RUN` by default. With `--check-login`, the configured CLI's status command exits successfully.                                                                                                                                              |
 
 If configuration, path separation, or directory existence fails, dependent checks remain
 `NOT_RUN`. The command exits with status `1` when a required check fails, including an

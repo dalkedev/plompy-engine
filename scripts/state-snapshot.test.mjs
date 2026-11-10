@@ -282,6 +282,9 @@ test("rejects source symlinks, hard links and a writable shared parent", async (
   await rm(alias);
   const shared = join(f.directory, "shared");
   await mkdir(shared, { mode: 0o755 });
+  // Deliberately expose this synthetic parent even under a private service umask.
+  await chmod(shared, 0o755);
+  assert.equal((await stat(shared)).mode & 0o777, 0o755);
   await assert.rejects(
     snapshotState({
       operation: "backup",

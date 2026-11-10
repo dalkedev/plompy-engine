@@ -9,7 +9,7 @@ COPY apps/discord-agent/src ./src
 RUN npm run build && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
-ARG VERSION=0.8.1
+ARG VERSION=0.9.0
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Szpont Engine" \
       org.opencontainers.image.description="Self-hosted Discord agent engine with durable jobs and private Markdown memory" \
@@ -41,10 +41,11 @@ COPY --from=build /build/package.json ./apps/discord-agent/package.json
 COPY --from=build /build/dist ./apps/discord-agent/dist
 COPY apps/discord-agent/schemas ./apps/discord-agent/schemas
 COPY --from=build /build/node_modules ./apps/discord-agent/node_modules
-COPY scripts/init-workspace.mjs scripts/docker-smoke.mjs scripts/docker-sandbox-check.mjs scripts/state-snapshot.mjs scripts/integrations.mjs ./scripts/
+COPY scripts/init-workspace.mjs scripts/docker-smoke.mjs scripts/docker-sandbox-check.mjs scripts/state-snapshot.mjs scripts/integrations.mjs scripts/setup.mjs scripts/doctor.mjs scripts/acceptance.mjs scripts/installation-smoke.mjs ./scripts/
 COPY scripts/integrations ./scripts/integrations
 COPY --chmod=0755 scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 COPY examples/workspace ./examples/workspace
+COPY examples/acceptance ./examples/acceptance
 COPY LICENSE ./LICENSE
 USER node:node
 ENTRYPOINT ["/usr/bin/tini", "--", "/opt/szpont/scripts/docker-entrypoint.sh"]

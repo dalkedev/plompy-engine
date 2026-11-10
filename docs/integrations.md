@@ -35,13 +35,13 @@ login. See [runner setup](runners.md) for those prerequisites.
 
 ## Included choices
 
-| ID | What setup configures | What you provision |
-| --- | --- | --- |
-| `github` | Dedicated GitHub CLI configuration and a repository-work playbook | `gh` on a host; your own GitHub login and repository permissions |
-| `camoufox` | This repository's local browser MCP bridge and a browser-use playbook | Python environment, pinned browser binary, Linux graphics dependencies and a private X11 display |
-| `openai-docs` | OpenAI's remote documentation MCP server | Network access to the official documentation service |
-| `context7` | Context7's remote documentation MCP server | Network access; any service limits or account requirements apply independently |
-| `custom` | A reviewed local command or remote HTTPS MCP server from a private JSON specification | The server, its dependencies and any separate authentication |
+| ID            | What setup configures                                                                 | What you provision                                                                               |
+| ------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `github`      | Dedicated GitHub CLI configuration and a repository-work playbook                     | `gh` on a host; your own GitHub login and repository permissions                                 |
+| `camoufox`    | This repository's local browser MCP bridge and a browser-use playbook                 | Python environment, pinned browser binary, Linux graphics dependencies and a private X11 display |
+| `openai-docs` | OpenAI's remote documentation MCP server                                              | Network access to the official documentation service                                             |
+| `context7`    | Context7's remote documentation MCP server                                            | Network access; any service limits or account requirements apply independently                   |
+| `custom`      | A reviewed local command or remote HTTPS MCP server from a private JSON specification | The server, its dependencies and any separate authentication                                     |
 
 DoubleCrawl, ElevenLabs and Google Drive are not included in the catalog. The
 engine does not require those services or ship accounts for them.
@@ -195,11 +195,11 @@ The interactive runner choice or explicit `--runner` determines where MCP
 configuration is registered. Without an explicit choice, the command uses
 `SZPONT_RUNNER`, or Codex when unset:
 
-| Runner | Configuration |
-| --- | --- |
-| Codex | Remote endpoints use a minimal managed block in private `$CODEX_HOME/config.toml`; local stdio uses `codex mcp add`. Both are inspected with `codex mcp get`. |
-| Claude Code | `$CLAUDE_CONFIG_DIR/szpont-mcp.json`, with a `mcpServers` object; `SZPONT_CLAUDE_MCP_CONFIG` overrides this path |
-| OpenCode | `$SZPONT_OPENCODE_HOME/szpont-mcp.json`, with an `mcp` object; `SZPONT_OPENCODE_CONFIG` overrides this path |
+| Runner      | Configuration                                                                                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Codex       | Remote endpoints use a minimal managed block in private `$CODEX_HOME/config.toml`; local stdio uses `codex mcp add`. Both are inspected with `codex mcp get`. |
+| Claude Code | `$CLAUDE_CONFIG_DIR/szpont-mcp.json`, with a `mcpServers` object; `SZPONT_CLAUDE_MCP_CONFIG` overrides this path                                              |
+| OpenCode    | `$SZPONT_OPENCODE_HOME/szpont-mcp.json`, with an `mcp` object; `SZPONT_OPENCODE_CONFIG` overrides this path                                                   |
 
 These paths use the runner's private home. When configuring a non-default runner
 without an explicit home, `claude` or `opencode` alongside `SZPONT_STATE_DIR` is
@@ -237,11 +237,11 @@ a new runner.
 
 ## Docker
 
-The **0.8.1 image includes this command and GitHub CLI**. After taking a verified
+The **0.9.0 image includes this command and GitHub CLI**. After taking a verified
 pre-upgrade snapshot, stop the engine and pull the selected release:
 
 ```sh
-export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.8.1
+export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.9.0
 docker compose stop engine
 docker compose pull engine
 docker compose run --rm -it engine integrations
