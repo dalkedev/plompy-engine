@@ -55,3 +55,6 @@ The repository contains synthetic workspace templates. Your instructions, notes,
 transcripts, SQLite state, authentication, browser profile, code projects and output
 belong in private directories outside this checkout. The workspace initializer creates
 a separate local Git history and does not configure a public remote.
+
+The [0.9 installation validation record](validation-0.9.md) separates automated,
+host, Discord transport and model/soak results.

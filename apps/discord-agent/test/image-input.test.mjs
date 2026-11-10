@@ -784,7 +784,7 @@ process.stdin.on("end", () => {
   try {
     for (const resume of [null, session]) {
       const result = await runCodex(
-        { ...f.config, codexBin: cli },
+        { ...f.config, codexBin: cli, timeoutMs: 5000 },
         "Synthetic owner caption",
         resume,
         () => {},

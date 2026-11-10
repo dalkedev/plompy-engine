@@ -552,9 +552,14 @@ test("runner refuses a different resumed session without replacing the mapping",
       `console.log(JSON.stringify({type:'thread.started',thread_id:${JSON.stringify(otherSid)}}));console.log(JSON.stringify({type:'turn.completed'}));`,
     );
     let mapped = false;
-    const result = await runCodex(fake, "continue", sid, () => {
-      mapped = true;
-    });
+    const result = await runCodex(
+      { ...fake, timeoutMs: 5000 },
+      "continue",
+      sid,
+      () => {
+        mapped = true;
+      },
+    );
     assert.equal(result.ok, false);
     assert.equal(result.error, "session_identity_mismatch");
     assert.equal(mapped, false);

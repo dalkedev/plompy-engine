@@ -6,6 +6,19 @@ Node 24, Git and your selected runner's prerequisites remain operator-managed.
 The wizard creates no accounts, services or browser installation, changes no host
 security policy, performs no network checks and does not import personal logins.
 
+## Execution environment
+
+Run installation and the filesystem acceptance suite directly as the dedicated
+host account, or in the published container. The installer accepts existing
+ancestors owned by that account or root, plus root-owned sticky temporary parents.
+It deliberately refuses ancestors whose owner cannot be established as trusted.
+
+Some nested agent/user-namespace sandboxes project host root-owned directories to
+an overflow UID (commonly 65534). Setup will reject that environment even when a
+leaf directory is writable. Do not weaken ownership checks or trust all unmapped
+UIDs; run the installer outside that sandbox as the service account. A failing
+setup suite there does not establish installation acceptance on the host.
+
 ## Interactive setup
 
 ```sh
