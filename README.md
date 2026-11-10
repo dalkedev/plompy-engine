@@ -48,7 +48,7 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone --branch v0.8.1 --depth 1 https://github.com/dalkedev/szpont-engine.git
+git clone --branch v0.9.0 --depth 1 https://github.com/dalkedev/szpont-engine.git
 cd szpont-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -58,44 +58,48 @@ npm run demo -- session
 The demo uses synthetic data and needs no Discord token or model account.
 Run `npm test` for the offline regression suite.
 
-### 2. Create a private workspace
+### 2. Prepare your private installation
+
+Create your Discord bot, enable Message Content Intent, and choose a private forum
+in a server you own. Keep the bot token private. The [configuration guide](docs/configuration.md)
+explains the four Discord IDs and permission requirements.
 
 ```sh
-npm run init:workspace -- "$HOME/.local/share/szpont/workspace"
+npm run setup
 ```
 
-The initializer creates an independent Git workspace **outside this checkout** and refuses to
-overwrite an existing directory. Edit `agent/USER.md` and `agent/POLICY.md` before use.
+The guided setup asks for the runner, paths and Discord identities. Token input is
+hidden. It creates a separate private Git workspace, state/artifact/browser and
+runner directories, and a mode-0600 environment file outside this checkout.
+Existing installations are preserved. It installs no runner or service and does
+not authenticate accounts or contact Discord. [Setup options and automation](docs/setup.md).
 
-Create a Discord bot, enable Message Content Intent, and select a private forum in a server
-you own. Follow [configuration](docs/configuration.md) for identities and effective permissions.
+The default root is `$HOME/.local/share/szpont`. Edit its `workspace/agent/USER.md`
+and `workspace/agent/POLICY.md` before asking the agent to act. For containers,
+continue with the [Docker volume workflow](docs/docker.md) instead.
 
-### 3. Configure and start one instance
+### 3. Sign in, inspect and start
 
-```sh
-mkdir -p "$HOME/.config/szpont"
-cp .env.example "$HOME/.config/szpont/agent.env"
-chmod 600 "$HOME/.config/szpont/agent.env"
-```
-
-Replace every placeholder and set absolute private paths. The engine does not load `.env`
-automatically. Load only your trusted configuration:
+After installing the supported Codex CLI, load only the trusted environment file
+you just created. If you chose custom paths or another runner, use the setup's
+printed commands and [runner guide](docs/runners.md).
 
 ```sh
 set -a
-. "$HOME/.config/szpont/agent.env"
+. "$HOME/.local/share/szpont/agent.env"
 set +a
-mkdir -p "$CODEX_HOME" "$SZPONT_STATE_DIR" "$SZPONT_ARTIFACTS_DIR" "$SZPONT_BROWSER_DIR"
-chmod 700 "$CODEX_HOME" "$SZPONT_STATE_DIR" "$SZPONT_ARTIFACTS_DIR" "$SZPONT_BROWSER_DIR"
 codex login
-npm run doctor -- --check-login
+npm run doctor -- --check-login --check-discord
 flock -n -E 75 "$SZPONT_STATE_DIR/engine.lock" npm --prefix apps/discord-agent start
 ```
 
-Hold the lock before startup recovery. Send a harmless task in a new private thread to verify
-your installation. Offline tests do not establish real Discord permissions, model entitlement
-or browser login. See [deployment](docs/deployment.md) for service setup and
-[runner setup](docs/runners.md) for Claude Code and OpenCode.
+`doctor` is local by default. `--check-discord` explicitly performs bounded read-only
+REST checks of bot identity, owner, forum privacy and reply permissions; it sends
+no message and calls no model. Message Content Intent, Gateway delivery and actual
+model access still need a harmless live task. Hold the instance lock before startup
+recovery. See [deployment](docs/deployment.md) for service operation and the
+[supplied first code goal](docs/first-goal.md#use-the-supplied-acceptance-project)
+for an independently checked task.
 
 ### 4. Choose integrations
 
@@ -120,11 +124,11 @@ and a live acceptance check.
 
 ## Working in a thread
 
-| Task                         | Example message                                                                       |
-| ---------------------------- | ------------------------------------------------------------------------------------- |
-| Investigate a failure        | `Reproduce the failing parser test, explain the cause, and prepare a focused fix.`    |
+| Task                         | Example message                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| Investigate a failure        | `Reproduce the failing parser test, explain the cause, and prepare a focused fix.`        |
 | Build in bounded steps       | `!work 30m Add quantity limits to the fixture app. Include tests and document the rules.` |
-| Research before implementing | `Compare these two API designs. Save the trade-offs before changing code.`            |
+| Research before implementing | `Compare these two API designs. Save the trade-offs before changing code.`                |
 
 Choose repository, browser and documentation tools with `npm run integrations`.
 Choose Codex, Claude Code, or OpenCode first, then the integration. Use `--runner claude`
@@ -253,20 +257,20 @@ A successful local turn does not prove a deployment, post or website action succ
 
 ## Discord commands
 
-| Input                  | Effect                                                                                   |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| A normal message       | Queue a task in this thread's saved session                                              |
-| `!goal 30m <goal>`     | Advance a fixed goal under a separate supervisor; `!loop` is an alias                    |
-| `!goal 30m --repo "/absolute/path" <goal>` | Capture code changes in an explicit repository inside workspace/artifacts              |
-| `!goal status / pause / resume / stop [MESSAGE_ID]` | Inspect or control this thread's supervised goal                           |
-| `!work 30m <goal>`     | Continue a fixed goal with checkpoints; 1–120 active minutes, at most 32 completed steps |
-| `!status`              | Inspect this thread's queue, readiness, work session and delivery state                  |
-| `!queue`               | Show accepted task IDs and explain why each waiting task is blocked                     |
-| `!cancel MESSAGE_ID`   | Cancel queued work or stop this thread's active process                                  |
-| `!recover [MESSAGE_ID] [instruction]` | Reconcile the blocking or selected task, then continue its saved session       |
-| `!new-session`         | Cancel queued work and clear the session; retain the provider binding and history        |
-| `!result [MESSAGE_ID]` | Read a saved response without rerunning work; latest task by default                     |
-| `!help`                | Show commands without starting a model                                                   |
+| Input                                               | Effect                                                                                   |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| A normal message                                    | Queue a task in this thread's saved session                                              |
+| `!goal 30m <goal>`                                  | Advance a fixed goal under a separate supervisor; `!loop` is an alias                    |
+| `!goal 30m --repo "/absolute/path" <goal>`          | Capture code changes in an explicit repository inside workspace/artifacts                |
+| `!goal status / pause / resume / stop [MESSAGE_ID]` | Inspect or control this thread's supervised goal                                         |
+| `!work 30m <goal>`                                  | Continue a fixed goal with checkpoints; 1–120 active minutes, at most 32 completed steps |
+| `!status`                                           | Inspect this thread's queue, readiness, work session and delivery state                  |
+| `!queue`                                            | Show accepted task IDs and explain why each waiting task is blocked                      |
+| `!cancel MESSAGE_ID`                                | Cancel queued work or stop this thread's active process                                  |
+| `!recover [MESSAGE_ID] [instruction]`               | Reconcile the blocking or selected task, then continue its saved session                 |
+| `!new-session`                                      | Cancel queued work and clear the session; retain the provider binding and history        |
+| `!result [MESSAGE_ID]`                              | Read a saved response without rerunning work; latest task by default                     |
+| `!help`                                             | Show commands without starting a model                                                   |
 
 Messages received during a full outage may never have entered the queue. Use `!status` to check
 what was accepted. Invalid commands show usage rather than becoming model tasks.
@@ -299,7 +303,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.8.1 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
+Version **0.9.0 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
 evidence. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
@@ -322,17 +326,17 @@ filesystem sandbox. See [demo and capture tooling](docs/demo.md) to reproduce th
 <details>
 <summary>Source map</summary>
 
-| Path                                                                                                                                                | Responsibility                                           |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| [`config.ts`](apps/discord-agent/src/config.ts)                                                                                                     | Configuration, authorization and child environments      |
-| [`engine.ts`](apps/discord-agent/src/engine.ts)                                                                                                     | Execution, maintenance and notification lifecycle        |
-| [`store.ts`](apps/discord-agent/src/store.ts)                                                                                                       | Queue, provider bindings, checkpoints and recovery       |
-| [`runner.ts`](apps/discord-agent/src/runner.ts)                                                                                                     | Explicit dispatch to the recorded provider               |
-| [`codex.ts`](apps/discord-agent/src/codex.ts), [`claude.ts`](apps/discord-agent/src/claude.ts), [`opencode.ts`](apps/discord-agent/src/opencode.ts) | CLI protocols, process bounds and cancellation           |
-| [`workspace.ts`](apps/discord-agent/src/workspace.ts)                                                                                               | Prompt context, transcript export and scoped Git commits |
-| [`scripts/integrations.mjs`](scripts/integrations.mjs)                                                                                               | Local integration setup, managed configuration and playbooks |
-| [`packages/browser/`](packages/browser/)                                                                                                            | Optional Camoufox MCP tools and offline checks           |
-| [`examples/workspace/`](examples/workspace/)                                                                                                        | Synthetic workspace templates                            |
+| Path                                                                                                                                                | Responsibility                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [`config.ts`](apps/discord-agent/src/config.ts)                                                                                                     | Configuration, authorization and child environments          |
+| [`engine.ts`](apps/discord-agent/src/engine.ts)                                                                                                     | Execution, maintenance and notification lifecycle            |
+| [`store.ts`](apps/discord-agent/src/store.ts)                                                                                                       | Queue, provider bindings, checkpoints and recovery           |
+| [`runner.ts`](apps/discord-agent/src/runner.ts)                                                                                                     | Explicit dispatch to the recorded provider                   |
+| [`codex.ts`](apps/discord-agent/src/codex.ts), [`claude.ts`](apps/discord-agent/src/claude.ts), [`opencode.ts`](apps/discord-agent/src/opencode.ts) | CLI protocols, process bounds and cancellation               |
+| [`workspace.ts`](apps/discord-agent/src/workspace.ts)                                                                                               | Prompt context, transcript export and scoped Git commits     |
+| [`scripts/integrations.mjs`](scripts/integrations.mjs)                                                                                              | Local integration setup, managed configuration and playbooks |
+| [`packages/browser/`](packages/browser/)                                                                                                            | Optional Camoufox MCP tools and offline checks               |
+| [`examples/workspace/`](examples/workspace/)                                                                                                        | Synthetic workspace templates                                |
 
 </details>
 

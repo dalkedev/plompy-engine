@@ -1,12 +1,12 @@
 # Your first supervised code goal
 
 Use this walkthrough after the engine is running and a harmless Discord task has
-succeeded. It takes one existing project through a bounded code change and a separate
-review. Paths and task details below are examples, not files supplied by the engine.
+succeeded. It takes the supplied synthetic project or your existing project through a bounded
+code change and a separate review. Use private artifacts, not the public source checkout.
 
 ## Before you start
 
-- Run version 0.8.1 with Node 24 and the protocol-tested Codex CLI 0.166.0, signed in
+- Run version 0.9.0 with Node 24 and the protocol-tested Codex CLI 0.166.0, signed in
   as the service user using the engine's private `CODEX_HOME`. See the
   [quick start](../README.md#quick-start) and [runner setup](runners.md).
 - Use the configured owner's thread in the private forum. It must be Codex-bound;
@@ -17,20 +17,49 @@ review. Paths and task details below are examples, not files supplied by the eng
 - Know the project's test command and the behavior you want. Install its dependencies
   and give the service account the required access before starting.
 
-This example assumes an existing project at `/srv/szpont/artifacts/quantity-parser`,
+The custom-project example further below assumes an existing project at `/srv/szpont/artifacts/quantity-parser`,
 with `/srv/szpont/artifacts` configured as `SZPONT_ARTIFACTS_DIR`. It already has a
 quantity parser, regression tests and a working `npm test` command. Substitute your
 own project, task and test command throughout. An isolated working copy makes the
 saved patch easier to interpret when other work is happening.
 
+## Use the supplied acceptance project
+
+From the public checkout, with your trusted private engine configuration loaded:
+
+```sh
+npm run acceptance -- init --destination "$SZPONT_ARTIFACTS_DIR/first-code-goal"
+```
+
+The destination must be new; its parent must already exist. This creates a Git
+repository in `first-code-goal/repository` and an operator manifest alongside it,
+outside the bound repository. Follow the printed `!goal 30m --repo ...` request
+in your private Codex thread. The parser deliberately lacks negative-quantity
+validation, so the initial repository tests and independent checker are expected
+to fail. That controlled failure is part of the fixture, not an installation error.
+
+After the worker and fresh reviewer complete the change:
+
+```sh
+npm run acceptance -- verify --manifest "$SZPONT_ARTIFACTS_DIR/first-code-goal/acceptance-manifest.json"
+```
+
+The checker verifies 25 actual behavior cases and unchanged fixture evidence,
+independently of the repository's `npm test` script. Weakening or deleting tests
+cannot establish success. Keep the manifest operator-owned; this is an acceptance
+fixture, not an OS sandbox or proof against a malicious process with the same UID.
+See the [fixture walkthrough](../examples/acceptance/README.md) for container commands,
+precise parser rules and limits. Real Discord delivery, session continuation,
+supervisor decisions and failure recovery remain separate observed gates.
+
 ## Choose the right command
 
-| Request | Use it when |
-| --- | --- |
-| Normal message | One CLI turn is enough. A follow-up resumes the saved thread session. |
+| Request            | Use it when                                                            |
+| ------------------ | ---------------------------------------------------------------------- |
+| Normal message     | One CLI turn is enough. A follow-up resumes the saved thread session.  |
 | `!work 30m <goal>` | You want several checkpointed steps under one active-execution budget. |
-| `!goal 30m <goal>` | You want a fresh Codex supervisor to review each worker candidate. |
-| `!loop 30m <goal>` | The same supervised behavior; `!loop` is an alias for `!goal`. |
+| `!goal 30m <goal>` | You want a fresh Codex supervisor to review each worker candidate.     |
+| `!loop 30m <goal>` | The same supervised behavior; `!loop` is an alias for `!goal`.         |
 
 For code goals, add `--repo` to bind the actual project for automatic before/after
 code evidence. An unbound goal still runs, but its automatic code evidence is
@@ -142,28 +171,28 @@ full persistence and recovery rules.
 All commands below are owner-only and scoped to the current authorized thread.
 Use real task IDs from the bot's receipts in place of `<task ID>`.
 
-| Command | Purpose |
-| --- | --- |
-| `!help` | Show the installed command help. |
-| `!status` | Read thread execution, runner, queue and maintenance state. |
-| `!queue` | Read accepted task IDs and waiting reasons without starting a model. |
-| `!result [task ID]` | Read a saved result; defaults to the latest task. |
-| `!goal status [task ID]` | Read supervised goal state, budget and repository binding. |
-| `!goal <control> [task ID]` | Use `pause`, `resume` or `stop`, following the rules above. |
-| `!cancel <task ID>` | Cancel queued work or interrupt this thread's active process. |
-| `!recover [task ID] [instruction]` | Reconcile and continue a blocking failed/interrupted task. |
-| `!new-session` | Clear the CLI session, cancel queued tasks and paused supervised goals; retain runner binding and history. |
+| Command                            | Purpose                                                                                                    |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `!help`                            | Show the installed command help.                                                                           |
+| `!status`                          | Read thread execution, runner, queue and maintenance state.                                                |
+| `!queue`                           | Read accepted task IDs and waiting reasons without starting a model.                                       |
+| `!result [task ID]`                | Read a saved result; defaults to the latest task.                                                          |
+| `!goal status [task ID]`           | Read supervised goal state, budget and repository binding.                                                 |
+| `!goal <control> [task ID]`        | Use `pause`, `resume` or `stop`, following the rules above.                                                |
+| `!cancel <task ID>`                | Cancel queued work or interrupt this thread's active process.                                              |
+| `!recover [task ID] [instruction]` | Reconcile and continue a blocking failed/interrupted task.                                                 |
+| `!new-session`                     | Clear the CLI session, cancel queued tasks and paused supervised goals; retain runner binding and history. |
 
 ## If something stops
 
-| Symptom | What to check |
-| --- | --- |
-| Goal command rejected; nothing queued | Use a Codex thread, valid whole-minute budget and an absolute Git root inside workspace/artifacts. Check path separation and quoting. |
-| `goal_diff_baseline_unavailable` | The worker did not start. Check the bound root, service-user access and private state storage before explicit recovery. |
-| Candidate has unavailable post-worker evidence | Inspect the saved candidate and missing coverage. Do not repeat its worker solely to regenerate a patch. |
-| `invalid_goal_review` or a supervisor failure | Inspect the saved candidate; recover explicitly with remaining budget. The worker is not automatically repeated. |
-| Resume rejected | Check for an exhausted budget, another queued/running task, a terminal goal or unresolved thread uncertainty. |
-| Task remains queued | Read `!queue` for its blocker or runner-readiness state. One worker serves all threads; there is no start-time estimate. |
+| Symptom                                        | What to check                                                                                                                         |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Goal command rejected; nothing queued          | Use a Codex thread, valid whole-minute budget and an absolute Git root inside workspace/artifacts. Check path separation and quoting. |
+| `goal_diff_baseline_unavailable`               | The worker did not start. Check the bound root, service-user access and private state storage before explicit recovery.               |
+| Candidate has unavailable post-worker evidence | Inspect the saved candidate and missing coverage. Do not repeat its worker solely to regenerate a patch.                              |
+| `invalid_goal_review` or a supervisor failure  | Inspect the saved candidate; recover explicitly with remaining budget. The worker is not automatically repeated.                      |
+| Resume rejected                                | Check for an exhausted budget, another queued/running task, a terminal goal or unresolved thread uncertainty.                         |
+| Task remains queued                            | Read `!queue` for its blocker or runner-readiness state. One worker serves all threads; there is no start-time estimate.              |
 
 Local regression tests use synthetic CLIs and local Git fixtures. They verify engine
 behavior, not your model account, live review quality, Discord delivery or deployment.

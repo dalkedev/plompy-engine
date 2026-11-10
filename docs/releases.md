@@ -5,15 +5,15 @@ A release is a versioned public source snapshot and a container image. It does n
 ## Pull a release
 
 ```sh
-docker pull ghcr.io/dalkedev/szpont-engine:0.8.1
-docker buildx imagetools inspect ghcr.io/dalkedev/szpont-engine:0.8.1
+docker pull ghcr.io/dalkedev/szpont-engine:0.9.0
+docker buildx imagetools inspect ghcr.io/dalkedev/szpont-engine:0.9.0
 ```
 
 The release workflow publishes Linux `amd64` and `arm64` variants. A stable release publishes an exact version tag, a minor-series tag, `latest`, and `sha-<first 12 characters of commit>`. For example, `v0.6.1` produces `0.6.1`, `0.6`, `latest`, and its revision tag. A prerelease such as `v0.7.0-rc.1` publishes only its exact prerelease and revision tags; it cannot move `latest` or a stable minor-series tag.
 
 Tags are convenient aliases. For repeatable deployments, copy the full `ghcr.io/dalkedev/szpont-engine@sha256:...` reference from the successful workflow summary or manifest inspection and pin that digest in your deployment. The OCI labels identify the source repository, exact revision, version, and MIT license. The published image also includes BuildKit provenance and an SBOM.
 
-The engine image contains no browser profile or real account session. Version 0.8.1 packages and verifies **Codex only**; it rejects `SZPONT_RUNNER=claude` and `opencode` before initialization writes. Claude Code and OpenCode are [experimental host adapters](runners.md), requiring their own installed CLI, private authentication, permissions and acceptance checks. The optional Camoufox desktop/browser service is outside this image. A release does not supply model access or account allowances.
+The engine image contains no browser profile or real account session. Version 0.9.0 packages and verifies **Codex only**; it rejects `SZPONT_RUNNER=claude` and `opencode` before initialization writes. Claude Code and OpenCode are [experimental host adapters](runners.md), requiring their own installed CLI, private authentication, permissions and acceptance checks. The optional Camoufox desktop/browser service is outside this image. A release does not supply model access or account allowances.
 
 Version 0.5.0 introduced [private Discord image input](image-input.md) for Codex, including
 resumed turns. The other host adapters explicitly reject images. SQLite snapshots
@@ -35,8 +35,8 @@ moves backwards. It does not introduce another worker or a state migration.
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.8.1 -m 'Szpont Engine 0.8.1'
-git push origin refs/tags/v0.8.1
+git tag -a v0.9.0 -m 'Szpont Engine 0.9.0'
+git push origin refs/tags/v0.9.0
 ```
 
 The [release workflow](../.github/workflows/release.yml) runs only on `v*` tag pushes. It first requires the tagged commit to be reachable from `main`, validates all package and project-lock versions, checks the public tree, and runs the locked engine and browser suites. Each native amd64/arm64 runner then builds its OCI archive once, including provenance and an SBOM, and loads that archive's runtime for the offline smoke test. A configuration-digest check binds the loaded runtime (including its filesystem layer identities) to the OCI archive. Runtime state is created in throwaway volumes and is never included in the archive.
@@ -57,17 +57,17 @@ Official references: [Docker OCI exports](https://docs.docker.com/build/exporter
 
 Record the current image digest and stop the engine before taking a coordinated backup of its private state and workspace. Keep runner authentication and browser-profile backups private and separate. Start the desired pinned image with the same configured volumes, then inspect its logs and queue status before sending a synthetic owner task. A successful image build or offline smoke test does not establish Discord connectivity, account validity or live model access.
 
-Do not run two engine instances against the same SQLite state at once. Version 0.8.1 uses **schema 6** and migrates public schemas 0–5 to that schema, retaining saved candidates, reviews and code-diff evidence. Existing provider bindings and sessions are preserved; pre-schema-3 jobs and conversations retain Codex bindings, including conversations whose session has not started; changing `SZPONT_RUNNER` never converts them to another provider. New threads use the configured default. Session reset retains the thread's provider, and recovery retains the original job's provider.
+Do not run two engine instances against the same SQLite state at once. Version 0.9.0 uses **schema 6** and migrates public schemas 0–5 to that schema, retaining saved candidates, reviews and code-diff evidence. Existing provider bindings and sessions are preserved; pre-schema-3 jobs and conversations retain Codex bindings, including conversations whose session has not started; changing `SZPONT_RUNNER` never converts them to another provider. New threads use the configured default. Session reset retains the thread's provider, and recovery retains the original job's provider.
 
 | Engine version | Public SQLite schema |
-| --- | --- |
-| 0.2.x | 0 |
-| 0.3.0 | 1 |
-| 0.3.1 | 2 |
-| 0.4.0 | 3 |
-| 0.5.0–0.6.1 | 4 |
-| 0.7.0 | 5 |
-| 0.8.x | 6 |
+| -------------- | -------------------- |
+| 0.2.x          | 0                    |
+| 0.3.0          | 1                    |
+| 0.3.1          | 2                    |
+| 0.4.0          | 3                    |
+| 0.5.0–0.6.1    | 4                    |
+| 0.7.0          | 5                    |
+| 0.8.x–0.9.x    | 6                    |
 
 Before upgrading, create and verify a pre-upgrade snapshot using the [state backup guide](state-backups.md), and retain the matching workspace checkpoint and image digest. The 0.4.0 engine rejects schema 4, and 0.3.x rejects schema 3 and later. To roll back across an incompatible schema, stop the current engine, restore the compatible pre-upgrade snapshot into a new private state location, reconcile jobs and external actions accepted after that snapshot, and switch the matching binary and workspace together. Never lower `PRAGMA user_version` or remove provider columns or image tables as a downgrade shortcut.
 

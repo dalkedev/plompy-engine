@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -41,6 +48,7 @@ printf '%s\\n' "\${DISCORD_BOT_TOKEN-unset}" "\${SZPONT_GIT_SSH_COMMAND-unset}" 
       PATH: `${bin}:/usr/bin:/bin`,
       HOME: join(root, "home"),
       SZPONT_STATE_DIR: join(root, "state"),
+      SZPONT_BROWSER_DIR: join(root, "browser"),
       GH_CONFIG_DIR: join(root, "github"),
       DISCORD_BOT_TOKEN: "synthetic-discord-token",
       SZPONT_GIT_SSH_COMMAND: "synthetic-private-command",
@@ -106,3 +114,67 @@ test("container integration setup exits on a busy engine before dispatching the 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("container doctor preserves only the Discord credential needed for explicit REST inspection", async () => {
+  const { root, env } = await fixture();
+  try {
+    const result = spawnSync(
+      "/bin/sh",
+      [entrypoint, "doctor", "--check-discord", "--json"],
+      { env, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(
+      (await readFile(join(root, "node"), "utf8")).trim().split("\n"),
+      ["/opt/szpont/scripts/doctor.mjs", "--check-discord", "--json"],
+    );
+    assert.equal((await stat(env.SZPONT_BROWSER_DIR)).mode & 0o777, 0o700);
+    await assert.rejects(stat(env.SZPONT_STATE_DIR), { code: "ENOENT" });
+    assert.deepEqual(
+      (await readFile(join(root, "environment"), "utf8")).trim().split("\n"),
+      [
+        env.DISCORD_BOT_TOKEN,
+        "unset",
+        "unset",
+        "unset",
+        "unset",
+        "unset",
+        env.GH_CONFIG_DIR,
+      ],
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+for (const command of ["setup", "acceptance", "installation-smoke"]) {
+  test(`container ${command} dispatch preserves argv and excludes existing service credentials`, async () => {
+    const { root, env } = await fixture();
+    try {
+      const args = command === "installation-smoke" ? [] : ["--help"];
+      const result = spawnSync("/bin/sh", [entrypoint, command, ...args], {
+        env,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.deepEqual(
+        (await readFile(join(root, "node"), "utf8")).trim().split("\n"),
+        [`/opt/szpont/scripts/${command}.mjs`, ...args],
+      );
+      assert.deepEqual(
+        (await readFile(join(root, "environment"), "utf8")).trim().split("\n"),
+        [
+          "unset",
+          "unset",
+          "unset",
+          "unset",
+          "unset",
+          "unset",
+          env.GH_CONFIG_DIR,
+        ],
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+}

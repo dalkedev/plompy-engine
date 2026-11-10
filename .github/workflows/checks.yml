@@ -30,6 +30,10 @@ jobs:
         run: npm --prefix apps/discord-agent ci --ignore-scripts --no-audit --no-fund
       - name: Build and test the engine
         run: npm test
+      - name: Verify intentionally permissive fixtures under a private umask
+        run: |
+          umask 0077
+          node --test scripts/integrations-mcp.test.mjs scripts/state-snapshot.test.mjs
 
   browser:
     name: Browser / Python 3.12

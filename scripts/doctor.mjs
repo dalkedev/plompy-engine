@@ -21,6 +21,326 @@ const baseDependentChecks = [
   "codex_version",
   "codex_login",
 ];
+const discordChecks = [
+  "discord_bot_identity",
+  "discord_guild_owner",
+  "discord_private_forum",
+  "discord_bot_permissions",
+];
+const discordApi = "https://discord.com/api/v10";
+const discordBodyLimit = 1024 * 1024;
+const viewChannel = 1n << 10n;
+const administrator = 1n << 3n;
+const threadReplyPermissions =
+  viewChannel | (1n << 15n) | (1n << 16n) | (1n << 38n);
+
+class DiscordInspectionError extends Error {}
+
+function invalidDiscordResponse() {
+  throw new DiscordInspectionError(
+    "Discord returned an unsupported response; no request was retried.",
+  );
+}
+
+function discordBits(value) {
+  if (typeof value !== "string" || !/^\d{1,32}$/.test(value))
+    invalidDiscordResponse();
+  return BigInt(value);
+}
+
+const discordId = (value) =>
+  typeof value === "string" && /^\d{17,20}$/.test(value);
+
+/** Explicit REST inspection only: no Gateway, model, message or configuration writes. */
+export async function runDiscordChecks({
+  config,
+  enabled = false,
+  fetchImpl = globalThis.fetch,
+  requestTimeoutMs = 5_000,
+  totalTimeoutMs = 15_000,
+} = {}) {
+  const checks = [];
+  const remaining = (reason) => {
+    for (const id of discordChecks.slice(checks.length))
+      checks.push({
+        id,
+        status: "NOT_RUN",
+        required: enabled,
+        message: reason,
+      });
+    return checks;
+  };
+  if (!enabled)
+    return remaining(
+      "Discord REST inspection requires --check-discord; no network request was made.",
+    );
+  if (!config)
+    return remaining(
+      "Valid local configuration is required before Discord REST inspection.",
+    );
+
+  // Tests may shorten these bounds, but callers cannot expand the network budget.
+  const requestLimit = Math.min(Math.max(requestTimeoutMs, 1), 5_000);
+  const deadline =
+    performance.now() + Math.min(Math.max(totalTimeoutMs, 1), 15_000);
+  const get = async (path) => {
+    const controller = new AbortController();
+    let timer, reader;
+    const expired = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => {
+          controller.abort();
+          reject(
+            new DiscordInspectionError(
+              "Discord read failed or timed out; no request was retried.",
+            ),
+          );
+        },
+        Math.max(1, Math.min(requestLimit, deadline - performance.now())),
+      );
+    });
+    const read = async () => {
+      if (performance.now() >= deadline) throw new Error("inspection deadline");
+      const response = await fetchImpl(discordApi + path, {
+        method: "GET",
+        headers: {
+          Authorization: `Bot ${config.token}`,
+          Accept: "application/json",
+        },
+        redirect: "error",
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) {
+        void response.body?.cancel().catch(() => {});
+        throw new Error("inspection deadline");
+      }
+      if (response.status !== 200) {
+        void response.body?.cancel().catch(() => {});
+        const message = {
+          401: "Discord rejected bot authorization; check the private token.",
+          403: "Discord denied this read; check bot membership and access.",
+          404: "Discord resource is unavailable; check the configured identities.",
+          429: "Discord rate limited this inspection; no request was retried.",
+        }[response.status];
+        throw new DiscordInspectionError(
+          message ?? "Discord read was unavailable; no request was retried.",
+        );
+      }
+      const length = response.headers.get("content-length");
+      if (
+        length &&
+        (!/^\d+$/.test(length) || Number(length) > discordBodyLimit)
+      ) {
+        void response.body?.cancel().catch(() => {});
+        invalidDiscordResponse();
+      }
+      if (!response.body) invalidDiscordResponse();
+      reader = response.body.getReader();
+      const chunks = [];
+      let bytes = 0;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          bytes += value.byteLength;
+          if (bytes > discordBodyLimit) invalidDiscordResponse();
+          chunks.push(value);
+        }
+        return JSON.parse(
+          new TextDecoder("utf-8", { fatal: true }).decode(
+            Buffer.concat(chunks),
+          ),
+        );
+      } finally {
+        void reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
+    };
+    try {
+      return await Promise.race([read(), expired]);
+    } catch (error) {
+      if (error instanceof DiscordInspectionError) throw error;
+      throw new DiscordInspectionError(
+        "Discord read failed or timed out; no request was retried.",
+      );
+    } finally {
+      clearTimeout(timer);
+      controller.abort();
+      void reader?.cancel().catch(() => {});
+    }
+  };
+  const check = async (id, inspect, message) => {
+    try {
+      await inspect();
+      checks.push({ id, status: "PASS", required: true, message });
+      return true;
+    } catch (error) {
+      checks.push({
+        id,
+        status: "FAIL",
+        required: true,
+        message:
+          error instanceof DiscordInspectionError
+            ? error.message
+            : "Discord inspection could not establish this prerequisite.",
+      });
+      return false;
+    }
+  };
+  let guild, roles, overwrites;
+  if (
+    !(await check(
+      discordChecks[0],
+      async () => {
+        const bot = await get("/users/@me");
+        if (bot?.id !== config.botId || bot.bot !== true)
+          throw new DiscordInspectionError(
+            "The token does not identify the configured bot.",
+          );
+      },
+      "Discord REST identifies the configured bot account.",
+    ))
+  )
+    return remaining(
+      "Bot identity was not verified; dependent Discord reads were not made.",
+    );
+  if (
+    !(await check(
+      discordChecks[1],
+      async () => {
+        guild = await get(`/guilds/${config.guildId}`);
+        if (guild?.id !== config.guildId || guild.owner_id !== config.ownerId)
+          throw new DiscordInspectionError(
+            "The configured server owner does not match Discord.",
+          );
+      },
+      "Discord REST confirms the configured server owner.",
+    ))
+  )
+    return remaining(
+      "Server ownership was not verified; dependent Discord reads were not made.",
+    );
+  if (
+    !(await check(
+      discordChecks[2],
+      async () => {
+        const forum = await get(`/channels/${config.parentId}`);
+        if (
+          forum?.id !== config.parentId ||
+          forum.type !== 15 ||
+          forum.guild_id !== config.guildId
+        )
+          throw new DiscordInspectionError(
+            "The configured channel is not a forum in the configured server.",
+          );
+        if (
+          !Array.isArray(guild.roles) ||
+          !Array.isArray(forum.permission_overwrites)
+        )
+          invalidDiscordResponse();
+        roles = new Map();
+        for (const role of guild.roles) {
+          if (!discordId(role?.id) || roles.has(role.id))
+            invalidDiscordResponse();
+          roles.set(role.id, discordBits(role.permissions));
+        }
+        const everyone = roles.get(config.guildId);
+        if (everyone === undefined) invalidDiscordResponse();
+        const ids = new Set();
+        overwrites = forum.permission_overwrites.map((overwrite) => {
+          if (
+            !discordId(overwrite?.id) ||
+            ![0, 1].includes(overwrite.type) ||
+            ids.has(overwrite.id)
+          )
+            invalidDiscordResponse();
+          ids.add(overwrite.id);
+          return {
+            id: overwrite.id,
+            type: overwrite.type,
+            allow: discordBits(overwrite.allow),
+            deny: discordBits(overwrite.deny),
+          };
+        });
+        // Mirror DiscordTransport.validate(): @everyone's effective role permissions,
+        // then every explicit ViewChannel grant, including role overwrites.
+        const everyoneOverwrite = overwrites.find(
+          (o) => o.id === config.guildId && o.type === 0,
+        );
+        const everyoneEffective =
+          (everyone & ~(everyoneOverwrite?.deny ?? 0n)) |
+          (everyoneOverwrite?.allow ?? 0n);
+        if (everyone & administrator || everyoneEffective & viewChannel)
+          throw new DiscordInspectionError(
+            "The forum is visible to everyone; restrict forum visibility.",
+          );
+        if (
+          overwrites.some(
+            (o) =>
+              o.allow & viewChannel &&
+              ![config.ownerId, config.botId].includes(o.id),
+          )
+        )
+          throw new DiscordInspectionError(
+            "The forum grants additional explicit readers; restrict its visibility.",
+          );
+      },
+      "The forum matches startup privacy checks; server administrators can still access it.",
+    ))
+  )
+    return remaining(
+      "Forum privacy was not verified; bot member permissions were not read.",
+    );
+  await check(
+    discordChecks[3],
+    async () => {
+      const member = await get(
+        `/guilds/${config.guildId}/members/${config.botId}`,
+      );
+      if (
+        member?.user?.id !== config.botId ||
+        !Array.isArray(member.roles) ||
+        member.roles.some((id) => !discordId(id) || !roles.has(id))
+      )
+        invalidDiscordResponse();
+      const roleIds = new Set([config.guildId, ...member.roles]);
+      let effective = [...roleIds].reduce(
+        (bits, id) => bits | roles.get(id),
+        0n,
+      );
+      if (!(effective & administrator)) {
+        const everyone = overwrites.find(
+          (o) => o.id === config.guildId && o.type === 0,
+        );
+        effective =
+          (effective & ~(everyone?.deny ?? 0n)) | (everyone?.allow ?? 0n);
+        let deny = 0n,
+          allow = 0n;
+        for (const overwrite of overwrites) {
+          if (
+            overwrite.type === 0 &&
+            overwrite.id !== config.guildId &&
+            roleIds.has(overwrite.id)
+          ) {
+            deny |= overwrite.deny;
+            allow |= overwrite.allow;
+          }
+        }
+        effective = (effective & ~deny) | allow;
+        const bot = overwrites.find(
+          (o) => o.id === config.botId && o.type === 1,
+        );
+        effective = (effective & ~(bot?.deny ?? 0n)) | (bot?.allow ?? 0n);
+        if ((effective & threadReplyPermissions) !== threadReplyPermissions)
+          throw new DiscordInspectionError(
+            "The bot needs View Channel, Send Messages in Threads, Read Message History and Attach Files in the forum.",
+          );
+      }
+    },
+    "Bot REST permissions cover thread replies, history and attachments; Gateway intents and live delivery were not tested.",
+  );
+  return checks;
+}
 
 function overlaps(left, right) {
   const inside = (parent, child) => {
@@ -75,8 +395,16 @@ export async function runDoctor({
   nodeVersion = process.versions.node,
   publicRoot = sourceRoot,
   checkLogin = false,
+  checkDiscord = false,
+  fetchImpl = globalThis.fetch,
 } = {}) {
   const checks = [];
+  let config, childEnvironment;
+  const finish = async () =>
+    report([
+      ...checks,
+      ...(await runDiscordChecks({ config, enabled: checkDiscord, fetchImpl })),
+    ]);
   const dependentChecks = [...baseDependentChecks];
   const add = (id, status, message, required = true) => {
     checks.push({ id, status, required, message });
@@ -93,7 +421,6 @@ export async function runDoctor({
       : "Use Node 24 to run the engine and its checks.",
   );
 
-  let config, childEnvironment;
   let provider = "codex";
   let versionId = "codex_version",
     loginId = "codex_login";
@@ -113,13 +440,14 @@ export async function runDoctor({
       ],
     ];
   } catch {
+    config = undefined;
     add(
       "configuration",
       "FAIL",
       "Build the engine, then load a trusted private environment file with every required value.",
     );
     skip(dependentChecks, "Configuration is unavailable or invalid.");
-    return report(checks);
+    return finish();
   }
   add(
     "configuration",
@@ -156,7 +484,7 @@ export async function runDoctor({
       dependentChecks.slice(1),
       "Private directory separation could not be established.",
     );
-    return report(checks);
+    return finish();
   }
   add(
     "path_separation",
@@ -184,7 +512,7 @@ export async function runDoctor({
       dependentChecks.slice(2),
       "One or more private directories are missing or inaccessible.",
     );
-    return report(checks);
+    return finish();
   }
 
   try {
@@ -340,7 +668,7 @@ export async function runDoctor({
           : "Complete the selected CLI login separately as the service user with its private configuration directory, then retry.",
     );
   }
-  return report(checks);
+  return finish();
 }
 
 export function formatReport(result, json = false) {
@@ -353,14 +681,17 @@ export function formatReport(result, json = false) {
 async function main(args) {
   const json = args.includes("--json");
   if (
-    args.some((arg) => !["--json", "--check-login", "--help"].includes(arg))
+    args.some(
+      (arg) =>
+        !["--json", "--check-login", "--check-discord", "--help"].includes(arg),
+    )
   ) {
     const invalid = report([
       {
         id: "arguments",
         status: "FAIL",
         required: true,
-        message: "Use --json, --check-login, or --help.",
+        message: "Use --json, --check-login, --check-discord, or --help.",
       },
     ]);
     console.log(formatReport(invalid, json));
@@ -369,12 +700,13 @@ async function main(args) {
   }
   if (args.includes("--help")) {
     console.log(
-      "Usage: node scripts/doctor.mjs [--json] [--check-login]\nDefault: offline prerequisite inspection with no repairs or login check.",
+      "Usage: node scripts/doctor.mjs [--json] [--check-login] [--check-discord]\nDefault: offline prerequisite inspection with no repairs or login check.\n--check-discord: bounded read-only Discord REST inspection; no Gateway, messages or model calls.",
     );
     return;
   }
   const result = await runDoctor({
     checkLogin: args.includes("--check-login"),
+    checkDiscord: args.includes("--check-discord"),
   });
   console.log(formatReport(result, json));
   process.exitCode = result.ok ? 0 : 1;

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0 — 2026-11-10
+
+- Add guided private setup for Codex and the experimental host adapters, hidden token input, explicit token-file/stdin automation and shell-quoted mode-0600 configuration. Preserve existing resources and failed/concurrent workspaces of uncertain ownership.
+- Add opt-in read-only `doctor --check-discord` checks for bot identity, guild owner, private forum and effective reply permissions, with bounded requests and credential-safe diagnostics. Default doctor remains offline.
+- Ship a self-contained first-goal Git fixture and independent 25-case checker. Distinguish its expected negative-quantity failure from setup failures, and reject weakened tests or altered evidence.
+- Exercise setup, the actual pinned Codex version, offline doctor, independent fixture RED/GREEN and tamper controls inside both container architectures. Keep live Discord/model acceptance and soak evidence separate from offline checks.
+- Refresh guild ownership and roles from Discord before authorization instead of trusting an incomplete or stale Gateway cache. Preserve owner/privacy rejection when the fresh read fails.
+- Retain SQLite schema 6 and current recovery/provider semantics. The known Node 24 SQLite finding remains open; this release does not claim runtime remediation.
+
 ## 0.8.1 — 2026-11-09
 
 - Keep the shared 30-job queue bound when resuming a safely paused supervised goal. A full queue leaves its saved candidate, control state and remaining budget unchanged; retry `!goal resume` after capacity is available.

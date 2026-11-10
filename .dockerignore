@@ -19,8 +19,14 @@
 !scripts/docker-sandbox-check.mjs
 !scripts/state-snapshot.mjs
 !scripts/integrations.mjs
+!scripts/setup.mjs
+!scripts/doctor.mjs
+!scripts/acceptance.mjs
+!scripts/installation-smoke.mjs
 !scripts/integrations/
 !scripts/integrations/**
 !examples/
 !examples/workspace/
 !examples/workspace/**
+!examples/acceptance/
+!examples/acceptance/**

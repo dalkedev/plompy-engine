@@ -11,27 +11,28 @@ image supports Codex only.
    separate private workspace and connect your own Discord bot and Codex account.
 2. Run the [deployment doctor](doctor.md) as the service user. Local readiness is a
    prerequisite; verify a harmless live task separately on your installation.
-3. Follow [your first supervised code goal](first-goal.md) using an existing project.
+3. Follow [your first supervised code goal](first-goal.md) using the supplied acceptance fixture or an existing project.
    It covers repository binding, reviewing evidence, controls and recovery.
 
-| What you need | Guide |
-| --- | --- |
-| Choose a normal task, `!work` or `!goal` | [First supervised goal](first-goal.md#choose-the-right-command) |
-| Look up everyday Discord commands | [Command reference](first-goal.md#command-reference) |
-| Understand worker and supervisor decisions | [Supervised goals](supervised-goals.md) |
-| Understand saved before/after patches and their limits | [Code diff evidence](goal-code-diffs.md) |
-| Manage budgets, queue state and uncertain attempts | [Work sessions](work-sessions.md) |
-| Configure private paths, identities and CLI access | [Configuration](configuration.md) |
-| Select and authenticate a runner | [Runners](runners.md) |
-| Run on a Linux host or in a container | [Deployment](deployment.md) · [Docker](docker.md) |
-| Diagnose local setup | [Doctor](doctor.md) |
-| Set up GitHub, browser, documentation or MCP tools | [Integrations](integrations.md) |
-| Send still images to Codex | [Image input](image-input.md) |
-| Back up state, upgrade or roll back | [State backups](state-backups.md) · [Releases](releases.md) |
-| Understand intake, persistence and execution | [Architecture](architecture.md) |
-| Reproduce the synthetic README captures | [Offline demo](demo.md) |
-| Report a security issue or contribute | [Security](../SECURITY.md) · [Contributing](../CONTRIBUTING.md) |
-| Track evidence required for a stable contract | [Road to 1.0](../ROADMAP.md) |
+| What you need                                          | Guide                                                           |
+| ------------------------------------------------------ | --------------------------------------------------------------- |
+| Choose a normal task, `!work` or `!goal`               | [First supervised goal](first-goal.md#choose-the-right-command) |
+| Look up everyday Discord commands                      | [Command reference](first-goal.md#command-reference)            |
+| Understand worker and supervisor decisions             | [Supervised goals](supervised-goals.md)                         |
+| Understand saved before/after patches and their limits | [Code diff evidence](goal-code-diffs.md)                        |
+| Manage budgets, queue state and uncertain attempts     | [Work sessions](work-sessions.md)                               |
+| Create a new private installation                      | [Guided setup](setup.md)                                        |
+| Configure private paths, identities and CLI access     | [Configuration](configuration.md)                               |
+| Select and authenticate a runner                       | [Runners](runners.md)                                           |
+| Run on a Linux host or in a container                  | [Deployment](deployment.md) · [Docker](docker.md)               |
+| Diagnose local setup and opt-in Discord REST access    | [Doctor](doctor.md)                                             |
+| Set up GitHub, browser, documentation or MCP tools     | [Integrations](integrations.md)                                 |
+| Send still images to Codex                             | [Image input](image-input.md)                                   |
+| Back up state, upgrade or roll back                    | [State backups](state-backups.md) · [Releases](releases.md)     |
+| Understand intake, persistence and execution           | [Architecture](architecture.md)                                 |
+| Reproduce the synthetic README captures                | [Offline demo](demo.md)                                         |
+| Report a security issue or contribute                  | [Security](../SECURITY.md) · [Contributing](../CONTRIBUTING.md) |
+| Track evidence required for a stable contract          | [Road to 1.0](../ROADMAP.md)                                    |
 
 ## Optional browser
 
@@ -54,3 +55,6 @@ The repository contains synthetic workspace templates. Your instructions, notes,
 transcripts, SQLite state, authentication, browser profile, code projects and output
 belong in private directories outside this checkout. The workspace initializer creates
 a separate local Git history and does not configure a public remote.
+
+The [0.9 installation validation record](validation-0.9.md) separates automated,
+host, Discord transport and model/soak results.
