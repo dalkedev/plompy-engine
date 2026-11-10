@@ -237,11 +237,11 @@ a new runner.
 
 ## Docker
 
-The **0.9.0 image includes this command and GitHub CLI**. After taking a verified
+The **0.10.0 image includes this command and GitHub CLI**. After taking a verified
 pre-upgrade snapshot, stop the engine and pull the selected release:
 
 ```sh
-export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.9.0
+export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.10.0
 docker compose stop engine
 docker compose pull engine
 docker compose run --rm -it engine integrations

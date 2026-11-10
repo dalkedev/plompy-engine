@@ -11,6 +11,10 @@ const configModule = new URL(
   "../apps/discord-agent/dist/config.js",
   import.meta.url,
 );
+const runtimeModule = new URL(
+  "../apps/discord-agent/dist/node-runtime.js",
+  import.meta.url,
+);
 const expectedCodex = "0.166.0";
 const pathKeys = ["workspace", "stateDir", "artifactsDir", "browserDir"];
 const baseDependentChecks = [
@@ -393,6 +397,8 @@ function report(checks) {
 export async function runDoctor({
   env = process.env,
   nodeVersion = process.versions.node,
+  sqliteVersion = process.versions.sqlite,
+  querySQLiteVersion,
   publicRoot = sourceRoot,
   checkLogin = false,
   checkDiscord = false,
@@ -413,13 +419,30 @@ export async function runDoctor({
     for (const id of ids)
       add(id, "NOT_RUN", message, !id.endsWith("_login") || checkLogin);
   };
-  add(
-    "node_runtime",
-    /^24\./.test(nodeVersion) ? "PASS" : "FAIL",
-    /^24\./.test(nodeVersion)
-      ? "Node 24 is available."
-      : "Use Node 24 to run the engine and its checks.",
-  );
+  let runtimeReady = false;
+  try {
+    const { inspectRuntime } = await import(runtimeModule.href);
+    const runtime = inspectRuntime({
+      nodeVersion,
+      sqliteVersion,
+      querySQLiteVersion,
+    });
+    add("node_runtime", runtime.node.status, runtime.node.message);
+    add("sqlite_runtime", runtime.sqlite.status, runtime.sqlite.message);
+    runtimeReady =
+      runtime.node.status === "PASS" && runtime.sqlite.status === "PASS";
+  } catch {
+    add(
+      "node_runtime",
+      "FAIL",
+      "Build the engine before inspecting its supported runtime policy.",
+    );
+    add(
+      "sqlite_runtime",
+      "NOT_RUN",
+      "The linked SQLite runtime policy is unavailable; no filesystem database was opened.",
+    );
+  }
 
   let provider = "codex";
   let versionId = "codex_version",
@@ -454,6 +477,14 @@ export async function runDoctor({
     "PASS",
     "The compiled configuration loader accepts the required values and identity formats.",
   );
+  if (!runtimeReady) {
+    config = undefined;
+    skip(
+      dependentChecks,
+      "Supported Node and linked SQLite runtime checks must pass first.",
+    );
+    return finish();
+  }
 
   let canonicalRoot, paths;
   try {

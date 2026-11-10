@@ -1,15 +1,21 @@
 # syntax=docker/dockerfile:1
-# The digest identifies the official multi-platform Node 24.22.2 image.
-FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
+# The digest identifies the official multi-platform Node 26.13.0 LTS image.
+FROM node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS build
 WORKDIR /build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libatomic1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && node --version
 COPY apps/discord-agent/package.json apps/discord-agent/package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY apps/discord-agent/tsconfig.json ./
 COPY apps/discord-agent/src ./src
-RUN npm run build && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
+RUN npm run build \
+    && node --input-type=module -e 'import { assertSupportedRuntime } from "./dist/node-runtime.js"; assertSupportedRuntime();' \
+    && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
-FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
-ARG VERSION=0.9.0
+FROM node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS runtime
+ARG VERSION=0.10.0
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Szpont Engine" \
       org.opencontainers.image.description="Self-hosted Discord agent engine with durable jobs and private Markdown memory" \
@@ -18,7 +24,7 @@ LABEL org.opencontainers.image.title="Szpont Engine" \
       org.opencontainers.image.version=$VERSION \
       org.opencontainers.image.revision=$REVISION
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates git gh ripgrep tini util-linux \
+    && apt-get install -y --no-install-recommends ca-certificates git gh libatomic1 ripgrep tini util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && npm install --prefix /opt/codex --omit=dev --ignore-scripts --no-audit --no-fund @openai/codex@0.166.0 \
     && npm cache clean --force \
@@ -47,6 +53,7 @@ COPY --chmod=0755 scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 COPY examples/workspace ./examples/workspace
 COPY examples/acceptance ./examples/acceptance
 COPY LICENSE ./LICENSE
+RUN node --input-type=module -e 'import { assertSupportedRuntime } from "./apps/discord-agent/dist/node-runtime.js"; assertSupportedRuntime();'
 USER node:node
 ENTRYPOINT ["/usr/bin/tini", "--", "/opt/szpont/scripts/docker-entrypoint.sh"]
 CMD ["engine"]

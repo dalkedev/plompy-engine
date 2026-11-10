@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { assertSupportedRuntime } from "./node-runtime.js";
 import { isAbsolute, resolve } from "node:path";
 import {
   validateRepositorySnapshot,
@@ -147,6 +148,7 @@ function readyPredicate(providers: readonly ProviderId[]): string {
 export class Store {
   readonly db: DatabaseSync;
   constructor(path: string) {
+    assertSupportedRuntime();
     this.db = new DatabaseSync(path);
     try {
       // Inspect before PRAGMAs or DDL: a newer engine's database is not ours to alter.

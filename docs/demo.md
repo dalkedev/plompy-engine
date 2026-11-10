@@ -11,7 +11,7 @@ can be inspected without an image viewer.
 
 ## Run the scenarios
 
-Use Node 24 and the locked engine dependencies:
+Use Node 26.13.0 or newer 26.x LTS and the locked engine dependencies:
 
 ```sh
 npm --prefix apps/discord-agent ci --ignore-scripts

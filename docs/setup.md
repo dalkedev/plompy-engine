@@ -2,7 +2,7 @@
 
 `npm run setup` joins workspace initialization and private configuration into one
 guided Linux-host flow. Build the checked-out release first with `npm run build`.
-Node 24, Git and your selected runner's prerequisites remain operator-managed.
+Node 26.13.0 or newer 26.x LTS, Git and your selected runner's prerequisites remain operator-managed.
 The wizard creates no accounts, services or browser installation, changes no host
 security policy, performs no network checks and does not import personal logins.
 
@@ -18,6 +18,11 @@ an overflow UID (commonly 65534). Setup will reject that environment even when a
 leaf directory is writable. Do not weaken ownership checks or trust all unmapped
 UIDs; run the installer outside that sandbox as the service account. A failing
 setup suite there does not establish installation acceptance on the host.
+
+The installer rejects unsupported Node or linked SQLite before creating private
+files. Node 26 Linux binaries require libatomic; use your distribution's supported
+package-management process to provision it before installing the official runtime.
+No host package is installed by this wizard.
 
 ## Interactive setup
 

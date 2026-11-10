@@ -1,6 +1,6 @@
 # Deployment
 
-Use Linux with Node 24 and a dedicated unprivileged account. Keep the source read-only at
+Use Linux with Node 26.13.0 or newer 26.x LTS and a dedicated unprivileged account. Keep the source read-only at
 runtime and all writable data outside it. Do not run the engine as root. Install dependencies
 from the committed locks, build once, and run the resulting `apps/discord-agent/dist/index.js`.
 

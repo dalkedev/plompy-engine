@@ -140,6 +140,7 @@ test("healthy offline inspection passes, omits login and leaves deployment bytes
     result.checks.map(({ id, status }) => [id, status]),
     [
       ["node_runtime", "PASS"],
+      ["sqlite_runtime", "PASS"],
       ["configuration", "PASS"],
       ["path_separation", "PASS"],
       ["private_directories", "PASS"],
@@ -157,11 +158,37 @@ test("healthy offline inspection passes, omits login and leaves deployment bytes
   assertPrivateOutput(result, data);
 });
 
-test("Node versions outside 24 are required failures", async (t) => {
+test("Node versions outside the supported Node 26 range are required failures", async (t) => {
   const data = await fixture(t);
   const result = await data.inspect({ nodeVersion: "22.15.0" });
   assert.equal(result.ok, false);
   assert.equal(resultFor(result, "node_runtime").status, "FAIL");
+  assert.equal(resultFor(result, "sqlite_runtime").status, "NOT_RUN");
+  assert.equal(resultFor(result, "sqlite_runtime").required, true);
+});
+
+test("doctor requires patched metadata and a matching actual in-memory SQLite version", async (t) => {
+  const data = await fixture(t);
+  for (const options of [
+    { sqliteVersion: "3.53.4" },
+    { sqliteVersion: "3.54.0", querySQLiteVersion: () => "3.53.4" },
+    { sqliteVersion: "3.54.0", querySQLiteVersion: () => "3.54.1" },
+    {
+      sqliteVersion: "3.54.0",
+      querySQLiteVersion: () => {
+        throw new Error(secret);
+      },
+    },
+  ]) {
+    const result = await data.inspect({ ...options, checkLogin: true });
+    assert.equal(resultFor(result, "node_runtime").status, "PASS");
+    assert.equal(resultFor(result, "sqlite_runtime").status, "FAIL");
+    assert.equal(resultFor(result, "sqlite_runtime").required, true);
+    assert.equal(resultFor(result, "codex_login").status, "NOT_RUN");
+    assert.equal(result.ok, false);
+    assertPrivateOutput(result, data);
+  }
+  await assert.rejects(stat(data.marker), { code: "ENOENT" });
 });
 
 test("the compiled loader rejects missing identities without exposing values or invoking Codex", async (t) => {

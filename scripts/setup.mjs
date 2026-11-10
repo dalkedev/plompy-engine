@@ -45,7 +45,7 @@ const messages = {
     "Noninteractive setup requires every identity, --yes and one of --token-file or piped --token-stdin. No files were created.",
   platform:
     "Setup requires POSIX file permissions. Prepare this installation on Linux; Windows setup is unsupported.",
-  node: "Use Node 24 for setup and the engine.",
+  node: "Use Node 26.13.0 or newer within Node 26 with linked SQLite 3.54.0 or newer.",
   build: "Build the engine before setup: npm run build.",
   path: "Use absolute private paths outside the public checkout; symlinks, unsafe ancestors and overlapping managed paths are refused.",
   permissions:
@@ -211,6 +211,19 @@ async function compiledLoader() {
     fail("build");
   }
 }
+async function checkRuntime() {
+  let runtime;
+  try {
+    runtime = await import("../apps/discord-agent/dist/node-runtime.js");
+  } catch {
+    fail("build");
+  }
+  try {
+    runtime.assertSupportedRuntime();
+  } catch {
+    fail("node");
+  }
+}
 async function initializeWorkspace(path) {
   const env = {};
   for (const key of [
@@ -244,7 +257,7 @@ async function initializeWorkspace(path) {
 /** Create only fresh managed resources. Never log the token or return its value. */
 export async function setup(options, dependencies = {}) {
   if (!["linux", "darwin"].includes(process.platform)) fail("platform");
-  if (!process.versions.node.startsWith("24.")) fail("node");
+  await checkRuntime();
   const root = privatePath(
     options.root ?? join(homedir(), ".local/share/szpont"),
   );
@@ -431,7 +444,7 @@ export async function setup(options, dependencies = {}) {
 
 export const usage = `Usage: node scripts/setup.mjs [options]
 Guided private setup; installs no runner, account, service or browser and performs no network checks.
-Build first with npm run build. Linux is the supported deployment host.
+Build first with npm run build using Node >=26.13.0 <27. Linux is the supported deployment host.
 
   --root /absolute/private/szpont  Default: ~/.local/share/szpont
   --env-file /absolute/agent.env   Default: ROOT/agent.env
