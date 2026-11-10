@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  chown,
   chmod,
   lstat,
   mkdir,
@@ -11,6 +12,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { preparePlaywright } from "../../scripts/integrations/playwright.mjs";
@@ -121,6 +123,57 @@ test("browser overrides require absolute nonwritable regular executables", async
   await chmod(browser, 0o777);
   await assert.rejects(executable(browser), /cannot modify/);
   await assert.rejects(executable("relative"), /absolute/);
+});
+test("browser executables cannot be replaced through writable or linked ancestors", async (t) => {
+  const root = await fixture(t),
+    directory = join(root, "bin"),
+    browser = join(directory, "browser");
+  await mkdir(directory, { mode: 0o700 });
+  await writeFile(browser, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  assert.equal(await executable(browser), browser);
+  await chmod(directory, 0o777);
+  await assert.rejects(executable(browser), /cannot modify/);
+  assert.equal((await lstat(directory)).mode & 0o777, 0o777);
+  await chmod(directory, 0o700);
+  const alias = join(root, "alias");
+  await symlink(directory, alias);
+  await assert.rejects(executable(join(alias, "browser")), /cannot modify/);
+});
+test("a distinct UID cannot supply an owner-writable executable or replace its ancestor", async (t) => {
+  if (process.getuid?.() !== 0)
+    return t.skip(
+      "Foreign-UID proof requires the disposable root-run Linux container.",
+    );
+  const root = await fixture(t);
+  await chmod(root, 0o755);
+  const foreignFile = join(root, "foreign-browser"),
+    safeFile = join(root, "safe-browser"),
+    foreignDirectory = join(root, "foreign-bin");
+  await writeFile(foreignFile, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  await writeFile(safeFile, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  await chown(foreignFile, 1001, 1001);
+  await mkdir(foreignDirectory, { mode: 0o755 });
+  await writeFile(
+    join(foreignDirectory, "root-browser"),
+    "#!/bin/sh\nexit 0\n",
+    { mode: 0o755 },
+  );
+  await chown(foreignDirectory, 1001, 1001);
+  const script = `import {executable} from ${JSON.stringify(new URL("./runtime.mjs", import.meta.url).href)}; process.setgid(1000);process.setuid(1000); const results=[];for(const path of process.argv.slice(1)){try{await executable(path);results.push(true)}catch{results.push(false)}}process.stdout.write(JSON.stringify(results));`;
+  const child = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      script,
+      foreignFile,
+      join(foreignDirectory, "root-browser"),
+      safeFile,
+    ],
+    { encoding: "utf8", timeout: 10_000, env: { PATH: process.env.PATH } },
+  );
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout), [false, false, true]);
 });
 test("launcher rejects additional options and strips credential/injection environment", () => {
   assert.throws(() =>

@@ -94,13 +94,41 @@ export async function installation() {
 
 export async function executable(value) {
   const path = absolutePath(value);
-  const info = await lstat(path);
-  if (info.isSymbolicLink() || !info.isFile() || info.mode & 0o022)
+  try {
+    const uid = process.getuid?.();
+    const trusted = (info) => info.uid === 0 || info.uid === uid;
+    const info = await lstat(path);
+    if (
+      info.isSymbolicLink() ||
+      !info.isFile() ||
+      !trusted(info) ||
+      info.mode & 0o022
+    )
+      throw new Error();
+    // An immutable leaf is insufficient when another user can replace a parent
+    // directory. Root-owned sticky temporary parents protect trusted children;
+    // all other ancestors must be root/current-user owned and nonwritable to peers.
+    let parent = dirname(path);
+    for (;;) {
+      const ancestor = await lstat(parent);
+      const stickySystemParent = ancestor.uid === 0 && ancestor.mode & 0o1000;
+      if (
+        !ancestor.isDirectory() ||
+        ancestor.isSymbolicLink() ||
+        !trusted(ancestor) ||
+        (ancestor.mode & 0o022 && !stickySystemParent)
+      )
+        throw new Error();
+      if (parent === parse(parent).root) break;
+      parent = dirname(parent);
+    }
+    await access(path, constants.X_OK);
+    return path;
+  } catch {
     throw new Error(
-      "Use a regular browser executable that other users cannot modify.",
+      "Use a regular browser executable and trusted ancestors that other users cannot modify.",
     );
-  await access(path, constants.X_OK);
-  return path;
+  }
 }
 
 export function childEnvironment(env, cache, temporary) {
