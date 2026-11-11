@@ -10,6 +10,11 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 run() {
+  legacy_mounts=no
+  if [ "${1:-}" = legacy-smoke ]; then
+    legacy_mounts=yes
+    set -- node /opt/plompy/scripts/docker-legacy-smoke.mjs
+  fi
   if [ "${1:-}" = doctor ]; then
     # Only the explicit offline doctor needs syntactically valid credentials.
     # The ordinary smoke deliberately rejects even a synthetic bot token.
@@ -24,6 +29,15 @@ run() {
   fi
   if [ -n "${PLOMPY_DOCKER_APPARMOR_PROFILE:-}" ]; then
     set -- --security-opt "apparmor=$PLOMPY_DOCKER_APPARMOR_PROFILE" "$@"
+  fi
+  if [ "$legacy_mounts" = yes ]; then
+    set -- -v "$prefix-workspace:/var/lib/szpont/workspace" \
+      -v "$prefix-state:/var/lib/szpont/state" \
+      -v "$prefix-artifacts:/var/lib/szpont/artifacts" \
+      -v "$prefix-codex:/var/lib/szpont/codex" \
+      -v "$prefix-github:/var/lib/szpont/github" \
+      --tmpfs /var/lib/szpont/credentials:rw,nosuid,nodev,size=1m,mode=0700,uid=1000,gid=1000 \
+      "$@"
   fi
   docker run --rm --network none --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true \
@@ -46,4 +60,5 @@ run sandbox-check
 run installation-smoke
 run smoke
 run smoke
+run legacy-smoke
 echo "PASS: image can reopen synthetic private volumes without replacing the workspace."

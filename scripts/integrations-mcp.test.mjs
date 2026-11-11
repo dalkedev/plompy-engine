@@ -941,3 +941,29 @@ test("an external edit during scoped approval validation is preserved before the
   assert.equal(await readFile(path, "utf8"), edited);
   assert.deepEqual(await readdir(f.config.codexHome), ["config.toml"]);
 });
+
+for (const toolApproval of ["approve", "prompt"])
+  test(`legacy ${toolApproval} Playwright paths may be inspected/removed only when they resolve to the bundled binaries`, async (t) => {
+    const f = await fixture(t, "codex"), fake = codexFake();
+    const nodeAlias = join(f.directory, "old-node"), launcherAlias = join(f.directory, "old-launcher.mjs");
+    await symlink(process.execPath, nodeAlias);
+    await symlink(playwrightLauncher, launcherAlias);
+    const options = playwrightOptions(f, fake, toolApproval);
+    options.name = "szpont_playwright";
+    options.server.command = nodeAlias;
+    options.server.args[0] = launcherAlias;
+    const path = join(f.config.codexHome, "config.toml");
+    const bytes = `\n[mcp_servers."szpont_playwright"]\ncommand = ${JSON.stringify(nodeAlias)}\nargs = ${JSON.stringify(options.server.args)}\ndefault_tools_approval_mode = ${JSON.stringify(toolApproval)}\n`;
+    await writeFile(path, bytes, { mode: 0o600 });
+    assert.equal((await inspectMcp(options)).status, "configured");
+    await assert.rejects(registerMcp(options), /explicit Codex-only option/);
+    assert.equal(await readFile(path, "utf8"), bytes);
+    await rm(launcherAlias);
+    await writeFile(launcherAlias, "// Different untrusted launcher");
+    await assert.rejects(inspectMcp(options), /explicit Codex-only option/);
+    await assert.rejects(unregisterMcp(options), /explicit Codex-only option/);
+    await rm(launcherAlias);
+    await symlink(playwrightLauncher, launcherAlias);
+    assert.equal((await unregisterMcp(options)).status, "removed");
+    assert.equal((await inspectMcp(options)).status, "missing");
+  });

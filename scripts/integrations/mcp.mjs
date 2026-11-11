@@ -195,7 +195,14 @@ async function normalizedServer(server, config) {
   };
 }
 
-async function input(options) {
+async function sameBuiltinPath(candidate, expected, allowLegacyAlias) {
+  if (candidate === expected) return true;
+  if (!allowLegacyAlias || typeof candidate !== "string" || !isAbsolute(candidate)) return false;
+  try { return await realpath(candidate) === await realpath(expected); }
+  catch { return false; }
+}
+
+async function input(options, inspectLegacy = false) {
   const { provider, name } = options;
   const config = {
     ...options.config,
@@ -215,15 +222,16 @@ async function input(options) {
     );
   const server = await normalizedServer(options.server, config);
   if (options.toolApproval !== undefined) {
+    const allowLegacyAlias = inspectLegacy && name === "szpont_playwright";
     if (
       !["approve", "prompt"].includes(options.toolApproval) ||
       provider !== "codex" ||
       !["plompy_playwright", "szpont_playwright"].includes(name) ||
       server.url ||
-      server.command !== process.execPath ||
+      !(await sameBuiltinPath(server.command, process.execPath, allowLegacyAlias)) ||
       server.env ||
       ![5, 7].includes(server.args.length) ||
-      server.args[0] !== playwrightLauncher ||
+      !(await sameBuiltinPath(server.args[0], playwrightLauncher, allowLegacyAlias)) ||
       server.args[1] !== "--output-dir" ||
       server.args[3] !== "--browser-cache" ||
       (server.args.length === 7 &&
@@ -655,7 +663,7 @@ async function mutateJson(options, remove) {
 /** Configuration-only checks: these functions never claim that MCP connected. */
 export async function inspectMcp(options) {
   return safely(async () => {
-    const request = await input(options);
+    const request = await input(options, true);
     return request.provider === "codex"
       ? inspectCodex(request)
       : inspectJson(request);
@@ -694,7 +702,7 @@ export async function registerMcp(options) {
 
 export async function unregisterMcp(options) {
   return safely(async () => {
-    const request = await input(options);
+    const request = await input(options, true);
     if (request.provider !== "codex") return mutateJson(request, true);
     return withCodexLock(request, async () => {
       const current = await inspectCodex(request);

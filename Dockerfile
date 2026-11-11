@@ -48,15 +48,16 @@ ENV NODE_ENV=production \
     PLOMPY_BROWSER_DIR=/tmp/plompy-browser \
     PLOMPY_CODEX_BIN=/usr/local/bin/codex
 # Persisted runner sessions and private MCP tables can contain pre-0.12 absolute
-# paths. Both aliases point to the same mounted state/code; no data is copied.
-RUN ln -s /var/lib/plompy /var/lib/szpont \
+# paths. Legacy state uses real mountpoints (credential/browser guards reject
+# symlink ancestors); compose.legacy.yaml mounts the same volumes at both paths.
+RUN install -d -m 0700 -o node -g node /var/lib/szpont/workspace /var/lib/szpont/state /var/lib/szpont/artifacts /var/lib/szpont/codex /var/lib/szpont/github \
     && ln -s /opt/plompy /opt/szpont
 WORKDIR /opt/plompy
 COPY --from=build /build/package.json ./apps/discord-agent/package.json
 COPY --from=build /build/dist ./apps/discord-agent/dist
 COPY apps/discord-agent/schemas ./apps/discord-agent/schemas
 COPY --from=build /build/node_modules ./apps/discord-agent/node_modules
-COPY scripts/brand-compat.mjs scripts/init-workspace.mjs scripts/docker-smoke.mjs scripts/docker-sandbox-check.mjs scripts/state-snapshot.mjs scripts/integrations.mjs scripts/setup.mjs scripts/doctor.mjs scripts/acceptance.mjs scripts/installation-smoke.mjs ./scripts/
+COPY scripts/brand-compat.mjs scripts/docker-legacy-smoke.mjs scripts/init-workspace.mjs scripts/docker-smoke.mjs scripts/docker-sandbox-check.mjs scripts/state-snapshot.mjs scripts/integrations.mjs scripts/setup.mjs scripts/doctor.mjs scripts/acceptance.mjs scripts/installation-smoke.mjs ./scripts/
 COPY scripts/integrations ./scripts/integrations
 COPY --from=mcp-tools /tools/node_modules ./packages/mcp-bridge/node_modules
 COPY packages/mcp-bridge/package.json packages/mcp-bridge/bridge.mjs ./packages/mcp-bridge/

@@ -69,7 +69,7 @@ assert.doesNotMatch(
 );
 assert.equal(process.env.HOME, "/tmp/plompy-home");
 assert.equal(await realpath("/opt/szpont"), "/opt/plompy");
-assert.equal(await realpath("/var/lib/szpont"), "/var/lib/plompy");
+assert.equal(await realpath("/var/lib/szpont"), "/var/lib/szpont");
 assert.equal((await stat(process.env.HOME)).mode & 0o777, 0o700);
 const npmCache = execFileSync("npm", ["config", "get", "cache"], {
   encoding: "utf8",

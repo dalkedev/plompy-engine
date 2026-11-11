@@ -16,6 +16,8 @@
 !scripts/init-workspace.mjs
 !scripts/docker-entrypoint.sh
 !scripts/docker-smoke.mjs
+!scripts/docker-legacy-smoke.mjs
+!scripts/brand-compat.mjs
 !scripts/docker-sandbox-check.mjs
 !scripts/state-snapshot.mjs
 !scripts/integrations.mjs

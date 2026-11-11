@@ -88,11 +88,16 @@ Keep **both** Compose files on every later command for this upgraded installatio
 For custom per-volume names or bind mounts, create a private override matching the
 observed mounts instead of assuming the default prefix. `SZPONT_ENV_FILE` remains a
 fallback for `PLOMPY_ENV_FILE`; image and volume selection use the explicit new
-variables shown above. Never use `down -v` during migration. Inside-container paths
-change to `/var/lib/plompy/...`, but mount the same volume contents and use the same
-`state/engine.lock` inode. Read-only image aliases from `/var/lib/szpont` and
-`/opt/szpont` resolve to the new locations, retaining absolute paths saved in
-runner sessions and private MCP tables.
+variables shown above. Never use `down -v` during migration. The legacy override
+keeps `/var/lib/szpont/...` paths for upgraded services and additionally mounts the
+same five volumes at `/var/lib/plompy/...`. These are real mountpoints, not symlinks
+or copied data: both names share the same files and `state/engine.lock` inode. This
+preserves strict credential/browser path checks and absolute paths saved in runner
+sessions and MCP tables. The read-only `/opt/szpont` code alias resolves to
+`/opt/plompy`; existing approved Playwright entries recognize only this same bundled
+launcher when inspecting/removing legacy configuration. New approval registration
+still requires the current exact launcher. Retain any additional private credential
+bind mounts at their original physical paths.
 
 If using the optional AppArmor profile, install/reload `plompy-engine-container`
 from `scripts/docker-apparmor` and update the private override. Do not remove the
@@ -115,7 +120,9 @@ pipeline passes; use the release's verified digest for pinned deployments.
 - MCP mutation locks retain legacy filenames so old and new wizards cannot edit
   the same configuration concurrently. Do not delete a live lock.
 - The Python package is `plompy-browser`, imported/run as `plompy_browser`.
-  Reinstall from the committed `uv.lock` or hash-locked requirements. The old
+  Use `uv sync --frozen` to replace the old distribution, or install the
+  hash-locked requirements into a fresh release virtual environment. Avoid
+  overlapping old/new distributions that own the same compatibility files. The old
   `szpont-browser` command and `python -m szpont_browser` remain compatibility
   aliases, including login and provisioning submodules.
 - Browser `SZPONT_BROWSER_PROFILE` and `SZPONT_BROWSER_ARTIFACTS` remain accepted.

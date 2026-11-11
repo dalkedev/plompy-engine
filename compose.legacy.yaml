@@ -1,5 +1,23 @@
 # Upgrade only: reuse existing volumes without moving or copying private data.
 # Stop the old service first. See docs/migration-plompy.md.
+services:
+  engine:
+    # Keep absolute paths saved in existing runner sessions and MCP configs.
+    # Compose merges volumes by target: these add real old-path mounts alongside
+    # the new paths. Each pair references the same external volume, never a copy.
+    environment:
+      CODEX_HOME: /var/lib/szpont/codex
+      GH_CONFIG_DIR: /var/lib/szpont/github
+      PLOMPY_WORKSPACE: /var/lib/szpont/workspace/current
+      PLOMPY_STATE_DIR: /var/lib/szpont/state
+      PLOMPY_ARTIFACTS_DIR: /var/lib/szpont/artifacts
+      PLOMPY_BROWSER_DIR: /tmp/szpont-browser
+    volumes:
+      - workspace:/var/lib/szpont/workspace
+      - state:/var/lib/szpont/state
+      - artifacts:/var/lib/szpont/artifacts
+      - codex-auth:/var/lib/szpont/codex
+      - github-auth:/var/lib/szpont/github
 volumes:
   workspace:
     external: true
