@@ -361,4 +361,9 @@ processes. Read [security](SECURITY.md) before granting real account access.
 The project is MIT-licensed; model access and third-party services are separate.
 The [road to 1.0](ROADMAP.md) records the remaining stability gates.
 
+## Support the project
+
+If Plompy is useful to you, you can [buy me a coffee](https://buymeacoffee.com/dalkedev)
+to support its development.
+
 [Documentation](docs/index.md) · [Contributing](CONTRIBUTING.md) · [Releases](docs/releases.md) · [Brand assets](docs/brand.md) · [MIT license](LICENSE)
