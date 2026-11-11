@@ -1,21 +1,21 @@
-name: szpont-engine
+name: plompy-engine
 services:
   engine:
-    image: ${SZPONT_IMAGE:-ghcr.io/dalkedev/szpont-engine:0.11.1}
+    image: ${PLOMPY_IMAGE:-ghcr.io/dalkedev/plompy-engine:0.12.0}
     build:
       context: .
     env_file:
-      - ${SZPONT_ENV_FILE:?Set SZPONT_ENV_FILE to an absolute private environment file outside this checkout}
+      - ${PLOMPY_ENV_FILE:-${SZPONT_ENV_FILE:?Set PLOMPY_ENV_FILE to an absolute private environment file outside this checkout}}
     environment:
       # These container paths override host-path values in the private environment file.
-      SZPONT_RUNNER: codex
-      CODEX_HOME: /var/lib/szpont/codex
-      GH_CONFIG_DIR: /var/lib/szpont/github
-      SZPONT_WORKSPACE: /var/lib/szpont/workspace/current
-      SZPONT_STATE_DIR: /var/lib/szpont/state
-      SZPONT_ARTIFACTS_DIR: /var/lib/szpont/artifacts
-      SZPONT_BROWSER_DIR: /tmp/szpont-browser
-      SZPONT_CODEX_BIN: /usr/local/bin/codex
+      PLOMPY_RUNNER: codex
+      CODEX_HOME: /var/lib/plompy/codex
+      GH_CONFIG_DIR: /var/lib/plompy/github
+      PLOMPY_WORKSPACE: /var/lib/plompy/workspace/current
+      PLOMPY_STATE_DIR: /var/lib/plompy/state
+      PLOMPY_ARTIFACTS_DIR: /var/lib/plompy/artifacts
+      PLOMPY_BROWSER_DIR: /tmp/plompy-browser
+      PLOMPY_CODEX_BIN: /usr/local/bin/codex
     user: "1000:1000"
     read_only: true
     cap_drop:
@@ -26,11 +26,11 @@ services:
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=256m,mode=1777
     volumes:
-      - workspace:/var/lib/szpont/workspace
-      - state:/var/lib/szpont/state
-      - artifacts:/var/lib/szpont/artifacts
-      - codex-auth:/var/lib/szpont/codex
-      - github-auth:/var/lib/szpont/github
+      - workspace:/var/lib/plompy/workspace
+      - state:/var/lib/plompy/state
+      - artifacts:/var/lib/plompy/artifacts
+      - codex-auth:/var/lib/plompy/codex
+      - github-auth:/var/lib/plompy/github
     restart: unless-stopped
     stop_grace_period: 30s
     pids_limit: 256

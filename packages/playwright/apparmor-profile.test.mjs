@@ -16,7 +16,7 @@ import { profileForExecutable } from "./apparmor-profile.mjs";
 
 async function fixture(t) {
   const root = await mkdtemp(
-    join(await realpath(tmpdir()), "szpont-apparmor-test-"),
+    join(await realpath(tmpdir()), "plompy-apparmor-test-"),
   );
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;
@@ -32,7 +32,7 @@ test("profile grants userns to one trusted exact path with a deterministic hashe
   assert.match(
     profile,
     new RegExp(
-      `profile szpont-playwright-chromium-[a-f0-9]{16} "${browser.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" flags=\\(unconfined\\)`,
+      `profile plompy-playwright-chromium-[a-f0-9]{16} "${browser.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" flags=\\(unconfined\\)`,
     ),
   );
   assert.equal(profile.match(/\buserns,/g).length, 1);

@@ -18,7 +18,7 @@ const fixtureTestEnvironment = () => Object.fromEntries(
 );
 
 async function privateRoot(t) {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "szpont-acceptance-test-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "plompy-acceptance-test-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;
 }
@@ -96,7 +96,7 @@ test("container initialization prints an executable host Compose command with li
   const root = await privateRoot(t);
   const destination = join(root, "docker task's $(printf INJECTED) `printf INJECTED`");
   const init = await cliResult(["init", "--destination", destination], {
-    env: { ...fixtureTestEnvironment(), SZPONT_CONTAINER_RUNNER: "codex" },
+    env: { ...fixtureTestEnvironment(), PLOMPY_CONTAINER_RUNNER: "codex" },
   });
   assert.equal(init.code, 0);
   assert.match(init.stdout, /on the Docker host in a POSIX shell/);

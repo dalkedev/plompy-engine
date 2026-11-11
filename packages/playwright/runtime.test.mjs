@@ -27,7 +27,7 @@ import { parseArguments } from "./launch.mjs";
 
 async function fixture(t) {
   const root = await mkdtemp(
-    join(await realpath(tmpdir()), "szpont-browser-unit-"),
+    join(await realpath(tmpdir()), "plompy-browser-unit-"),
   );
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;

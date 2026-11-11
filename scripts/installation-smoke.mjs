@@ -20,7 +20,7 @@ const execute = promisify(execFile);
 const source = fileURLToPath(new URL("../", import.meta.url));
 const secret = "synthetic-installation-token-not-a-real-discord-credential";
 const env = Object.fromEntries(
-  ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SZPONT_CONTAINER_RUNNER"]
+  ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "PLOMPY_CONTAINER_RUNNER"]
     .filter((key) => process.env[key] !== undefined)
     .map((key) => [key, process.env[key]]),
 );
@@ -60,7 +60,7 @@ const cli = (name, args, label) =>
 
 try {
   temporary = await realpath(
-    await mkdtemp(join(tmpdir(), "szpont-installation-")),
+    await mkdtemp(join(tmpdir(), "plompy-installation-")),
   );
   await chmod(temporary, 0o700);
   const root = join(temporary, "private installation");

@@ -33,7 +33,7 @@ export async function preparePlaywright({
   if (browserBin) args.push("--browser-bin", await executable(browserBin));
   return {
     id: "playwright",
-    name: "szpont_playwright",
+    name: "plompy_playwright",
     server: { command, args },
   };
 }

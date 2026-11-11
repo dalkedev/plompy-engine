@@ -71,7 +71,7 @@ const response = (bytes = png, headers = {}) =>
     headers: { "content-type": "image/png", ...headers },
   });
 async function fixture(t, provider = "codex", dependencies = {}) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-images-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-images-"));
   for (const name of [
     "workspace/agent/conversations",
     "workspace/agent/memory",

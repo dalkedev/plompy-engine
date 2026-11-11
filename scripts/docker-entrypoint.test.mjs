@@ -18,7 +18,7 @@ const entrypoint = fileURLToPath(
 );
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "szpont-entrypoint-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-entrypoint-"));
   const bin = join(root, "bin");
   await mkdir(bin);
   await writeFile(join(bin, "id"), "#!/bin/sh\nprintf '1000\\n'\n", {
@@ -38,7 +38,7 @@ exec "$@"
     join(bin, "node"),
     `#!/bin/sh
 printf '%s\\n' "$@" > "$CAPTURE/node"
-printf '%s\\n' "\${DISCORD_BOT_TOKEN-unset}" "\${SZPONT_GIT_SSH_COMMAND-unset}" "\${GH_TOKEN-unset}" "\${GITHUB_TOKEN-unset}" "\${GH_ENTERPRISE_TOKEN-unset}" "\${GITHUB_ENTERPRISE_TOKEN-unset}" "\${GH_CONFIG_DIR-unset}" > "$CAPTURE/environment"
+printf '%s\\n' "\${DISCORD_BOT_TOKEN-unset}" "\${PLOMPY_GIT_SSH_COMMAND-unset}" "\${GH_TOKEN-unset}" "\${GITHUB_TOKEN-unset}" "\${GH_ENTERPRISE_TOKEN-unset}" "\${GITHUB_ENTERPRISE_TOKEN-unset}" "\${GH_CONFIG_DIR-unset}" > "$CAPTURE/environment"
 `,
     { mode: 0o700 },
   );
@@ -47,11 +47,11 @@ printf '%s\\n' "\${DISCORD_BOT_TOKEN-unset}" "\${SZPONT_GIT_SSH_COMMAND-unset}" 
     env: {
       PATH: `${bin}:/usr/bin:/bin`,
       HOME: join(root, "home"),
-      SZPONT_STATE_DIR: join(root, "state"),
-      SZPONT_BROWSER_DIR: join(root, "browser"),
+      PLOMPY_STATE_DIR: join(root, "state"),
+      PLOMPY_BROWSER_DIR: join(root, "browser"),
       GH_CONFIG_DIR: join(root, "github"),
       DISCORD_BOT_TOKEN: "synthetic-discord-token",
-      SZPONT_GIT_SSH_COMMAND: "synthetic-private-command",
+      PLOMPY_GIT_SSH_COMMAND: "synthetic-private-command",
       GH_TOKEN: "synthetic-github-token",
       GITHUB_TOKEN: "synthetic-github-token",
       GH_ENTERPRISE_TOKEN: "synthetic-github-token",
@@ -79,14 +79,14 @@ test("container integration setup holds the engine lock and never passes service
         "75",
         join(root, "state/engine.lock"),
         "node",
-        "/opt/szpont/scripts/integrations.mjs",
+        "/opt/plompy/scripts/integrations.mjs",
         "add",
         "github",
       ],
     );
     assert.deepEqual(
       (await readFile(join(root, "node"), "utf8")).trim().split("\n"),
-      ["/opt/szpont/scripts/integrations.mjs", "add", "github"],
+      ["/opt/plompy/scripts/integrations.mjs", "add", "github"],
     );
     assert.deepEqual(
       (await readFile(join(root, "environment"), "utf8")).trim().split("\n"),
@@ -126,10 +126,10 @@ test("container doctor preserves only the Discord credential needed for explicit
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(
       (await readFile(join(root, "node"), "utf8")).trim().split("\n"),
-      ["/opt/szpont/scripts/doctor.mjs", "--check-discord", "--json"],
+      ["/opt/plompy/scripts/doctor.mjs", "--check-discord", "--json"],
     );
-    assert.equal((await stat(env.SZPONT_BROWSER_DIR)).mode & 0o777, 0o700);
-    await assert.rejects(stat(env.SZPONT_STATE_DIR), { code: "ENOENT" });
+    assert.equal((await stat(env.PLOMPY_BROWSER_DIR)).mode & 0o777, 0o700);
+    await assert.rejects(stat(env.PLOMPY_STATE_DIR), { code: "ENOENT" });
     assert.deepEqual(
       (await readFile(join(root, "environment"), "utf8")).trim().split("\n"),
       [
@@ -159,7 +159,7 @@ for (const command of ["setup", "acceptance", "installation-smoke"]) {
       assert.equal(result.status, 0, result.stderr);
       assert.deepEqual(
         (await readFile(join(root, "node"), "utf8")).trim().split("\n"),
-        [`/opt/szpont/scripts/${command}.mjs`, ...args],
+        [`/opt/plompy/scripts/${command}.mjs`, ...args],
       );
       assert.deepEqual(
         (await readFile(join(root, "environment"), "utf8")).trim().split("\n"),
@@ -178,3 +178,16 @@ for (const command of ["setup", "acceptance", "installation-smoke"]) {
     }
   });
 }
+
+test("legacy container caller keeps its paths while old private SSH settings are removed", async () => {
+  const { root, env } = await fixture();
+  try {
+    const legacy = Object.fromEntries(Object.entries(env).map(([key, value]) => [key.replace(/^PLOMPY_/, "SZPONT_"), value]));
+    await writeFile(join(root, "bin/node"), `#!/bin/sh\nprintf '%s\\n' "$PLOMPY_STATE_DIR" "$PLOMPY_BROWSER_DIR" "\${SZPONT_GIT_SSH_COMMAND-unset}" > "$CAPTURE/legacy"\n`, { mode: 0o700 });
+    const result = spawnSync("/bin/sh", [entrypoint, "doctor"], { env: legacy, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual((await readFile(join(root, "legacy"), "utf8")).trim().split("\n"), [env.PLOMPY_STATE_DIR, env.PLOMPY_BROWSER_DIR, "unset"]);
+    assert.equal((await stat(env.PLOMPY_BROWSER_DIR)).mode & 0o777, 0o700);
+    await assert.rejects(stat(env.PLOMPY_STATE_DIR), { code: "ENOENT" });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Szpont supervised goal review",
+  "title": "Plompy supervised goal review",
   "type": "object",
   "additionalProperties": false,
   "required": ["outcome", "summary", "nextAction", "progress"],

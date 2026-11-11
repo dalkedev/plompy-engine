@@ -57,7 +57,7 @@ jobs:
           package-manager-cache: false
       - name: Keep the pinned Node executable outside the writable hosted tool cache
         run: |
-          runtime_dir=$(sudo mktemp -d /tmp/szpont-ci-node-XXXXXX)
+          runtime_dir=$(sudo mktemp -d /tmp/plompy-ci-node-XXXXXX)
           sudo chmod 0755 "$runtime_dir"
           sudo install -m 0755 -o root -g root "$(command -v node)" "$runtime_dir/node"
           cmp "$(command -v node)" "$runtime_dir/node"
@@ -75,17 +75,17 @@ jobs:
       - name: Install pinned Chromium and Linux dependencies
         run: |
           ./packages/playwright/node_modules/.bin/playwright install-deps chromium
-          node packages/playwright/install-browser.mjs --cache-dir "$RUNNER_TEMP/szpont-playwright-cache"
+          node packages/playwright/install-browser.mjs --cache-dir "$RUNNER_TEMP/plompy-playwright-cache"
       - name: Allow only the provisioned Chromium sandbox on restricted Ubuntu hosts
         run: |
           if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || true)" = 1 ]; then
-            node packages/playwright/apparmor-profile.mjs --cache-dir "$RUNNER_TEMP/szpont-playwright-cache" > "$RUNNER_TEMP/szpont-playwright.apparmor"
-            sudo install -m 0644 "$RUNNER_TEMP/szpont-playwright.apparmor" /etc/apparmor.d/szpont-playwright-ci
-            sudo apparmor_parser -r -W /etc/apparmor.d/szpont-playwright-ci
+            node packages/playwright/apparmor-profile.mjs --cache-dir "$RUNNER_TEMP/plompy-playwright-cache" > "$RUNNER_TEMP/plompy-playwright.apparmor"
+            sudo install -m 0644 "$RUNNER_TEMP/plompy-playwright.apparmor" /etc/apparmor.d/plompy-playwright-ci
+            sudo apparmor_parser -r -W /etc/apparmor.d/plompy-playwright-ci
           fi
       - name: Click through a synthetic local page over real MCP
         env:
-          SZPONT_PLAYWRIGHT_SMOKE_CACHE: ${{ runner.temp }}/szpont-playwright-cache
+          PLOMPY_PLAYWRIGHT_SMOKE_CACHE: ${{ runner.temp }}/plompy-playwright-cache
         run: npm run smoke --prefix packages/playwright
 
   browser:
@@ -151,9 +151,9 @@ jobs:
       - name: Load the container sandbox profile on this ephemeral runner
         run: |
           if docker info --format '{{json .SecurityOptions}}' | grep -q 'name=apparmor'; then
-            sudo install -m 0644 scripts/docker-apparmor /etc/apparmor.d/szpont-engine-container
-            sudo apparmor_parser -r -W /etc/apparmor.d/szpont-engine-container
-            printf 'SZPONT_DOCKER_APPARMOR_PROFILE=szpont-engine-container\n' >> "$GITHUB_ENV"
+            sudo install -m 0644 scripts/docker-apparmor /etc/apparmor.d/plompy-engine-container
+            sudo apparmor_parser -r -W /etc/apparmor.d/plompy-engine-container
+            printf 'PLOMPY_DOCKER_APPARMOR_PROFILE=plompy-engine-container\n' >> "$GITHUB_ENV"
           fi
       - name: Build without registry credentials
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -162,10 +162,10 @@ jobs:
           load: true
           push: false
           platforms: linux/${{ matrix.arch }}
-          tags: szpont-engine:ci
+          tags: plompy-engine:ci
           build-args: |
             REVISION=${{ github.sha }}
           cache-from: type=gha,scope=checks-container-${{ matrix.arch }}
           cache-to: type=gha,scope=checks-container-${{ matrix.arch }},mode=max
       - name: Test the real Codex sandbox and isolated persistent state offline
-        run: sh scripts/docker-smoke.sh szpont-engine:ci
+        run: sh scripts/docker-smoke.sh plompy-engine:ci

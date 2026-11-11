@@ -15,11 +15,11 @@ runner directories. The directory must be owned by the service user with mode
 0700, and the token file must be a regular, single-link file with mode 0600. Paths
 must be absolute and have no symlink components. A file contains only its API
 token, optionally followed by one newline, with a limit of 4096 printable ASCII
-bytes. Szpont reads and validates the file; it never rewrites or deletes it.
+bytes. Plompy reads and validates the file; it never rewrites or deletes it.
 
 ```sh
 npm run integrations -- add perplexity --runner codex --yes \
-  --auth api-key --credential-file /private/szpont-credentials/perplexity.txt
+  --auth api-key --credential-file /private/plompy-credentials/perplexity.txt
 ```
 
 The bridge uses the pinned official MCP TypeScript SDK and fixed vendor HTTPS

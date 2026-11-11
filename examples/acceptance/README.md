@@ -1,6 +1,6 @@
 # First goal: a small bug with an independent answer
 
-Use this synthetic task to check a configured Szpont installation before giving it
+Use this synthetic task to check a configured Plompy installation before giving it
 your own project. It needs Node 24 and Git, no npm dependencies, credentials, paid
 services, or network access. Initialization and verification run locally; they do
 **not** connect to Discord, authenticate a provider, call a model, or prove the
@@ -13,7 +13,7 @@ first useful patch, not a benchmark against which to declare an agent intelligen
 
 ## 1. Create a private task repository
 
-From your trusted szpont-engine checkout:
+From your trusted plompy-engine checkout:
 
 ```sh
 npm run acceptance -- init --destination /absolute/private/artifacts/first-goal
@@ -23,7 +23,7 @@ Replace the path with a **new directory inside your configured private artifacts
 workspace**. Its parent must already exist. Use its physical/canonical path, with no
 symlink ancestors, `.` or `..` segments, or trailing separator. The command refuses
 an existing file/directory/symlink and never overwrites it. It also refuses private
-task state inside the public szpont-engine checkout. Paths with spaces work: quote
+task state inside the public plompy-engine checkout. Paths with spaces work: quote
 the CLI argument according to your shell, for example:
 
 ```sh
@@ -31,11 +31,11 @@ npm run acceptance -- init --destination "/absolute/private/artifacts/first goal
 ```
 
 For Docker, run from the host using your existing Compose project, private
-`SZPONT_ENV_FILE`, and selected image. Use a **container path** inside the mounted
+`PLOMPY_ENV_FILE`, and selected image. Use a **container path** inside the mounted
 artifacts volume:
 
 ```sh
-docker compose run --rm engine acceptance init --destination /var/lib/szpont/artifacts/first-goal
+docker compose run --rm engine acceptance init --destination /var/lib/plompy/artifacts/first-goal
 ```
 
 Keep the same Compose project, environment, and volumes for initialization, the
@@ -87,7 +87,7 @@ claim. No push, pull request, deployment, or public post is needed for this task
 
 ## 3. Check independently after the goal finishes
 
-Back in your **trusted szpont-engine checkout**, run the exact verification command
+Back in your **trusted plompy-engine checkout**, run the exact verification command
 printed at initialization:
 
 ```sh
@@ -97,7 +97,7 @@ npm run acceptance -- verify --manifest /absolute/private/artifacts/first-goal/a
 For Docker, use the printed host command with the manifest's container path:
 
 ```sh
-docker compose run --rm engine acceptance verify --manifest /var/lib/szpont/artifacts/first-goal/acceptance-manifest.json
+docker compose run --rm engine acceptance verify --manifest /var/lib/plompy/artifacts/first-goal/acceptance-manifest.json
 ```
 
 Before the fix it returns JSON with `status: "FAIL"`, `check: "fixture_behavior"`,

@@ -15,30 +15,45 @@ IDENTITY_ENV = re.compile(r"CAMOU_(?:CONFIG|PREFS)_\d+|FONTCONFIG_FILE")
 
 
 class ProfileLock:
-    """One browser process per persistent profile, including manual login."""
+    """Hold both names so old and new browser processes cannot share a profile."""
 
     def __init__(self, profile: Path):
-        self.path = profile / ".szpont.lock"
+        self.path = profile / ".plompy.lock"
+        self.legacy_path = profile / ".szpont.lock"
         self.fd: int | None = None
+        self._fds: list[int] = []
 
     def acquire(self) -> None:
-        if self.fd is not None:
+        if self._fds:
             raise BrowserError("profile_locked: this process already holds the profile")
-        fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            for path in (self.legacy_path, self.path):
+                fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+                self._fds.append(fd)
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                os.ftruncate(fd, 0)
+                os.write(fd, str(os.getpid()).encode())
+            self.fd = self._fds[-1]
         except BlockingIOError:
-            os.close(fd)
+            self.release()
             raise BrowserError("profile_locked: stop the MCP job or manual login using this profile") from None
-        os.ftruncate(fd, 0)
-        os.write(fd, str(os.getpid()).encode())
-        self.fd = fd
+        except BaseException:
+            self.release()
+            raise
 
     def release(self) -> None:
-        if self.fd is not None:
-            fcntl.flock(self.fd, fcntl.LOCK_UN)
-            os.close(self.fd)
-            self.fd = None
+        for fd in reversed(self._fds):
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+        self._fds.clear()
+        self.fd = None
+
+
+def identity_path(profile: Path) -> Path:
+    current, legacy = profile / ".plompy-identity.json", profile / ".szpont-identity.json"
+    if os.path.lexists(current) and os.path.lexists(legacy):
+        raise BrowserError("identity_invalid: both current and legacy identities exist; inspect the profile explicitly")
+    return legacy if os.path.lexists(legacy) else current
 
 
 def executable_hash(path: Path) -> str:
@@ -52,7 +67,7 @@ def load_identity(config: Config, generate: Callable[[], dict]) -> dict:
     Caller holds ProfileLock. A changed browser requires deliberate maintenance;
     silently rotating a logged-in account's fingerprint is not an upgrade policy.
     """
-    path = config.profile / ".szpont-identity.json"
+    path = identity_path(config.profile)
     digest = executable_hash(config.executable)
     if path.is_symlink():
         raise BrowserError("identity_invalid: fingerprint file must not be a symlink")

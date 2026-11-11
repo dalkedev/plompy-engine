@@ -15,13 +15,13 @@ import { join } from "node:path";
 import { loadConfig, authorized } from "../dist/config.js";
 const env = {
   DISCORD_BOT_TOKEN: "synthetic-test-value",
-  SZPONT_DISCORD_GUILD_ID: "111111111111111111",
-  SZPONT_DISCORD_OWNER_ID: "222222222222222222",
-  SZPONT_DISCORD_BOT_ID: "333333333333333333",
-  SZPONT_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
-  SZPONT_WORKSPACE: "/tmp/private/workspace",
-  SZPONT_STATE_DIR: "/tmp/private/state",
-  SZPONT_ARTIFACTS_DIR: "/tmp/private/artifacts",
+  PLOMPY_DISCORD_GUILD_ID: "111111111111111111",
+  PLOMPY_DISCORD_OWNER_ID: "222222222222222222",
+  PLOMPY_DISCORD_BOT_ID: "333333333333333333",
+  PLOMPY_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
+  PLOMPY_WORKSPACE: "/tmp/private/workspace",
+  PLOMPY_STATE_DIR: "/tmp/private/state",
+  PLOMPY_ARTIFACTS_DIR: "/tmp/private/artifacts",
   CODEX_HOME: "/tmp/private/codex",
 };
 test("configuration requires each deployment identity with no owner fallback", () => {
@@ -30,9 +30,9 @@ test("configuration requires each deployment identity with no owner fallback", (
   assert.equal(config.ownerId, "222222222222222222");
   assert.equal(config.botId, "333333333333333333");
   for (const key of [
-    "SZPONT_DISCORD_GUILD_ID",
-    "SZPONT_DISCORD_OWNER_ID",
-    "SZPONT_DISCORD_BOT_ID",
+    "PLOMPY_DISCORD_GUILD_ID",
+    "PLOMPY_DISCORD_OWNER_ID",
+    "PLOMPY_DISCORD_BOT_ID",
   ]) {
     const missing = { ...env };
     delete missing[key];
@@ -73,20 +73,20 @@ test("authorization follows the selected deployment and rejects another owner, g
 });
 
 async function managedFixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-managed-mcp-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-managed-mcp-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const fixtureEnv = {
     ...env,
-    SZPONT_WORKSPACE: join(root, "workspace"),
-    SZPONT_STATE_DIR: join(root, "state"),
-    SZPONT_ARTIFACTS_DIR: join(root, "artifacts"),
+    PLOMPY_WORKSPACE: join(root, "workspace"),
+    PLOMPY_STATE_DIR: join(root, "state"),
+    PLOMPY_ARTIFACTS_DIR: join(root, "artifacts"),
     CODEX_HOME: join(root, "codex"),
     CLAUDE_CONFIG_DIR: join(root, "claude"),
-    SZPONT_OPENCODE_HOME: join(root, "opencode"),
-    SZPONT_OPENCODE_MODEL: "synthetic/model",
+    PLOMPY_OPENCODE_HOME: join(root, "opencode"),
+    PLOMPY_OPENCODE_MODEL: "synthetic/model",
   };
   await mkdir(fixtureEnv.CLAUDE_CONFIG_DIR, { mode: 0o700 });
-  await mkdir(fixtureEnv.SZPONT_OPENCODE_HOME, { mode: 0o700 });
+  await mkdir(fixtureEnv.PLOMPY_OPENCODE_HOME, { mode: 0o700 });
   return { root, env: fixtureEnv };
 }
 
@@ -95,7 +95,7 @@ test("only the fixed managed MCP filename is discovered, without creating missin
   await writeFile(join(f.env.CLAUDE_CONFIG_DIR, "settings.json"), "{}", {
     mode: 0o600,
   });
-  await writeFile(join(f.env.SZPONT_OPENCODE_HOME, "opencode.json"), "{}", {
+  await writeFile(join(f.env.PLOMPY_OPENCODE_HOME, "opencode.json"), "{}", {
     mode: 0o600,
   });
   const before = await readdir(f.root);
@@ -104,19 +104,19 @@ test("only the fixed managed MCP filename is discovered, without creating missin
   assert.equal(config.opencodeConfig, undefined);
   assert.deepEqual(await readdir(f.root), before);
   assert.deepEqual(await readdir(f.env.CLAUDE_CONFIG_DIR), ["settings.json"]);
-  assert.deepEqual(await readdir(f.env.SZPONT_OPENCODE_HOME), [
+  assert.deepEqual(await readdir(f.env.PLOMPY_OPENCODE_HOME), [
     "opencode.json",
   ]);
 });
 
 test("managed integrations are discovered for all persisted runners and explicit overrides win", async (t) => {
   const f = await managedFixture(t);
-  const claude = join(f.env.CLAUDE_CONFIG_DIR, "szpont-mcp.json");
-  const opencode = join(f.env.SZPONT_OPENCODE_HOME, "szpont-mcp.json");
+  const claude = join(f.env.CLAUDE_CONFIG_DIR, "plompy-mcp.json");
+  const opencode = join(f.env.PLOMPY_OPENCODE_HOME, "plompy-mcp.json");
   await writeFile(claude, '{"mcpServers":{}}', { mode: 0o600 });
   await writeFile(opencode, '{"mcp":{}}', { mode: 0o600 });
   for (const provider of ["codex", "claude", "opencode"]) {
-    const config = loadConfig({ ...f.env, SZPONT_RUNNER: provider });
+    const config = loadConfig({ ...f.env, PLOMPY_RUNNER: provider });
     assert.equal(config.claudeMcpConfig, claude);
     assert.equal(config.opencodeConfig, opencode);
   }
@@ -124,8 +124,8 @@ test("managed integrations are discovered for all persisted runners and explicit
   await chmod(opencode, 0o644);
   const config = loadConfig({
     ...f.env,
-    SZPONT_CLAUDE_MCP_CONFIG: join(f.root, "explicit-claude.json"),
-    SZPONT_OPENCODE_CONFIG: join(f.root, "explicit-opencode.json"),
+    PLOMPY_CLAUDE_MCP_CONFIG: join(f.root, "explicit-claude.json"),
+    PLOMPY_OPENCODE_CONFIG: join(f.root, "explicit-opencode.json"),
   });
   assert.equal(config.claudeMcpConfig, join(f.root, "explicit-claude.json"));
   assert.equal(config.opencodeConfig, join(f.root, "explicit-opencode.json"));
@@ -143,9 +143,9 @@ for (const provider of ["claude", "opencode"]) {
       const f = await managedFixture(t);
       const home =
         f.env[
-          provider === "claude" ? "CLAUDE_CONFIG_DIR" : "SZPONT_OPENCODE_HOME"
+          provider === "claude" ? "CLAUDE_CONFIG_DIR" : "PLOMPY_OPENCODE_HOME"
         ];
-      const path = join(home, "szpont-mcp.json");
+      const path = join(home, "plompy-mcp.json");
       const secret = "synthetic-private-file-contents";
       if (kind === "directory") await mkdir(path, { mode: 0o700 });
       else if (kind === "symlink" || kind === "hardlink") {
@@ -172,3 +172,25 @@ for (const provider of ["claude", "opencode"]) {
     });
   }
 }
+
+test("pre-0.12 environments keep the same identities and state; explicit new settings win", () => {
+  const legacy = Object.fromEntries(Object.entries(env).map(([key, value]) => [key.replace(/^PLOMPY_/, "SZPONT_"), value]));
+  assert.deepEqual(loadConfig(legacy), loadConfig(env));
+  assert.equal(loadConfig({ ...legacy, PLOMPY_STATE_DIR: "/tmp/new-private/state" }).stateDir, "/tmp/new-private/state");
+  assert.throws(() => loadConfig({ ...legacy, PLOMPY_STATE_DIR: "" }), /Missing PLOMPY_STATE_DIR/);
+  assert.equal(legacy.PLOMPY_STATE_DIR, undefined, "caller environment is not rewritten");
+});
+
+test("legacy managed MCP files are reused with safety checks and ambiguity fails closed", async (t) => {
+  const f = await managedFixture(t);
+  const legacy = join(f.env.CLAUDE_CONFIG_DIR, "szpont-mcp.json");
+  const current = join(f.env.CLAUDE_CONFIG_DIR, "plompy-mcp.json");
+  await writeFile(legacy, '{"mcpServers":{}}', { mode: 0o600 });
+  assert.equal(loadConfig(f.env).claudeMcpConfig, legacy);
+  await chmod(legacy, 0o644);
+  assert.throws(() => loadConfig(f.env), /Unsafe managed MCP/);
+  await chmod(legacy, 0o600);
+  await writeFile(current, '{"mcpServers":{}}', { mode: 0o600 });
+  assert.throws(() => loadConfig(f.env), /Both current and legacy/);
+  assert.equal(loadConfig({ ...f.env, PLOMPY_CLAUDE_MCP_CONFIG: legacy }).claudeMcpConfig, legacy);
+});

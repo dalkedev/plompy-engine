@@ -1,7 +1,7 @@
 # Discord image input
 
 In a private Codex thread, attach still PNG, JPEG or WebP images to a normal message.
-A caption describes what to inspect; an image-only message asks Szpont to inspect the
+A caption describes what to inspect; an image-only message asks Plompy to inspect the
 attachments. Images can also accompany an explicit `!work 30m <goal>` command.
 
 The engine passes image files through native `codex exec --image` input, including
@@ -54,7 +54,7 @@ and exact provider/session binding. A corrupt saved digest fails before model
 execution. Attachments remain untrusted data rather than a source of authority.
 
 At execution time, the worker writes files into a generated `0700` directory under
-`SZPONT_STATE_DIR`; individual files have mode `0600`. The engine removes them after
+`PLOMPY_STATE_DIR`; individual files have mode `0600`. The engine removes them after
 success, failure, timeout or cancellation. Startup removes abandoned generated
 image directories left by a killed process. As with startup recovery, this requires
 the deployment's external singleton lock **before Node starts**; never run a second

@@ -15,7 +15,7 @@ const claudeUuid = "01a12345-1234-7456-8456-123456789def";
 const openSession = "ses_0123456789abcdefghijklmnop";
 
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-providers-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-providers-"));
   for (const name of [
     "workspace/agent/memory",
     "workspace/agent/conversations",

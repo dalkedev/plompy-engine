@@ -1,3 +1,4 @@
+import { normalizeEnvironment } from "./brand-compat.mjs";
 import { constants } from "node:fs";
 import { access, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -404,6 +405,7 @@ export async function runDoctor({
   checkDiscord = false,
   fetchImpl = globalThis.fetch,
 } = {}) {
+  env = normalizeEnvironment(env);
   const checks = [];
   let config, childEnvironment;
   const finish = async () =>
@@ -490,8 +492,8 @@ export async function runDoctor({
   try {
     canonicalRoot = await realpath(publicRoot);
     if (
-      env.SZPONT_BROWSER_DIR !== undefined &&
-      !isAbsolute(env.SZPONT_BROWSER_DIR)
+      env.PLOMPY_BROWSER_DIR !== undefined &&
+      !isAbsolute(env.PLOMPY_BROWSER_DIR)
     )
       throw new Error("relative browser directory");
     paths = await Promise.all(
@@ -651,7 +653,7 @@ export async function runDoctor({
       config.opencodeAllowHostExecution ? "PASS" : "FAIL",
       config.opencodeAllowHostExecution
         ? "Operator explicitly enabled host execution. OpenCode has no engine-provided OS sandbox; verify your own isolation."
-        : "OpenCode needs operator-managed isolation and explicit SZPONT_OPENCODE_HOST_EXECUTION=allow. See the runner guide.",
+        : "OpenCode needs operator-managed isolation and explicit PLOMPY_OPENCODE_HOST_EXECUTION=allow. See the runner guide.",
     );
 
   if (!checkLogin) {

@@ -12,7 +12,7 @@ const cancel = "9555000000000001002";
 const sessionId = "01a12345-1234-7456-8456-123456789abc";
 
 test("owner cancellation after a committed continuation checkpoint prevents its next process", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "szpont-cancel-boundary-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-cancel-boundary-"));
   for (const name of [
     "workspace/agent/memory",
     "workspace/agent/conversations",

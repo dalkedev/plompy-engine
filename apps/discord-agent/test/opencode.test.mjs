@@ -42,7 +42,7 @@ async function fixture(
   body,
   { version = OPENCODE_VERSION, timeoutMs = 3000 } = {},
 ) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-opencode-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-opencode-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   for (const name of [
     "workspace",
@@ -175,9 +175,9 @@ test("OpenCode explicitly resumes exact session with stdin, selected model, isol
 });
 test("OpenCode Go consumes the wizard's discovered MCP config and preserves the selected model and provider", async (t) => {
   const { root, config: fixtureConfig } = await fixture(t);
-  const path = join(fixtureConfig.opencodeHome, "szpont-mcp.json");
+  const path = join(fixtureConfig.opencodeHome, "plompy-mcp.json");
   const mcp = {
-    szpont_context7: {
+    plompy_context7: {
       type: "remote",
       url: "https://example.test/mcp",
       enabled: true,
@@ -193,19 +193,19 @@ test("OpenCode Go consumes the wizard's discovered MCP config and preserves the 
   );
   const config = loadConfig({
     DISCORD_BOT_TOKEN: fixtureConfig.token,
-    SZPONT_DISCORD_GUILD_ID: "111111111111111111",
-    SZPONT_DISCORD_OWNER_ID: "222222222222222222",
-    SZPONT_DISCORD_BOT_ID: "333333333333333333",
-    SZPONT_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
-    SZPONT_WORKSPACE: fixtureConfig.workspace,
-    SZPONT_STATE_DIR: fixtureConfig.stateDir,
-    SZPONT_ARTIFACTS_DIR: fixtureConfig.artifactsDir,
-    SZPONT_BROWSER_DIR: fixtureConfig.browserDir,
-    SZPONT_RUNNER: "opencode",
-    SZPONT_OPENCODE_HOME: fixtureConfig.opencodeHome,
-    SZPONT_OPENCODE_BIN: fixtureConfig.opencodeBin,
-    SZPONT_OPENCODE_MODEL: model,
-    SZPONT_OPENCODE_HOST_EXECUTION: "allow",
+    PLOMPY_DISCORD_GUILD_ID: "111111111111111111",
+    PLOMPY_DISCORD_OWNER_ID: "222222222222222222",
+    PLOMPY_DISCORD_BOT_ID: "333333333333333333",
+    PLOMPY_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
+    PLOMPY_WORKSPACE: fixtureConfig.workspace,
+    PLOMPY_STATE_DIR: fixtureConfig.stateDir,
+    PLOMPY_ARTIFACTS_DIR: fixtureConfig.artifactsDir,
+    PLOMPY_BROWSER_DIR: fixtureConfig.browserDir,
+    PLOMPY_RUNNER: "opencode",
+    PLOMPY_OPENCODE_HOME: fixtureConfig.opencodeHome,
+    PLOMPY_OPENCODE_BIN: fixtureConfig.opencodeBin,
+    PLOMPY_OPENCODE_MODEL: model,
+    PLOMPY_OPENCODE_HOST_EXECUTION: "allow",
   });
   assert.equal(config.opencodeConfig, path);
   assert.equal(await opencodeReady(config), true);
@@ -224,7 +224,7 @@ test("OpenCode Go consumes the wizard's discovered MCP config and preserves the 
   assert.deepEqual(settings.enabled_providers, ["opencode-go"]);
   assert.equal(child.args[child.args.indexOf("--model") + 1], model);
   assert.equal(
-    JSON.parse(child.env.OPENCODE_PERMISSION)["szpont_context7_*"],
+    JSON.parse(child.env.OPENCODE_PERMISSION)["plompy_context7_*"],
     "allow",
   );
   assert.equal(child.env.GH_CONFIG_DIR, config.githubConfigDir);

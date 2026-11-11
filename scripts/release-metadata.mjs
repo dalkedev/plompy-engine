@@ -6,8 +6,8 @@ import { resolve } from 'node:path';
 export function browserVersions({ project, lock }) {
   const projectVersion = project.match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1];
   const packages = lock.split(/^\[\[package\]\]\s*$/m).slice(1);
-  const browserPackages = packages.filter((entry) => /^name\s*=\s*"szpont-browser"\s*$/m.test(entry));
-  assert.equal(browserPackages.length, 1, 'uv.lock must contain exactly one szpont-browser project.');
+  const browserPackages = packages.filter((entry) => /^name\s*=\s*"plompy-browser"\s*$/m.test(entry));
+  assert.equal(browserPackages.length, 1, 'uv.lock must contain exactly one plompy-browser project.');
   const lockVersion = browserPackages[0].match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1];
   assert(projectVersion && lockVersion, 'Both browser project and uv.lock need a version.');
   return [projectVersion, lockVersion];

@@ -10,6 +10,13 @@ class BrowserError(RuntimeError):
     """An actionable browser error, safe for the local MCP caller."""
 
 
+def compatible_path(current: str, legacy: str) -> str:
+    # lexists also notices broken links; normal path checks must not skip them.
+    if os.path.lexists(current) and os.path.lexists(legacy):
+        raise BrowserError("configuration_error: both current and legacy paths exist; select one explicitly")
+    return legacy if os.path.lexists(legacy) else current
+
+
 @dataclass(frozen=True)
 class Config:
     profile: Path
@@ -18,10 +25,13 @@ class Config:
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Config:
-        env = os.environ if env is None else env
+        env = dict(os.environ if env is None else env)
+        for key, value in list(env.items()):
+            if key.startswith("SZPONT_"):
+                env.setdefault("PLOMPY_" + key[7:], value)
         paths = {
-            "profile": env.get("SZPONT_BROWSER_PROFILE", "/var/lib/szpont/browser"),
-            "artifacts": env.get("SZPONT_BROWSER_ARTIFACTS", "/var/lib/szpont/artifacts/browser"),
+            "profile": env["PLOMPY_BROWSER_PROFILE"] if "PLOMPY_BROWSER_PROFILE" in env else compatible_path("/var/lib/plompy/browser", "/var/lib/szpont/browser"),
+            "artifacts": env["PLOMPY_BROWSER_ARTIFACTS"] if "PLOMPY_BROWSER_ARTIFACTS" in env else compatible_path("/var/lib/plompy/artifacts/browser", "/var/lib/szpont/artifacts/browser"),
             "executable": env.get("CAMOUFOX_EXECUTABLE_PATH", ""),
         }
         for name, value in paths.items():

@@ -20,13 +20,13 @@ code evidence.
 Run as the dedicated service account, using its Node 26.13.0 or newer 26.x LTS runtime. Provision the source
 and destination directories outside the public checkout, owned by that account with
 mode `0700`. The destination parent must already exist; the tool does not change
-permissions on existing directories. For example, with an already owned `/srv/szpont`:
+permissions on existing directories. For example, with an already owned `/srv/plompy`:
 
 ```sh
-install -d -m 700 /srv/szpont/backups
+install -d -m 700 /srv/plompy/backups
 node /absolute/source/scripts/state-snapshot.mjs backup \
-  --source /srv/szpont/state/agent.sqlite \
-  --destination /srv/szpont/backups/pre-0.8.0.sqlite
+  --source /srv/plompy/state/agent.sqlite \
+  --destination /srv/plompy/backups/pre-0.8.0.sqlite
 ```
 
 The engine may keep running during an online backup. SQLite copies a consistent
@@ -52,10 +52,10 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
 2. Create a fresh owned private directory and restore into a new file:
 
    ```sh
-   install -d -m 700 /srv/szpont/restored-state
+   install -d -m 700 /srv/plompy/restored-state
    node /absolute/source/scripts/state-snapshot.mjs restore \
-     --source /srv/szpont/backups/pre-0.8.0.sqlite \
-     --destination /srv/szpont/restored-state/agent.sqlite
+     --source /srv/plompy/backups/pre-0.8.0.sqlite \
+     --destination /srv/plompy/restored-state/agent.sqlite
    ```
 
 3. Inspect the restored database before enabling the engine. A snapshot restores
@@ -64,7 +64,7 @@ SQLite may maintain its normal shared-memory bookkeeping when reading a live WAL
    the snapshot. Starting an old queue without that review can repeat external work.
    A successful integrity check establishes database consistency, not whether a post,
    payment or deployment already happened.
-4. Point `SZPONT_STATE_DIR` and the service's instance-lock path to the new directory.
+4. Point `PLOMPY_STATE_DIR` and the service's instance-lock path to the new directory.
    Configure the matching private workspace separately. Keep only one engine instance.
    With Docker, use a separately restored state volume and stop the previous container
    before switching; a host path example is not a command to modify a container volume.
@@ -148,7 +148,7 @@ shortcut. A state snapshot does not roll back files or external side effects.
 - The boundary assumes a trusted service account controlling its private directories;
   it does not isolate a malicious process running as that same account or root.
 - Normal failures remove staging files. A forced kill or power loss can leave a private
-  `.szpont-snapshot-*` staging directory. After confirming no snapshot process is running,
+  `.plompy-snapshot-*` staging directory. After confirming no snapshot process is running,
   remove only that abandoned staging directory. A complete published file can survive
   an interruption just before success is reported; the next invocation refuses to
   replace it. Inspect and verify it, or use a new destination filename.

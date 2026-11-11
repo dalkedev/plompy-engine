@@ -31,8 +31,8 @@ test('invalid versions and workflow output injection are rejected', () => {
 });
 
 test('the browser lock version participates in release consistency checks', () => {
-  const project = '[project]\nname = "szpont-browser"\nversion = "0.2.0"\n';
-  const lock = 'version = 1\n\n[[package]]\nname = "dependency"\nversion = "5.0.0"\n\n[[package]]\nname = "szpont-browser"\nversion = "0.2.0"\n';
+  const project = '[project]\nname = "plompy-browser"\nversion = "0.2.0"\n';
+  const lock = 'version = 1\n\n[[package]]\nname = "dependency"\nversion = "5.0.0"\n\n[[package]]\nname = "plompy-browser"\nversion = "0.2.0"\n';
   assert.deepEqual(browserVersions({ project, lock }), ['0.2.0', '0.2.0']);
   assert.throws(() => metadata({ versions: browserVersions({ project, lock: lock.replace('version = "0.2.0"', 'version = "0.1.0"') }) }), /must agree/);
   assert.throws(() => browserVersions({ project, lock: '' }), /exactly one/);

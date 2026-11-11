@@ -1,5 +1,6 @@
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { lstatSync } from "node:fs";
+import { normalizeEnvironment, managedMcpPath, defaultBrowserPath } from "./brand-compat.js";
 export const SNOWFLAKE = /^\d{17,20}$/;
 export const SESSION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,7 +53,7 @@ export function runnerHome(
 // Only the integration wizard's fixed private filename is discovered. Arbitrary
 // runner/project configuration remains disabled, and a missing file is read-only.
 function managedMcpConfig(home: string): string | undefined {
-  const path = resolve(home, "szpont-mcp.json");
+  const path = managedMcpPath(home);
   try {
     const info = lstatSync(path);
     if (
@@ -71,6 +72,7 @@ function managedMcpConfig(home: string): string | undefined {
   }
 }
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  env = normalizeEnvironment(env);
   const required = (key: string): string => {
     const value = env[key];
     if (!value) throw new Error(`Missing ${key}`);
@@ -87,10 +89,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error(`Invalid Discord identity: ${key}`);
     return value;
   };
-  const guildId = identity("SZPONT_DISCORD_GUILD_ID");
-  const ownerId = identity("SZPONT_DISCORD_OWNER_ID");
-  const botId = identity("SZPONT_DISCORD_BOT_ID");
-  const parentId = required("SZPONT_DISCORD_PARENT_CHANNEL_ID");
+  const guildId = identity("PLOMPY_DISCORD_GUILD_ID");
+  const ownerId = identity("PLOMPY_DISCORD_OWNER_ID");
+  const botId = identity("PLOMPY_DISCORD_BOT_ID");
+  const parentId = required("PLOMPY_DISCORD_PARENT_CHANNEL_ID");
   if (!SNOWFLAKE.test(parentId))
     throw new Error("Invalid private parent channel ID");
   const setting = (key: string): string | undefined => {
@@ -105,10 +107,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error(`Invalid runner setting: ${key}`);
     return value;
   };
-  const provider = env.SZPONT_RUNNER ?? "codex";
+  const provider = env.PLOMPY_RUNNER ?? "codex";
   if (!PROVIDERS.includes(provider as ProviderId))
-    throw new Error("Invalid SZPONT_RUNNER");
-  const stateDir = directory("SZPONT_STATE_DIR");
+    throw new Error("Invalid PLOMPY_RUNNER");
+  const stateDir = directory("PLOMPY_STATE_DIR");
   const privatePath = (
     key: string,
     selected: boolean,
@@ -123,43 +125,43 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     "claude",
   );
   const opencodeHome = privatePath(
-    "SZPONT_OPENCODE_HOME",
+    "PLOMPY_OPENCODE_HOME",
     provider === "opencode",
     "opencode",
   );
   const claudeMcpConfig =
-    env.SZPONT_CLAUDE_MCP_CONFIG !== undefined
-      ? directory("SZPONT_CLAUDE_MCP_CONFIG")
+    env.PLOMPY_CLAUDE_MCP_CONFIG !== undefined
+      ? directory("PLOMPY_CLAUDE_MCP_CONFIG")
       : managedMcpConfig(claudeHome);
   const opencodeConfig =
-    env.SZPONT_OPENCODE_CONFIG !== undefined
-      ? directory("SZPONT_OPENCODE_CONFIG")
+    env.PLOMPY_OPENCODE_CONFIG !== undefined
+      ? directory("PLOMPY_OPENCODE_CONFIG")
       : managedMcpConfig(opencodeHome);
-  const claudeModel = setting("SZPONT_CLAUDE_MODEL");
-  const claudeEffort = setting("SZPONT_CLAUDE_EFFORT");
+  const claudeModel = setting("PLOMPY_CLAUDE_MODEL");
+  const claudeEffort = setting("PLOMPY_CLAUDE_EFFORT");
   if (
     claudeEffort &&
     !["low", "medium", "high", "xhigh", "max"].includes(claudeEffort)
   )
-    throw new Error("Invalid SZPONT_CLAUDE_EFFORT");
-  const opencodeModel = setting("SZPONT_OPENCODE_MODEL");
+    throw new Error("Invalid PLOMPY_CLAUDE_EFFORT");
+  const opencodeModel = setting("PLOMPY_OPENCODE_MODEL");
   if (opencodeModel && !/^[^/\s]+\/[^\s]+$/.test(opencodeModel))
-    throw new Error("SZPONT_OPENCODE_MODEL must be provider/model");
+    throw new Error("PLOMPY_OPENCODE_MODEL must be provider/model");
   if (provider === "opencode" && !opencodeModel)
-    throw new Error("Missing SZPONT_OPENCODE_MODEL");
+    throw new Error("Missing PLOMPY_OPENCODE_MODEL");
   if (
-    env.SZPONT_OPENCODE_HOST_EXECUTION !== undefined &&
-    env.SZPONT_OPENCODE_HOST_EXECUTION !== "allow"
+    env.PLOMPY_OPENCODE_HOST_EXECUTION !== undefined &&
+    env.PLOMPY_OPENCODE_HOST_EXECUTION !== "allow"
   )
-    throw new Error("Invalid SZPONT_OPENCODE_HOST_EXECUTION");
-  const timeoutMs = Number(env.SZPONT_TASK_TIMEOUT_MS ?? 1_200_000);
+    throw new Error("Invalid PLOMPY_OPENCODE_HOST_EXECUTION");
+  const timeoutMs = Number(env.PLOMPY_TASK_TIMEOUT_MS ?? 1_200_000);
   if (
     !Number.isSafeInteger(timeoutMs) ||
     timeoutMs < 1000 ||
     timeoutMs > 3_600_000
   )
     throw new Error("Invalid task timeout");
-  const workspace = directory("SZPONT_WORKSPACE");
+  const workspace = directory("PLOMPY_WORKSPACE");
   const githubConfigDir =
     env.GH_CONFIG_DIR === undefined
       ? resolve(stateDir, "..", "github")
@@ -179,23 +181,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     parentId,
     workspace,
     stateDir,
-    artifactsDir: directory("SZPONT_ARTIFACTS_DIR"),
+    artifactsDir: directory("PLOMPY_ARTIFACTS_DIR"),
     codexHome: privatePath("CODEX_HOME", provider === "codex", "codex"),
-    browserDir: resolve(env.SZPONT_BROWSER_DIR ?? "/var/lib/szpont/browser"),
-    codexBin: setting("SZPONT_CODEX_BIN") ?? "codex",
+    browserDir: resolve(env.PLOMPY_BROWSER_DIR ?? defaultBrowserPath()),
+    codexBin: setting("PLOMPY_CODEX_BIN") ?? "codex",
     timeoutMs,
     githubConfigDir,
     provider: provider as ProviderId,
-    claudeBin: setting("SZPONT_CLAUDE_BIN") ?? "claude",
+    claudeBin: setting("PLOMPY_CLAUDE_BIN") ?? "claude",
     claudeHome,
     ...(claudeModel ? { claudeModel } : {}),
     ...(claudeEffort ? { claudeEffort } : {}),
     ...(claudeMcpConfig ? { claudeMcpConfig } : {}),
-    opencodeBin: setting("SZPONT_OPENCODE_BIN") ?? "opencode",
+    opencodeBin: setting("PLOMPY_OPENCODE_BIN") ?? "opencode",
     opencodeHome,
     ...(opencodeModel ? { opencodeModel } : {}),
     ...(opencodeConfig ? { opencodeConfig } : {}),
-    opencodeAllowHostExecution: env.SZPONT_OPENCODE_HOST_EXECUTION === "allow",
+    opencodeAllowHostExecution: env.PLOMPY_OPENCODE_HOST_EXECUTION === "allow",
   };
   const overlaps = (left: string, right: string): boolean =>
     [relative(left, right), relative(right, left)].some(
@@ -241,6 +243,10 @@ export function childEnvironment(
   }
   const common = {
     ...result,
+    PLOMPY_WORKSPACE: config.workspace,
+    PLOMPY_ARTIFACTS_DIR: config.artifactsDir,
+    PLOMPY_BROWSER_DIR: config.browserDir,
+    // Old private tool configurations continue receiving these non-secret paths.
     SZPONT_WORKSPACE: config.workspace,
     SZPONT_ARTIFACTS_DIR: config.artifactsDir,
     SZPONT_BROWSER_DIR: config.browserDir,

@@ -3,14 +3,15 @@ requires = ["hatchling==1.33.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "szpont-browser"
-version = "0.11.1"
+name = "plompy-browser"
+version = "0.12.0"
 description = "Persistent Camoufox browser tools over local MCP stdio"
 requires-python = ">=3.12,<3.15"
 dependencies = ["camoufox==0.5.9", "mcp==2.3.0"]
 
 [project.scripts]
-szpont-browser = "szpont_browser.server:main"
+plompy-browser = "plompy_browser.server:main"
+szpont-browser = "plompy_browser.server:main" # Compatibility entry point for existing private MCP configurations.
 
 [dependency-groups]
 dev = ["pytest==9.2.0", "pytest-asyncio==1.4.1.post1", "hatchling==1.33.0"]
@@ -21,4 +22,4 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/szpont_browser"]
+packages = ["src/plompy_browser", "src/szpont_browser"]

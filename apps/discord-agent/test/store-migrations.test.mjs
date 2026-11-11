@@ -10,7 +10,7 @@ const thread = "920000000000000001";
 const session = "01a12345-1234-7456-8456-123456789abc";
 const id = (n) => String(910000000000000000n + BigInt(n));
 function pathFor(t) {
-  const dir = mkdtempSync(join(tmpdir(), "szpont-schema-"));
+  const dir = mkdtempSync(join(tmpdir(), "plompy-schema-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return join(dir, "queue.sqlite");
 }

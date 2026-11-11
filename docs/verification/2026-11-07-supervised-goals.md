@@ -11,7 +11,7 @@ or account-side actions.
 The updated source passed 460 offline tests: 351 engine tests and 109 script tests, plus
 TypeScript build, formatting, whitespace and public-tree checks. Tests use real
 SQLite state and fake CLI processes. Hosted workflow
-[42413171448](https://github.com/dalkedev/szpont-engine/actions/runs/42413171448)
+[42413171448](https://github.com/dalkedev/plompy-engine/actions/runs/42413171448)
 at recovery-fix head `e3f925f` passed all five jobs: Engine/Node 24, Browser/Python 3.12, public repository
 hygiene, and native amd64/arm64 container builds and offline smoke checks.
 

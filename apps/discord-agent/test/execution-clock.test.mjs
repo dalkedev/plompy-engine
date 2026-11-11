@@ -22,7 +22,7 @@ const checkpoint = (outcome = "blocked") => ({
 });
 
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-execution-clock-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-execution-clock-"));
   for (const name of [
     "workspace/agent/memory",
     "workspace/agent/conversations",

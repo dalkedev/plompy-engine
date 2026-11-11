@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0 — 2026-11-11 — Plompy Engine
+
+- Rebrand the project, repository links, packages, CLI, configuration examples and container to **plompy-engine**.
+- Accept legacy `SZPONT_*` environment settings with explicit `PLOMPY_*` values taking precedence. Preserve existing state paths, managed MCP configurations, browser identity and cross-version locks.
+- Provide a [migration guide](docs/migration-plompy.md) and external-volume Compose override for existing installations. No private data, Discord identities, login profiles or service processes are moved automatically.
+- Introduce the Plompy identity, logo and repository artwork.
+
 ## 0.11.1 — 2026-11-10
 
 - Add an explicit `--tool-approval approve` option for the built-in Codex Playwright integration, enabling unattended browser actions without changing global approval settings. Keep the default and `--yes` behavior unchanged; support an explicit `prompt` policy as well.

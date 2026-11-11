@@ -11,6 +11,7 @@ async function main(): Promise<void> {
   const config = loadConfig();
   // The token remains only in the transport's memory and never enters child envs.
   delete process.env.DISCORD_BOT_TOKEN;
+  delete process.env.PLOMPY_GIT_SSH_COMMAND;
   delete process.env.SZPONT_GIT_SSH_COMMAND;
   for (const path of [
     config.stateDir,

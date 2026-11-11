@@ -8,11 +8,12 @@ import hashlib
 
 from .browser import BrowserSession
 from .config import Config
+from .profile import identity_path
 
 
 async def run(url: str) -> dict:
     session = BrowserSession(Config.from_env())
-    identity_file = session.config.profile / ".szpont-identity.json"
+    identity_file = identity_path(session.config.profile)
     reused = identity_file.exists()
     try:
         opened = await session.open(url)

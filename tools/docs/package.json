@@ -1,9 +1,9 @@
 {
-  "name": "szpont-docs-captures",
+  "name": "plompy-docs-captures",
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24 <25"
+    "node": ">=26.13.0 <27"
   },
   "scripts": {
     "capture": "node capture.mjs"

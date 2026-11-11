@@ -1,4 +1,4 @@
-# Working on szpont-engine
+# Working on plompy-engine
 
 This is the public source repository. Never store real owner memory, transcripts, cookies,
 credentials or runtime state here. `examples/workspace/` contains synthetic templates only.

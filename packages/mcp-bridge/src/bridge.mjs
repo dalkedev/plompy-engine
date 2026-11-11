@@ -233,7 +233,7 @@ export async function createBridge({
 }) {
   const service = serviceDefinition(serviceId);
   const client = new Client(
-    { name: "szpont-mcp-bridge", version: "0.1.0" },
+    { name: "plompy-mcp-bridge", version: "0.1.0" },
     { capabilities: {} },
   );
   const remote = new StreamableHTTPClientTransport(
@@ -267,7 +267,7 @@ export async function createBridge({
   if (upstream.prompts) capabilities.prompts = { listChanged: false };
   if (upstream.completions) capabilities.completions = {};
   const server = new Server(
-    { name: `szpont-${serviceId}`, version: "0.1.0" },
+    { name: `plompy-${serviceId}`, version: "0.1.0" },
     { capabilities },
   );
   let running = 0,

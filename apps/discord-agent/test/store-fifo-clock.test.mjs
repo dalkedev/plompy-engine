@@ -24,7 +24,7 @@ const done = {
   nextAction: "",
 };
 function pathFor(t) {
-  const dir = mkdtempSync(join(tmpdir(), "szpont-fifo-clock-"));
+  const dir = mkdtempSync(join(tmpdir(), "plompy-fifo-clock-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return join(dir, "queue.sqlite");
 }

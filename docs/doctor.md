@@ -95,7 +95,7 @@ permission changes are deliberate deployment steps, not doctor side effects.
 
 For `workspace_git`, ensure Git is installed and that the service user owns a writable Git
 repository at the configured workspace root. For `codex_version`, install the documented
-version and verify `SZPONT_CODEX_BIN`. For `codex_login`, complete your login separately as
+version and verify `PLOMPY_CODEX_BIN`. For `codex_login`, complete your login separately as
 the service user with the same private `CODEX_HOME`, then repeat the opt-in check.
 
 This is a prerequisite snapshot, not a daemon health check or a security audit. Without
@@ -105,7 +105,7 @@ service supervision, private backups, and runtime monitoring separate from this 
 
 ## Alternative runner diagnostics
 
-Doctor selects the configured `SZPONT_RUNNER` and checks its private auth directory
+Doctor selects the configured `PLOMPY_RUNNER` and checks its private auth directory
 instead of requiring an unrelated Codex directory. The version/login check IDs
 are prefixed `claude_` or `opencode_` for those runners. Version probes remain
 offline and login/readiness requires `--check-login`. OpenCode additionally needs

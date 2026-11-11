@@ -76,12 +76,12 @@ def install(manifest_path: Path, destination: Path, existing_archive: Path | Non
     if not destination.is_absolute() or destination == Path("/") or destination.exists():
         raise BrowserError("destination_exists: choose a new absolute browser version directory")
     _create_install_parents(destination.parent)
-    with tempfile.TemporaryDirectory(prefix=".szpont-browser-", dir=destination.parent) as temporary:
+    with tempfile.TemporaryDirectory(prefix=".plompy-browser-", dir=destination.parent) as temporary:
         stage = Path(temporary)
         archive = existing_archive or stage / "browser.zip"
         if existing_archive is None:
             count = 0
-            request = urllib.request.Request(manifest["url"], headers={"User-Agent": "Szpont-Provisioner/0.1"})
+            request = urllib.request.Request(manifest["url"], headers={"User-Agent": "Plompy-Provisioner/0.1"})
             with urllib.request.urlopen(request, timeout=120) as source, archive.open("wb") as output:
                 while chunk := source.read(1024 * 1024):
                     count += len(chunk)
@@ -93,8 +93,8 @@ def install(manifest_path: Path, destination: Path, existing_archive: Path | Non
         extract_archive(archive, unpacked)
         receipt = {"version": manifest["version"], "archive_sha256": manifest["sha256"],
                    "archive_size": archive.stat().st_size, "source_url": manifest["url"], "verified": True}
-        (unpacked / ".szpont-build.json").write_text(json.dumps(receipt, indent=2) + "\n")
-        (unpacked / ".szpont-build.json").chmod(0o644)
+        (unpacked / ".plompy-build.json").write_text(json.dumps(receipt, indent=2) + "\n")
+        (unpacked / ".plompy-build.json").chmod(0o644)
         os.rename(unpacked, destination)
     return {**receipt, "executable": str(destination / "camoufox-bin")}
 

@@ -1,0 +1,18 @@
+# Upgrade only: reuse existing volumes without moving or copying private data.
+# Stop the old service first. See docs/migration-plompy.md.
+volumes:
+  workspace:
+    external: true
+    name: ${PLOMPY_LEGACY_COMPOSE_PROJECT:-szpont-engine}_workspace
+  state:
+    external: true
+    name: ${PLOMPY_LEGACY_COMPOSE_PROJECT:-szpont-engine}_state
+  artifacts:
+    external: true
+    name: ${PLOMPY_LEGACY_COMPOSE_PROJECT:-szpont-engine}_artifacts
+  codex-auth:
+    external: true
+    name: ${PLOMPY_LEGACY_COMPOSE_PROJECT:-szpont-engine}_codex-auth
+  github-auth:
+    external: true
+    name: ${PLOMPY_LEGACY_COMPOSE_PROJECT:-szpont-engine}_github-auth

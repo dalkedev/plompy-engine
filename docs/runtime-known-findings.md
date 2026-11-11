@@ -11,7 +11,7 @@ change, not an update to an npm SQLite driver or the host's `sqlite3` command.
 The vulnerability concerns opening a database beside a crafted WAL whose page
 size is smaller than the database's. Ordinary queries can disclose uninitialized
 page-cache memory. The vector requires opening files a less-trusted party could
-supply; no Szpont remote exploit or standalone code-execution claim was established.
+supply; no Plompy remote exploit or standalone code-execution claim was established.
 The upstream fix zero-initializes the unread buffer tail. Do not describe it as
 rejecting every mismatched WAL.
 
@@ -73,4 +73,4 @@ Upstream references:
 - [Node 26.13.0 embedded SQLite header](https://github.com/nodejs/node/blob/v26.13.0/deps/sqlite/sqlite3.h)
 - [SQLite 3.54.0 release](https://sqlite.org/releaselog/3_54_0.html)
 - [SQLite fix](https://github.com/sqlite/sqlite/commit/e5bf119821f25be1d7f10ef0a2edbe175289166e)
-- [Tracking issue #11](https://github.com/dalkedev/szpont-engine/issues/11)
+- [Tracking issue #11](https://github.com/dalkedev/plompy-engine/issues/11)

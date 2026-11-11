@@ -18,7 +18,7 @@ const label = (provider) =>
   ({ codex: "Codex", claude: "Claude Code", opencode: "OpenCode" })[provider];
 
 async function scenario(mode, write) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-offline-demo-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-offline-demo-"));
   let store,
     engine,
     nextMessage = 0,

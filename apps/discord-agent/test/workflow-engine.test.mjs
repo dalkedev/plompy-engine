@@ -25,7 +25,7 @@ const success = (text = "Done", sessionId = sid) => ({
   error: null,
 });
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-work-engine-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-work-engine-"));
   for (const name of [
     "workspace/agent/memory",
     "workspace/agent/conversations",

@@ -7,7 +7,7 @@ const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
   .split('\0')
   .filter(Boolean);
 const privateRoots = new Set(['agent', 'workspace', 'state', 'artifacts', 'browser-profile']);
-const privateNames = new Set(['auth.json', '.szpont-identity.json', 'cookies.sqlite', '.credentials.json']);
+const privateNames = new Set(['auth.json', '.plompy-identity.json', '.szpont-identity.json', 'cookies.sqlite', '.credentials.json']);
 
 const rejected = tracked.filter((path) => {
   const parts = path.split('/');

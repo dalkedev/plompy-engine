@@ -87,7 +87,7 @@ export async function smoke(cacheDir) {
     diagnostics = "";
   process.umask(0o077);
   const scratch = await mkdtemp(
-    join(await realpath(tmpdir()), "szpont-playwright-smoke-"),
+    join(await realpath(tmpdir()), "plompy-playwright-smoke-"),
   );
   const output = join(scratch, "artifacts");
   const browserRoot = join(scratch, "browser");
@@ -112,7 +112,7 @@ export async function smoke(cacheDir) {
   try {
     const connect = async () => {
       const client = new Client({
-        name: "szpont-owned-browser-smoke",
+        name: "plompy-owned-browser-smoke",
         version: "1.0.0",
       });
       const transport = new StdioClientTransport({
@@ -299,7 +299,7 @@ if (
 ) {
   const cache =
     process.argv.length === 2
-      ? process.env.SZPONT_PLAYWRIGHT_SMOKE_CACHE
+      ? process.env.PLOMPY_PLAYWRIGHT_SMOKE_CACHE
       : process.argv.length === 4 && process.argv[2] === "--cache-dir"
         ? process.argv[3]
         : undefined;

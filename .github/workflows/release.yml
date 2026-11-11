@@ -58,7 +58,7 @@ jobs:
           npm test
       - name: Keep the pinned Node executable outside the writable hosted tool cache
         run: |
-          runtime_dir=$(sudo mktemp -d /tmp/szpont-ci-node-XXXXXX)
+          runtime_dir=$(sudo mktemp -d /tmp/plompy-ci-node-XXXXXX)
           sudo chmod 0755 "$runtime_dir"
           sudo install -m 0755 -o root -g root "$(command -v node)" "$runtime_dir/node"
           cmp "$(command -v node)" "$runtime_dir/node"
@@ -114,9 +114,9 @@ jobs:
       - name: Load the container sandbox profile on this ephemeral runner
         run: |
           if docker info --format '{{json .SecurityOptions}}' | grep -q 'name=apparmor'; then
-            sudo install -m 0644 scripts/docker-apparmor /etc/apparmor.d/szpont-engine-container
-            sudo apparmor_parser -r -W /etc/apparmor.d/szpont-engine-container
-            printf 'SZPONT_DOCKER_APPARMOR_PROFILE=szpont-engine-container\n' >> "$GITHUB_ENV"
+            sudo install -m 0644 scripts/docker-apparmor /etc/apparmor.d/plompy-engine-container
+            sudo apparmor_parser -r -W /etc/apparmor.d/plompy-engine-container
+            printf 'PLOMPY_DOCKER_APPARMOR_PROFILE=plompy-engine-container\n' >> "$GITHUB_ENV"
           fi
       - name: Build the release artifact once without registry credentials
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -142,13 +142,13 @@ jobs:
           report="$RUNNER_TEMP/release-image/tested.json"
           tar -xf "$archive" -C "$RUNNER_TEMP/release-layout"
           node scripts/release-oci.mjs inspect "$RUNNER_TEMP/release-layout" "$ARCH" "$GITHUB_SHA" "$VERSION" > "$report"
-          skopeo copy --override-arch "$ARCH" "oci-archive:$archive" "docker-archive:$RUNNER_TEMP/runtime.tar:szpont-engine:smoke"
+          skopeo copy --override-arch "$ARCH" "oci-archive:$archive" "docker-archive:$RUNNER_TEMP/runtime.tar:plompy-engine:smoke"
           docker load -i "$RUNNER_TEMP/runtime.tar"
-          docker image save szpont-engine:smoke -o "$RUNNER_TEMP/loaded-runtime.tar"
+          docker image save plompy-engine:smoke -o "$RUNNER_TEMP/loaded-runtime.tar"
           config_path=$(tar -xOf "$RUNNER_TEMP/loaded-runtime.tar" manifest.json | jq -er 'if length == 1 then .[0].Config else error("Expected one loaded runtime") end')
           actual="sha256:$(tar -xOf "$RUNNER_TEMP/loaded-runtime.tar" "$config_path" | sha256sum | cut -d ' ' -f 1)"
           test "$actual" = "$(jq -r .configDigest "$report")"
-          sh scripts/docker-smoke.sh szpont-engine:smoke
+          sh scripts/docker-smoke.sh plompy-engine:smoke
           (cd "$RUNNER_TEMP/release-image" && sha256sum engine.oci.tar > engine.oci.tar.sha256)
       - name: Retain only the tested OCI artifact and digest report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -45,7 +45,7 @@ const ids = {
 };
 const syntheticToken = "synthetic-token-'-$() `quoted`-not-a-credential";
 async function fixture(t) {
-  const base = await realpath(await mkdtemp(join(tmpdir(), "szpont-setup-")));
+  const base = await realpath(await mkdtemp(join(tmpdir(), "plompy-setup-")));
   await chmod(base, 0o700);
   t.after(() => rm(base, { recursive: true, force: true }));
   const tokenFile = join(base, "token");
@@ -445,7 +445,7 @@ test("actual terminal setup keeps the token out of its transcript and restores t
   const python = `import os,pty,subprocess,select,time,termios,json,sys
 master,slave=pty.openpty()
 before=termios.tcgetattr(slave)
-token=os.environ['SZPONT_TEST_TOKEN'].encode()
+token=os.environ['PLOMPY_TEST_TOKEN'].encode()
 proc=subprocess.Popen(sys.argv[1:],stdin=slave,stdout=slave,stderr=slave,close_fds=True)
 seen=b''; sent=False; deadline=time.monotonic()+20
 try:
@@ -485,7 +485,7 @@ finally:
       options.forumId,
     ],
     {
-      env: { ...process.env, SZPONT_TEST_TOKEN: syntheticToken },
+      env: { ...process.env, PLOMPY_TEST_TOKEN: syntheticToken },
       timeout: 25_000,
     },
   );
@@ -568,8 +568,8 @@ test("CLI --token-stdin takes an explicit pipe without printing or passing token
 });
 test("container runner constraint is enforced before files and retained for config validation", async (t) => {
   const options = await fixture(t);
-  const previous = process.env.SZPONT_CONTAINER_RUNNER;
-  process.env.SZPONT_CONTAINER_RUNNER = "codex";
+  const previous = process.env.PLOMPY_CONTAINER_RUNNER;
+  process.env.PLOMPY_CONTAINER_RUNNER = "codex";
   try {
     await assert.rejects(setup({ ...options, runner: "claude" }), {
       code: "container",
@@ -579,19 +579,19 @@ test("container runner constraint is enforced before files and retained for conf
     let marker;
     await setup(options, {
       loadConfig: (env) => {
-        marker = env.SZPONT_CONTAINER_RUNNER;
+        marker = env.PLOMPY_CONTAINER_RUNNER;
         return loadConfig(env);
       },
     });
     assert.equal(marker, "codex");
     assert.equal(
       (await readFile(join(options.root, "agent.env"), "utf8")).includes(
-        "SZPONT_CONTAINER_RUNNER",
+        "PLOMPY_CONTAINER_RUNNER",
       ),
       false,
     );
   } finally {
-    if (previous === undefined) delete process.env.SZPONT_CONTAINER_RUNNER;
-    else process.env.SZPONT_CONTAINER_RUNNER = previous;
+    if (previous === undefined) delete process.env.PLOMPY_CONTAINER_RUNNER;
+    else process.env.PLOMPY_CONTAINER_RUNNER = previous;
   }
 });

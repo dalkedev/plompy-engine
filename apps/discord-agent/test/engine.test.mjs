@@ -57,7 +57,7 @@ const message = (id = mid(1), overrides = {}) => ({
   ...overrides,
 });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "szpont-test-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-test-"));
   for (const directory of [
     "workspace",
     "state",
@@ -132,7 +132,7 @@ test("child env is an allowlist preserving browser setup while excluding tokens 
       OPENAI_API_KEY: "blocked",
       GITHUB_TOKEN: "blocked",
       GIT_SSH_COMMAND: "blocked",
-      SZPONT_GIT_SSH_COMMAND: "blocked",
+      PLOMPY_GIT_SSH_COMMAND: "blocked",
       SSH_AUTH_SOCK: "/blocked",
     });
     assert.equal(result.DISPLAY, ":99");
@@ -145,7 +145,7 @@ test("child env is an allowlist preserving browser setup while excluding tokens 
       "OPENAI_API_KEY",
       "GITHUB_TOKEN",
       "GIT_SSH_COMMAND",
-      "SZPONT_GIT_SSH_COMMAND",
+      "PLOMPY_GIT_SSH_COMMAND",
       "SSH_AUTH_SOCK",
     ])
       assert.equal(result[key], undefined);
@@ -651,10 +651,10 @@ test("configuration requires a fixed parent and absolute storage paths", () => {
     () =>
       loadConfig({
         DISCORD_BOT_TOKEN: "x",
-        SZPONT_DISCORD_GUILD_ID: GUILD_ID,
-        SZPONT_DISCORD_OWNER_ID: OWNER_ID,
-        SZPONT_DISCORD_BOT_ID: BOT_ID,
-        SZPONT_DISCORD_PARENT_CHANNEL_ID: "wrong",
+        PLOMPY_DISCORD_GUILD_ID: GUILD_ID,
+        PLOMPY_DISCORD_OWNER_ID: OWNER_ID,
+        PLOMPY_DISCORD_BOT_ID: BOT_ID,
+        PLOMPY_DISCORD_PARENT_CHANNEL_ID: "wrong",
       }),
     /Invalid private/,
   );

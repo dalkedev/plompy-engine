@@ -91,7 +91,7 @@ export class DiscordTransport implements Transport {
         allowedMentions: { parse: [], repliedUser: false },
         files: [
           new AttachmentBuilder(Buffer.from(safe, "utf8"), {
-            name: "szpont-answer.md",
+            name: "plompy-answer.md",
           }),
         ],
       });

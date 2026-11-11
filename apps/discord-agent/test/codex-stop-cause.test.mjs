@@ -14,7 +14,7 @@ import { runCodex } from "../dist/codex.js";
 
 const session = "01a12345-1234-7456-8456-123456789abc";
 async function fixture(t, failureType, timeoutMs) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-stop-cause-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-stop-cause-"));
   for (const name of ["workspace", "state", "artifacts", "codex", "browser"])
     await mkdir(join(root, name));
   const path = join(root, "fake-codex.mjs");

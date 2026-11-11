@@ -20,7 +20,7 @@ export async function profileForExecutable(value) {
     throw new Error(
       "Use an ASCII browser cache path without AppArmor pattern characters.",
     );
-  const name = `szpont-playwright-chromium-${createHash("sha256").update(browser).digest("hex").slice(0, 16)}`;
+  const name = `plompy-playwright-chromium-${createHash("sha256").update(browser).digest("hex").slice(0, 16)}`;
   return `# Exact pinned Chromium path only. Administrator review/load required.\n# Allows its own sandbox to create user namespaces; not a confinement profile.\nabi <abi/4.0>,\ninclude <tunables/global>\n\nprofile ${name} "${browser}" flags=(unconfined) {\n  userns,\n}\n`;
 }
 

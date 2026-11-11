@@ -312,7 +312,7 @@ test("invalid candidates, reviews and elapsed time cannot alter running ownershi
 });
 
 test("reopen and startup preserve candidate but never replay unknown work", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "szpont-goals-"));
+  const dir = mkdtempSync(join(tmpdir(), "plompy-goals-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, "state.sqlite");
   let store = new Store(path);

@@ -4,7 +4,7 @@ The public engine can dispatch to **Codex**, **Claude Code**, or **OpenCode**.
 Codex remains the default. The Claude Code and OpenCode adapters are experimental
 Linux host integrations: their protocol tests use synthetic CLIs, not real accounts.
 The published Docker image packages and verifies **Codex only**; it refuses a
-non-Codex `SZPONT_RUNNER` rather than pretending another runner has the same sandbox.
+non-Codex `PLOMPY_RUNNER` rather than pretending another runner has the same sandbox.
 
 | Runner | CLI requirement | Readiness | Execution boundary | Image input |
 | --- | --- | --- | --- | --- |
@@ -57,7 +57,7 @@ task after completing local setup and external authorization.
 
 ## Bindings and upgrades
 
-Set `SZPONT_RUNNER=codex|claude|opencode` in your private environment file before
+Set `PLOMPY_RUNNER=codex|claude|opencode` in your private environment file before
 starting an instance. This selects the runner for **new Discord conversations**.
 Existing conversations and queued jobs retain their stored provider. A schema-3
 migration labels all legacy conversations and jobs `codex`, even when the newly
@@ -85,11 +85,11 @@ and [sandbox guide](https://code.claude.com/docs/en/sandboxing). Run login as th
 service account with the same private configuration directory:
 
 ```sh
-export SZPONT_RUNNER=claude
-export CLAUDE_CONFIG_DIR=/srv/szpont/claude
-export SZPONT_CLAUDE_BIN=claude
-export SZPONT_CLAUDE_MODEL=sonnet
-export SZPONT_CLAUDE_EFFORT=high
+export PLOMPY_RUNNER=claude
+export CLAUDE_CONFIG_DIR=/srv/plompy/claude
+export PLOMPY_CLAUDE_BIN=claude
+export PLOMPY_CLAUDE_MODEL=sonnet
+export PLOMPY_CLAUDE_EFFORT=high
 mkdir -p "$CLAUDE_CONFIG_DIR"
 chmod 700 "$CLAUDE_CONFIG_DIR"
 claude auth login
@@ -108,9 +108,9 @@ permission checks. Unsupported sandbox environments fail rather than falling bac
 to unsandboxed Bash. Do not loosen the host's security settings to hide a failed check.
 
 For optional MCP tools, the integration CLI writes trusted `mcpServers` into
-`$CLAUDE_CONFIG_DIR/szpont-mcp.json`. On service start, the adapter automatically
+`$CLAUDE_CONFIG_DIR/plompy-mcp.json`. On service start, the adapter automatically
 loads this fixed file when it exists and passes the private-file and JSON checks.
-Set `SZPONT_CLAUDE_MCP_CONFIG` to an absolute private JSON path to override it.
+Set `PLOMPY_CLAUDE_MCP_CONFIG` to an absolute private JSON path to override it.
 With no override and no managed file, no MCP configuration is supplied. Other
 Claude settings and project MCP discovery remain disabled. Restart the service
 after changing integration configuration.
@@ -130,32 +130,32 @@ Install the pinned official OpenCode CLI, then load private paths for the login
 process as well as the engine:
 
 ```sh
-export SZPONT_RUNNER=opencode
-export SZPONT_OPENCODE_HOME=/srv/szpont/opencode
-export SZPONT_OPENCODE_BIN=opencode
-export SZPONT_OPENCODE_MODEL=your-provider/your-model
-export SZPONT_OPENCODE_HOST_EXECUTION=allow
-export HOME="$SZPONT_OPENCODE_HOME"
-export XDG_CONFIG_HOME="$SZPONT_OPENCODE_HOME/config"
-export XDG_DATA_HOME="$SZPONT_OPENCODE_HOME/data"
-export XDG_STATE_HOME="$SZPONT_OPENCODE_HOME/state"
-export XDG_CACHE_HOME="$SZPONT_OPENCODE_HOME/cache"
-mkdir -p "$SZPONT_OPENCODE_HOME"
-chmod 700 "$SZPONT_OPENCODE_HOME"
+export PLOMPY_RUNNER=opencode
+export PLOMPY_OPENCODE_HOME=/srv/plompy/opencode
+export PLOMPY_OPENCODE_BIN=opencode
+export PLOMPY_OPENCODE_MODEL=your-provider/your-model
+export PLOMPY_OPENCODE_HOST_EXECUTION=allow
+export HOME="$PLOMPY_OPENCODE_HOME"
+export XDG_CONFIG_HOME="$PLOMPY_OPENCODE_HOME/config"
+export XDG_DATA_HOME="$PLOMPY_OPENCODE_HOME/data"
+export XDG_STATE_HOME="$PLOMPY_OPENCODE_HOME/state"
+export XDG_CACHE_HOME="$PLOMPY_OPENCODE_HOME/cache"
+mkdir -p "$PLOMPY_OPENCODE_HOME"
+chmod 700 "$PLOMPY_OPENCODE_HOME"
 opencode auth login
 npm run doctor -- --check-login
 ```
 
 Replace `your-provider/your-model` with a model available to your own account.
 The adapter accepts local API or OAuth entries in
-`$SZPONT_OPENCODE_HOME/data/opencode/auth.json`; it does not auto-import parent
+`$PLOMPY_OPENCODE_HOME/data/opencode/auth.json`; it does not auto-import parent
 API keys or remote `.well-known` credentials. A local readiness PASS does not
 validate those credentials against a remote provider.
 
 **OpenCode Go is a model provider and subscription, not a separate CLI runner.**
 If your own account already has Go access, select it through OpenCode's `/connect`
 flow, then choose an available model with `/models`. Set
-`SZPONT_OPENCODE_MODEL=opencode-go/<model-id>` using the real model ID; the angle
+`PLOMPY_OPENCODE_MODEL=opencode-go/<model-id>` using the real model ID; the angle
 brackets are a placeholder. Zen / Console Models is a separate model provider
 with usage-based billing. Both use the same OpenCode adapter and MCP tools, as do
 other providers configured in OpenCode. Account access and credentials are
@@ -164,10 +164,10 @@ and [Console Models guide](https://opencode.ai/v2/docs/console/models/). No live
 or Zen account acceptance test is implied by local configuration checks.
 
 For optional MCP settings, the integration CLI writes
-`$SZPONT_OPENCODE_HOME/szpont-mcp.json`, which can also hold trusted provider
+`$PLOMPY_OPENCODE_HOME/plompy-mcp.json`, which can also hold trusted provider
 configuration. On service start, the adapter automatically
 loads this fixed file when it exists and passes the private-file and JSON checks.
-An explicit `SZPONT_OPENCODE_CONFIG` absolute private JSON path takes precedence.
+An explicit `PLOMPY_OPENCODE_CONFIG` absolute private JSON path takes precedence.
 The JSON can contain only `provider` and/or `mcp` objects; unrelated top-level keys
 are rejected. With no override and no managed file, no additional provider/MCP
 configuration is supplied. Restart the service after changing integrations.

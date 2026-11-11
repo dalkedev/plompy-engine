@@ -70,4 +70,4 @@ Do not report this sandbox audit as a complete host-installation PASS.
 Node 24.22.2 embeds SQLite 3.53.4 and remains subject to the documented crafted local
 DB/WAL finding. This release does not claim a patched runtime. See
 [runtime known findings](runtime-known-findings.md) and
-[issue #11](https://github.com/dalkedev/szpont-engine/issues/11).
+[issue #11](https://github.com/dalkedev/plompy-engine/issues/11).

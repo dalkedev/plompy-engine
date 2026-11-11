@@ -29,7 +29,7 @@ const evidence = {
   error: "baseline_unavailable",
 };
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-evidence-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-evidence-"));
   await chmod(root, 0o700);
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;

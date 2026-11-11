@@ -21,7 +21,7 @@ const review = {
   progress: true,
 };
 async function fixture(t, behavior = "success") {
-  const root = await mkdtemp(join(tmpdir(), "szpont-supervisor-runner-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-supervisor-runner-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   for (const name of ["workspace", "state", "artifacts", "codex", "browser"])
     await mkdir(join(root, name));

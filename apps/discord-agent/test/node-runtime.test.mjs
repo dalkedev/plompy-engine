@@ -116,7 +116,7 @@ test("metadata alone is insufficient: older, mismatched, unavailable or malforme
 });
 
 test("Store rejects unsupported runtimes before creating or interpreting a filesystem database", async (t) => {
-  const temporary = await mkdtemp(join(tmpdir(), "szpont-runtime-store-"));
+  const temporary = await mkdtemp(join(tmpdir(), "plompy-runtime-store-"));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const existing = join(temporary, "existing.sqlite");
   const fresh = join(temporary, "must-not-create.sqlite");
@@ -154,7 +154,7 @@ test("Store rejects unsupported runtimes before creating or interpreting a files
 });
 
 test("setup and snapshot reject unsupported runtime metadata before creating deployment or snapshot files", async (t) => {
-  const temporary = await mkdtemp(join(tmpdir(), "szpont-runtime-tools-"));
+  const temporary = await mkdtemp(join(tmpdir(), "plompy-runtime-tools-"));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const code = `
     import assert from 'node:assert/strict';
@@ -185,7 +185,7 @@ test("setup and snapshot reject unsupported runtime metadata before creating dep
 });
 
 test("engine entrypoint rejects the unsupported runtime before preparing private state directories", async (t) => {
-  const temporary = await mkdtemp(join(tmpdir(), "szpont-runtime-entry-"));
+  const temporary = await mkdtemp(join(tmpdir(), "plompy-runtime-entry-"));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   await mkdir(join(temporary, "workspace"));
   const code = `
@@ -208,14 +208,14 @@ test("engine entrypoint rejects the unsupported runtime before preparing private
         env: {
           PATH: process.env.PATH,
           DISCORD_BOT_TOKEN: "synthetic-runtime-test-token",
-          SZPONT_DISCORD_GUILD_ID: "111111111111111111",
-          SZPONT_DISCORD_OWNER_ID: "222222222222222222",
-          SZPONT_DISCORD_BOT_ID: "333333333333333333",
-          SZPONT_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
-          SZPONT_WORKSPACE: join(temporary, "workspace"),
-          SZPONT_STATE_DIR: join(temporary, "state"),
-          SZPONT_ARTIFACTS_DIR: join(temporary, "artifacts"),
-          SZPONT_BROWSER_DIR: join(temporary, "browser"),
+          PLOMPY_DISCORD_GUILD_ID: "111111111111111111",
+          PLOMPY_DISCORD_OWNER_ID: "222222222222222222",
+          PLOMPY_DISCORD_BOT_ID: "333333333333333333",
+          PLOMPY_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
+          PLOMPY_WORKSPACE: join(temporary, "workspace"),
+          PLOMPY_STATE_DIR: join(temporary, "state"),
+          PLOMPY_ARTIFACTS_DIR: join(temporary, "artifacts"),
+          PLOMPY_BROWSER_DIR: join(temporary, "browser"),
           CODEX_HOME: join(temporary, "codex"),
         },
         timeout: 5_000,

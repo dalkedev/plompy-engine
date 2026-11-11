@@ -6,7 +6,7 @@ code change and a separate review. Use private artifacts, not the public source 
 
 ## Before you start
 
-- Run version 0.11.1 with Node 26.13.0 or newer 26.x LTS and the protocol-tested Codex CLI 0.166.0, signed in
+- Run version 0.12.0 with Node 26.13.0 or newer 26.x LTS and the protocol-tested Codex CLI 0.166.0, signed in
   as the service user using the engine's private `CODEX_HOME`. See the
   [quick start](../README.md#quick-start) and [runner setup](runners.md).
 - Use the configured owner's thread in the private forum. It must be Codex-bound;
@@ -17,8 +17,8 @@ code change and a separate review. Use private artifacts, not the public source 
 - Know the project's test command and the behavior you want. Install its dependencies
   and give the service account the required access before starting.
 
-The custom-project example further below assumes an existing project at `/srv/szpont/artifacts/quantity-parser`,
-with `/srv/szpont/artifacts` configured as `SZPONT_ARTIFACTS_DIR`. It already has a
+The custom-project example further below assumes an existing project at `/srv/plompy/artifacts/quantity-parser`,
+with `/srv/plompy/artifacts` configured as `PLOMPY_ARTIFACTS_DIR`. It already has a
 quantity parser, regression tests and a working `npm test` command. Substitute your
 own project, task and test command throughout. An isolated working copy makes the
 saved patch easier to interpret when other work is happening.
@@ -28,7 +28,7 @@ saved patch easier to interpret when other work is happening.
 From the public checkout, with your trusted private engine configuration loaded:
 
 ```sh
-npm run acceptance -- init --destination "$SZPONT_ARTIFACTS_DIR/first-code-goal"
+npm run acceptance -- init --destination "$PLOMPY_ARTIFACTS_DIR/first-code-goal"
 ```
 
 The destination must be new; its parent must already exist. This creates a Git
@@ -41,7 +41,7 @@ to fail. That controlled failure is part of the fixture, not an installation err
 After the worker and fresh reviewer complete the change:
 
 ```sh
-npm run acceptance -- verify --manifest "$SZPONT_ARTIFACTS_DIR/first-code-goal/acceptance-manifest.json"
+npm run acceptance -- verify --manifest "$PLOMPY_ARTIFACTS_DIR/first-code-goal/acceptance-manifest.json"
 ```
 
 The checker verifies 25 actual behavior cases and unchanged fixture evidence,
@@ -70,11 +70,11 @@ unavailable. The engine does not discover a project from your goal text.
 Send this in the authorized Discord thread after adapting the example:
 
 ```text
-!goal 30m --repo "/srv/szpont/artifacts/quantity-parser" Reject negative quantities while preserving zero and positive values. Add regression coverage and run npm test. Report changed files and the observed test result. Keep the work local; do not push, publish or deploy.
+!goal 30m --repo "/srv/plompy/artifacts/quantity-parser" Reject negative quantities while preserving zero and positive values. Add regression coverage and run npm test. Report changed files and the observed test result. Keep the work local; do not push, publish or deploy.
 ```
 
 Use JSON double quotes around paths with spaces, for example
-`--repo "/srv/szpont/artifacts/My App"`. The path is on the engine host, not on your
+`--repo "/srv/plompy/artifacts/My App"`. The path is on the engine host, not on your
 phone. Flags go after the optional duration and before the goal text.
 
 The queue receipt supplies a task ID and confirms the repository binding. It means

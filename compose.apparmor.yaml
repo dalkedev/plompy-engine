@@ -2,4 +2,4 @@
 services:
   engine:
     security_opt:
-      - apparmor=szpont-engine-container
+      - apparmor=plompy-engine-container

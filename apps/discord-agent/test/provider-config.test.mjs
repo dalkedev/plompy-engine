@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { loadConfig, childEnvironment, isSessionId } from "../dist/config.js";
 const env = {
   DISCORD_BOT_TOKEN: "synthetic-discord-secret",
-  SZPONT_DISCORD_GUILD_ID: "111111111111111111",
-  SZPONT_DISCORD_OWNER_ID: "222222222222222222",
-  SZPONT_DISCORD_BOT_ID: "333333333333333333",
-  SZPONT_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
-  SZPONT_WORKSPACE: "/tmp/private/workspace",
-  SZPONT_STATE_DIR: "/tmp/private/state",
-  SZPONT_ARTIFACTS_DIR: "/tmp/private/artifacts",
+  PLOMPY_DISCORD_GUILD_ID: "111111111111111111",
+  PLOMPY_DISCORD_OWNER_ID: "222222222222222222",
+  PLOMPY_DISCORD_BOT_ID: "333333333333333333",
+  PLOMPY_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
+  PLOMPY_WORKSPACE: "/tmp/private/workspace",
+  PLOMPY_STATE_DIR: "/tmp/private/state",
+  PLOMPY_ARTIFACTS_DIR: "/tmp/private/artifacts",
   CODEX_HOME: "/tmp/private/codex",
 };
 test("Codex remains the default and alternate runners require only their selected private home", () => {
@@ -19,35 +19,35 @@ test("Codex remains the default and alternate runners require only their selecte
   assert.throws(() => loadConfig(other), /CODEX_HOME/);
   const claude = loadConfig({
     ...other,
-    SZPONT_RUNNER: "claude",
+    PLOMPY_RUNNER: "claude",
     CLAUDE_CONFIG_DIR: "/tmp/private/claude",
   });
   assert.equal(claude.provider, "claude");
   const opencode = loadConfig({
     ...other,
-    SZPONT_RUNNER: "opencode",
-    SZPONT_OPENCODE_HOME: "/tmp/private/opencode",
-    SZPONT_OPENCODE_MODEL: "example/model",
-    SZPONT_OPENCODE_HOST_EXECUTION: "allow",
+    PLOMPY_RUNNER: "opencode",
+    PLOMPY_OPENCODE_HOME: "/tmp/private/opencode",
+    PLOMPY_OPENCODE_MODEL: "example/model",
+    PLOMPY_OPENCODE_HOST_EXECUTION: "allow",
   });
   assert.equal(opencode.opencodeAllowHostExecution, true);
   assert.equal(opencode.opencodeModel, "example/model");
 });
 test("invalid runner, relative auth paths, model settings and accidental execution opt-ins fail closed", () => {
   for (const patch of [
-    { SZPONT_RUNNER: "unknown" },
-    { SZPONT_RUNNER: "claude" },
-    { SZPONT_RUNNER: "claude", CLAUDE_CONFIG_DIR: "relative" },
-    { SZPONT_CLAUDE_EFFORT: "ultra" },
-    { SZPONT_CLAUDE_MODEL: "--dangerously-skip-permissions" },
-    { SZPONT_CLAUDE_MCP_CONFIG: "relative.json" },
-    { SZPONT_OPENCODE_HOST_EXECUTION: "true" },
+    { PLOMPY_RUNNER: "unknown" },
+    { PLOMPY_RUNNER: "claude" },
+    { PLOMPY_RUNNER: "claude", CLAUDE_CONFIG_DIR: "relative" },
+    { PLOMPY_CLAUDE_EFFORT: "ultra" },
+    { PLOMPY_CLAUDE_MODEL: "--dangerously-skip-permissions" },
+    { PLOMPY_CLAUDE_MCP_CONFIG: "relative.json" },
+    { PLOMPY_OPENCODE_HOST_EXECUTION: "true" },
     {
-      SZPONT_RUNNER: "opencode",
-      SZPONT_OPENCODE_HOME: "/tmp/private/opencode",
+      PLOMPY_RUNNER: "opencode",
+      PLOMPY_OPENCODE_HOME: "/tmp/private/opencode",
     },
-    { SZPONT_OPENCODE_MODEL: "implicit-model" },
-    { SZPONT_CODEX_BIN: "codex\n--bad" },
+    { PLOMPY_OPENCODE_MODEL: "implicit-model" },
+    { PLOMPY_CODEX_BIN: "codex\n--bad" },
   ])
     assert.throws(() => loadConfig({ ...env, ...patch }));
 });
@@ -161,17 +161,17 @@ test("GitHub credentials cannot overlap engine state or any provider home", () =
   for (const provider of ["codex", "claude", "opencode"]) {
     const selected = {
       ...env,
-      SZPONT_RUNNER: provider,
+      PLOMPY_RUNNER: provider,
       CLAUDE_CONFIG_DIR: "/tmp/private/claude",
-      SZPONT_OPENCODE_HOME: "/tmp/private/opencode",
-      SZPONT_OPENCODE_MODEL: "example/model",
+      PLOMPY_OPENCODE_HOME: "/tmp/private/opencode",
+      PLOMPY_OPENCODE_MODEL: "example/model",
     };
     for (const directory of [
-      selected.SZPONT_WORKSPACE,
-      selected.SZPONT_STATE_DIR,
+      selected.PLOMPY_WORKSPACE,
+      selected.PLOMPY_STATE_DIR,
       selected.CODEX_HOME,
       selected.CLAUDE_CONFIG_DIR,
-      selected.SZPONT_OPENCODE_HOME,
+      selected.PLOMPY_OPENCODE_HOME,
     ])
       for (const github of [directory, `${directory}/github`, "/tmp/private"])
         assert.throws(

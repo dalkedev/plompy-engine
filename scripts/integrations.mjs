@@ -1,3 +1,4 @@
+import { normalizeEnvironment, managedMcpPath, defaultBrowserPath } from "./brand-compat.mjs";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { access, lstat, mkdir, readFile, realpath, rm } from "node:fs/promises";
@@ -25,7 +26,8 @@ const runnerNames = {
   claude: "Claude Code",
   opencode: "OpenCode (Go, Zen, or another configured provider)",
 };
-const managedMarker = "<!-- Managed by Szpont integrations CLI.";
+const managedMarker = "<!-- Managed by Plompy integrations CLI.";
+const isManagedInstructions = (text) => [managedMarker, "<!-- Managed by Szpont integrations CLI."].some((marker) => text.includes(marker));
 const help = `Usage: npm run integrations -- [command] [integration] [options]
 No command: interactive integration menu (TTY required).
 Commands: list, add <id>, status [id], login github, remove <id>
@@ -43,14 +45,15 @@ Configuration checks do not contact MCP servers or invoke a model. GitHub status
 `;
 
 export async function createContext(env = process.env, publicRoot = root) {
-  const workspace = await privatePath(env.SZPONT_WORKSPACE, publicRoot);
-  const stateDir = await privatePath(env.SZPONT_STATE_DIR, publicRoot, [
+  env = normalizeEnvironment(env);
+  const workspace = await privatePath(env.PLOMPY_WORKSPACE, publicRoot);
+  const stateDir = await privatePath(env.PLOMPY_STATE_DIR, publicRoot, [
     workspace,
   ]);
-  const deploymentState = resolve(env.SZPONT_STATE_DIR);
-  const provider = env.SZPONT_RUNNER ?? "codex";
+  const deploymentState = resolve(env.PLOMPY_STATE_DIR);
+  const provider = env.PLOMPY_RUNNER ?? "codex";
   if (!providers.includes(provider))
-    throw new Error("Select SZPONT_RUNNER=codex, claude or opencode.");
+    throw new Error("Select PLOMPY_RUNNER=codex, claude or opencode.");
   const setting = (key, fallback) => {
     const value = env[key] ?? fallback;
     if (!value || value.startsWith("-") || /[\x00-\x1f\x7f]/.test(value))
@@ -64,35 +67,35 @@ export async function createContext(env = process.env, publicRoot = root) {
     stateDir,
     provider,
     artifactsDir: await path(
-      "SZPONT_ARTIFACTS_DIR",
+      "PLOMPY_ARTIFACTS_DIR",
       join(deploymentState, "..", "artifacts"),
     ),
-    browserDir: await path("SZPONT_BROWSER_DIR", "/var/lib/szpont/browser"),
+    browserDir: await path("PLOMPY_BROWSER_DIR", env.PLOMPY_BROWSER_DIR ?? defaultBrowserPath()),
     githubConfigDir: await path(
       "GH_CONFIG_DIR",
       join(deploymentState, "..", "github"),
     ),
     codexHome: await path("CODEX_HOME", join(deploymentState, "..", "codex")),
-    codexBin: setting("SZPONT_CODEX_BIN", "codex"),
-    claudeBin: setting("SZPONT_CLAUDE_BIN", "claude"),
+    codexBin: setting("PLOMPY_CODEX_BIN", "codex"),
+    claudeBin: setting("PLOMPY_CLAUDE_BIN", "claude"),
     claudeHome: await path(
       "CLAUDE_CONFIG_DIR",
       join(deploymentState, "..", "claude"),
     ),
-    opencodeBin: setting("SZPONT_OPENCODE_BIN", "opencode"),
+    opencodeBin: setting("PLOMPY_OPENCODE_BIN", "opencode"),
     opencodeHome: await path(
-      "SZPONT_OPENCODE_HOME",
+      "PLOMPY_OPENCODE_HOME",
       join(deploymentState, "..", "opencode"),
     ),
     publicRoot,
   };
   config.claudeMcpConfig = await path(
-    "SZPONT_CLAUDE_MCP_CONFIG",
-    join(config.claudeHome, "szpont-mcp.json"),
+    "PLOMPY_CLAUDE_MCP_CONFIG",
+    env.PLOMPY_CLAUDE_MCP_CONFIG ?? managedMcpPath(config.claudeHome),
   );
   config.opencodeConfig = await path(
-    "SZPONT_OPENCODE_CONFIG",
-    join(config.opencodeHome, "szpont-mcp.json"),
+    "PLOMPY_OPENCODE_CONFIG",
+    env.PLOMPY_OPENCODE_CONFIG ?? managedMcpPath(config.opencodeHome),
   );
   for (const other of [
     config.stateDir,
@@ -167,7 +170,7 @@ async function registry(ctx) {
         (e.id !== "playwright" ||
           e.provider !== "codex" ||
           !["approve", "prompt"].includes(e.toolApproval))) ||
-      (e.id !== "github" && !/^szpont_[a-z0-9_]{1,48}$/.test(e.name)) ||
+      (e.id !== "github" && !/^(?:plompy|szpont)_[a-z0-9_]{1,48}$/.test(e.name)) ||
       names.has(`${e.provider}:${e.name}`)
     )
       throw new Error("Invalid integration manifest.");
@@ -184,7 +187,7 @@ async function saveRegistry(ctx, value) {
     throw new Error("Agent instructions escaped the workspace.");
   const destination = join(folder, "INTEGRATIONS.md");
   try {
-    if (!(await readFile(destination, "utf8")).includes(managedMarker))
+    if (!isManagedInstructions(await readFile(destination, "utf8")))
       throw new Error(
         "INTEGRATIONS.md already contains operator-written instructions; move it before setup.",
       );
@@ -209,7 +212,7 @@ async function checkInstructionDestination(ctx) {
       info.nlink !== 1 ||
       info.mode & 0o077 ||
       (process.getuid && info.uid !== process.getuid()) ||
-      !(await readFile(path, "utf8")).includes(managedMarker)
+      !isManagedInstructions(await readFile(path, "utf8"))
     )
       throw new Error(
         "Preserve your existing INTEGRATIONS.md; move it aside before using managed setup.",
@@ -397,7 +400,7 @@ async function serverFor(ctx, id, options, ask) {
     const spec = await readPrivateJson(file);
     if (
       !spec ||
-      !/^szpont_[a-z0-9_]{1,48}$/.test(spec.name) ||
+      !/^plompy_[a-z0-9_]{1,48}$/.test(spec.name) ||
       !spec.server ||
       Object.keys(spec).some((k) => !["name", "server"].includes(k)) ||
       Object.keys(spec.server).some(
@@ -405,7 +408,7 @@ async function serverFor(ctx, id, options, ask) {
       )
     )
       throw new Error(
-        "Custom spec requires a szpont_ name and a server with only url or command/args. Keep credentials out of the specification.",
+        "Custom spec requires a plompy_ name and a server with only url or command/args. Keep credentials out of the specification.",
       );
     return spec;
   }
@@ -435,7 +438,7 @@ async function serverFor(ctx, id, options, ask) {
       throw new Error(
         "Camoufox needs a local DISPLAY such as :99. Provision Xvfb first.",
       );
-    await command(python, ["-c", "import szpont_browser, camoufox, mcp"], {
+    await command(python, ["-c", "import plompy_browser, camoufox, mcp"], {
       env: ctx.env,
       cwd: ctx.config.workspace,
     }).catch(() => {
@@ -454,14 +457,14 @@ async function serverFor(ctx, id, options, ask) {
     await privateDirectory(profile);
     await privateDirectory(artifacts);
     return {
-      name: "szpont_browser",
+      name: "plompy_browser",
       server: {
         command: python,
-        args: ["-m", "szpont_browser"],
+        args: ["-m", "plompy_browser"],
         env: {
           CAMOUFOX_EXECUTABLE_PATH: browser,
-          SZPONT_BROWSER_PROFILE: profile,
-          SZPONT_BROWSER_ARTIFACTS: artifacts,
+          PLOMPY_BROWSER_PROFILE: profile,
+          PLOMPY_BROWSER_ARTIFACTS: artifacts,
           DISPLAY: display,
           ...(ctx.env.XAUTHORITY ? { XAUTHORITY: ctx.env.XAUTHORITY } : {}),
         },
@@ -480,6 +483,7 @@ export async function runIntegrations(
     output = process.stdout,
   } = {},
 ) {
+  env = normalizeEnvironment(env);
   const options = {},
     positional = [];
   for (let i = 0; i < args.length; i++) {
@@ -514,7 +518,7 @@ export async function runIntegrations(
     throw new Error(
       "Unsupported runner. Choose codex, claude or opencode; another CLI needs an engine adapter.",
     );
-  let selectedRunner = options.runner ?? env.SZPONT_RUNNER ?? "codex";
+  let selectedRunner = options.runner ?? env.PLOMPY_RUNNER ?? "codex";
   let [action, id, extra] = positional;
   if (
     extra ||
@@ -546,7 +550,7 @@ export async function runIntegrations(
           "Interactive setup needs a TTY. Use list, or add <id> --yes with explicit options.",
         );
       print(
-        "Szpont integrations — connect tools to your own runner and accounts.\n",
+        "Plompy integrations — connect tools to your own runner and accounts.\n",
       );
       if (!options.runner) {
         print(
@@ -601,14 +605,14 @@ export async function runIntegrations(
     if (["add", "remove", "login"].includes(action) && !id)
       throw new Error("Choose an integration ID. Use list.");
     if (
-      env.SZPONT_CONTAINER_RUNNER &&
-      selectedRunner !== env.SZPONT_CONTAINER_RUNNER
+      env.PLOMPY_CONTAINER_RUNNER &&
+      selectedRunner !== env.PLOMPY_CONTAINER_RUNNER
     )
       throw new Error(
         "This container packages Codex only. Configure Claude Code or OpenCode on the documented Linux host deployment; their CLI binaries and isolation are required.",
       );
     const ctx = await createContext(
-      { ...env, SZPONT_RUNNER: selectedRunner },
+      { ...env, PLOMPY_RUNNER: selectedRunner },
       publicRoot,
     );
     if (action === "status") {
@@ -640,9 +644,9 @@ export async function runIntegrations(
     print(
       `Runner: ${ctx.provider}. ${action === "login" ? "GitHub's own terminal login will open." : "Only the selected integration and managed instructions will change."}`,
     );
-    if (selectedRunner !== (env.SZPONT_RUNNER ?? "codex"))
+    if (selectedRunner !== (env.PLOMPY_RUNNER ?? "codex"))
       print(
-        `Configuring ${runnerNames[selectedRunner]} tools only. For new Discord threads, set SZPONT_RUNNER=${selectedRunner} in the service environment separately; existing threads keep their runner.`,
+        `Configuring ${runnerNames[selectedRunner]} tools only. For new Discord threads, set PLOMPY_RUNNER=${selectedRunner} in the service environment separately; existing threads keep their runner.`,
       );
     if (action === "add" && id === "custom")
       print(
@@ -672,6 +676,8 @@ export async function runIntegrations(
       const value = await registry(ctx);
       await checkInstructionDestination(ctx);
       if (action === "add") {
+        if (value.integrations.some((e) => e.provider === ctx.provider && e.id === id && e.name.startsWith("szpont_")))
+          throw new Error("This integration still uses its legacy MCP identifier. It remains usable. To rename it, remove this managed integration first, then add it again; credentials, browser profile and account grants are preserved. See docs/migration-plompy.md.");
         let entry = { id, provider: ctx.provider, name: "github" };
         if (id === "github") {
           await privateDirectory(ctx.config.githubConfigDir);

@@ -857,7 +857,7 @@ export async function compareRepository(
     (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
   )
     throw new Error("repository_scratch_inside_root");
-  const directory = await mkdtemp(join(base, ".szpont-diff-"));
+  const directory = await mkdtemp(join(base, ".plompy-diff-"));
   const inventory: RepositoryChange[] = [],
     omissions: RepositoryOmission[] = [
       ...before.omissions,

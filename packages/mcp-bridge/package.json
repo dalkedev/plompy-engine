@@ -1,5 +1,5 @@
 {
-  "name": "@szpont/mcp-bridge",
+  "name": "@plompy/mcp-bridge",
   "version": "0.1.0",
   "private": true,
   "type": "module",

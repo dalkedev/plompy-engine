@@ -12,7 +12,6 @@ status     Queue in this thread: 1 queued; 0 running.
 status     Worker: idle. Queued tasks have not started yet.
 evidence   No replay before an explicit recovery: true
 owner      #release > !recover 940000000000000001
-engine     Manual recovery queued. Inspect prior state and receipts first.
 agent      #release < [synthetic] Prior demo state inspected; note is ready.
 state      #release · succeeded · Codex · session=saved
 evidence   Recovery recorded; stale follow-up cancelled: true

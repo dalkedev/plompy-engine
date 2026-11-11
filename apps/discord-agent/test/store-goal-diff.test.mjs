@@ -61,7 +61,7 @@ function evidence(before = snapshot(), status = "complete") {
   };
 }
 function fixture(t, disk = false) {
-  const dir = mkdtempSync(join(tmpdir(), "szpont-goal-code-"));
+  const dir = mkdtempSync(join(tmpdir(), "plompy-goal-code-"));
   const path = disk ? join(dir, "queue.sqlite") : ":memory:";
   const store = new Store(path);
   t.after(() => {
@@ -368,7 +368,7 @@ test("uncertain worker recovery never silently reuses the original attempt basel
 });
 
 test("schema5 migration preserves legacy goal bytes and starts with no fabricated evidence", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "szpont-goal-code-upgrade-"));
+  const dir = mkdtempSync(join(tmpdir(), "plompy-goal-code-upgrade-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, "queue.sqlite");
   const old = schema5(path);
@@ -389,7 +389,7 @@ test("schema5 migration preserves legacy goal bytes and starts with no fabricate
 });
 
 test("schema6 validates code evidence storage before any journal or file mutation", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "szpont-goal-code-corrupt-"));
+  const dir = mkdtempSync(join(tmpdir(), "plompy-goal-code-corrupt-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, "queue.sqlite");
   const store = new Store(path);
@@ -401,7 +401,7 @@ test("schema6 validates code evidence storage before any journal or file mutatio
 });
 
 test("failed5to6 migration rolls repository column, new table and schema version back", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "szpont-goal-code-rollback-"));
+  const dir = mkdtempSync(join(tmpdir(), "plompy-goal-code-rollback-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, "queue.sqlite");
   schema5(path);
@@ -422,7 +422,7 @@ test("failed5to6 migration rolls repository column, new table and schema version
 });
 
 test("current-schema restart keeps sealed candidate proof and conservatively interrupts execution", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "szpont-goal-code-restart-"));
+  const dir = mkdtempSync(join(tmpdir(), "plompy-goal-code-restart-"));
   const path = join(dir, "queue.sqlite");
   const store = new Store(path);
   start(store);

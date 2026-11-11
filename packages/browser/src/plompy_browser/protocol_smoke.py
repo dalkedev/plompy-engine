@@ -11,7 +11,7 @@ from mcp.client.stdio import StdioServerParameters
 
 
 async def run() -> dict:
-    parameters = StdioServerParameters(command=sys.executable, args=["-m", "szpont_browser"], env=dict(os.environ))
+    parameters = StdioServerParameters(command=sys.executable, args=["-m", "plompy_browser"], env=dict(os.environ))
     async with Client(parameters, read_timeout_seconds=60) as client:
         tools = await client.list_tools()
         opened = await client.call_tool("browser_open", {"url": "https://example.com"})

@@ -6,7 +6,7 @@ body:
       value: |
         Use synthetic IDs and a minimal reproduction. Do not attach credentials,
         browser profiles, conversation transcripts, raw model events or private workspace files.
-        For a security issue, follow [SECURITY.md](https://github.com/dalkedev/szpont-engine/security/policy).
+        For a security issue, follow [SECURITY.md](https://github.com/dalkedev/plompy-engine/security/policy).
   - type: textarea
     id: problem
     attributes:

@@ -7,14 +7,14 @@ import { integrationInstructions } from "../dist/workspace.js";
 import { playbook } from "../../../scripts/integrations/catalog.mjs";
 
 test("each runner receives its own integration instructions without losing the first tools", async (t) => {
-  const workspace = await mkdtemp(join(tmpdir(), "szpont-integration-prompt-"));
+  const workspace = await mkdtemp(join(tmpdir(), "plompy-integration-prompt-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   await mkdir(join(workspace, "agent"));
   const entries = ["codex", "claude", "opencode"].flatMap((provider) => [
     { id: "github", name: "github", provider },
-    { id: "camoufox", name: "szpont_browser", provider },
-    { id: "context7", name: "szpont_context7", provider },
-    { id: "openai-docs", name: "szpont_openai_docs", provider },
+    { id: "camoufox", name: "plompy_browser", provider },
+    { id: "context7", name: "plompy_context7", provider },
+    { id: "openai-docs", name: "plompy_openai_docs", provider },
   ]);
   const all = playbook(entries);
   assert.ok(all.length > 5000);
@@ -24,7 +24,7 @@ test("each runner receives its own integration instructions without losing the f
     assert.match(text, /not authorization/);
     assert.match(text, /Never copy credentials/);
     assert.match(text, new RegExp(`## GitHub \\(${provider}\\)`));
-    assert.match(text, new RegExp(`## szpont_browser \\(${provider}\\)`));
+    assert.match(text, new RegExp(`## plompy_browser \\(${provider}\\)`));
     for (const other of ["codex", "claude", "opencode"].filter(
       (p) => p !== provider,
     ))
@@ -33,7 +33,21 @@ test("each runner receives its own integration instructions without losing the f
 });
 
 test("missing integration instructions preserve existing workspaces", async (t) => {
-  const workspace = await mkdtemp(join(tmpdir(), "szpont-integration-empty-"));
+  const workspace = await mkdtemp(join(tmpdir(), "plompy-integration-empty-"));
   t.after(() => rm(workspace, { recursive: true, force: true }));
   assert.equal(await integrationInstructions({ workspace }, "codex"), "");
+});
+
+test("legacy generated playbooks still isolate each runner's tools after the rename", async (t) => {
+  const workspace = await mkdtemp(join(tmpdir(), "plompy-legacy-playbook-"));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  await mkdir(join(workspace, "agent"));
+  const content = playbook([
+    { id: "context7", name: "szpont_context7", provider: "codex" },
+    { id: "openai-docs", name: "szpont_openai_docs", provider: "claude" },
+  ]).replace("Managed by Plompy", "Managed by Szpont");
+  await writeFile(join(workspace, "agent/INTEGRATIONS.md"), content);
+  const prompt = await integrationInstructions({ workspace }, "codex");
+  assert.match(prompt, /szpont_context7/);
+  assert.doesNotMatch(prompt, /szpont_openai_docs|\(claude\)/);
 });

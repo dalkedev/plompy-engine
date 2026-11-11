@@ -2,8 +2,8 @@
 
 ## Name and positioning
 
-Use **szpont-engine**, lowercase and hyphenated, for the repository and engine. Use **Szpont**
-when referring to the assistant in a conversation. Keep `szpont-engine` intact in headings,
+Use **plompy-engine**, lowercase and hyphenated, for the repository and engine. Use **Plompy**
+when referring to the assistant in a conversation. Keep `plompy-engine` intact in headings,
 links, and portfolio captions.
 
 > A self-hosted personal agent engine with provider-bound CLI sessions and private Markdown memory.
@@ -15,8 +15,10 @@ SQLite queue, and explicit recovery. Browser tools are optional.
 
 ## Mark and assets
 
-The mark follows a continuous thread or path, reflecting conversation and retained state.
-Use the supplied artwork rather than redrawing it or substituting a generic robot or spark.
+Plompy is a small orange fish with enormous paper-colored eyes and a deadpan expression.
+The deliberately silly mascot makes a serious developer tool approachable. The banner's
+flowing lines connect the fish to the engine's continuous conversation and retained state.
+Use the supplied artwork; preserve its silhouette, face, proportions and palette.
 
 | Asset | Use |
 | --- | --- |
@@ -25,8 +27,9 @@ Use the supplied artwork rather than redrawing it or substituting a generic robo
 | [Social preview](../assets/brand/social-preview.jpg) | Repository link previews and project cards; JPEG export below 1 MB |
 
 Preserve the artwork's proportions. Leave clear space of at least one quarter of the mark's
-width around a standalone mark, and check that the path remains legible at its displayed size.
-Do not crop, rotate, stretch, add shadows, or add gradients. Keep text outside the clear space.
+width around a standalone mark, and check that its eyes remain legible at its displayed size.
+Do not stretch, add shadows, or add gradients. A slight rotation is allowed in playful
+compositions, as in the supplied banners. Keep text outside the clear space.
 Use the banner or preview for wide layouts rather than stretching the square mark.
 
 ## Palette
@@ -70,10 +73,10 @@ The source and repository assets are provided under the [MIT license](../LICENSE
 ## Source assets
 
 The project artwork was generated with OpenAI image generation for this identity.
-The transparent PNG mark and wide PNG banner are the supplied master files. The social
-preview is a JPEG export of the same banner; its composition and proportions are unchanged.
+The transparent PNG mascot and dark wide README banner are the supplied master files.
+The social preview is a separate orange composition, exported at 1200 × 630 pixels.
+The mascot, README banner and share card were generated together for the 0.12 identity.
 
-The 0.4 banner names Codex, Claude Code and OpenCode in its first capability row,
-then Discord threads, SQLite and Markdown in its second row. Provider names show
-available adapters, not identical sandbox guarantees or live-account acceptance.
-The [runner guide](runners.md) states their support levels.
+The playful line **Small fish. Your whole machine.** belongs in promotional art.
+Use **Your agents. Your machine. Your rules.** for the product's ownership message.
+Keep setup, permissions, recovery and error instructions literal rather than jokey.

@@ -32,7 +32,7 @@ npm run setup
 
 Choose Codex, Claude Code or OpenCode, then enter the Discord guild, owner, bot
 and private-forum IDs. Paste the bot token only at the hidden prompt. The default
-root is `$HOME/.local/share/szpont`, with `agent.env` and separate `workspace`,
+root is `$HOME/.local/share/plompy`, with `agent.env` and separate `workspace`,
 `state`, `artifacts`, `browser` and selected runner directories. Edit the private
 workspace's `agent/USER.md` and `agent/POLICY.md` before authorizing work.
 
@@ -46,7 +46,7 @@ for authentication and isolation, and [Docker](docker.md) for the volume workflo
 Supply real IDs and absolute private paths. A token is never an argument value:
 
 ```sh
-npm run setup -- --yes --root /srv/private/szpont --runner codex \
+npm run setup -- --yes --root /srv/private/plompy --runner codex \
   --guild-id GUILD_ID --owner-id OWNER_ID --bot-id BOT_ID --forum-id FORUM_ID \
   --token-file /srv/private/bot-token
 ```
@@ -71,8 +71,8 @@ The wizard prepares private paths, not executable tools. For the pinned Codex CL
 use your normal trusted package-management process. A user-local installation is:
 
 ```sh
-npm install --prefix "$HOME/.local/share/szpont-tools" --omit=dev --ignore-scripts @openai/codex@0.166.0
-export PATH="$HOME/.local/share/szpont-tools/node_modules/.bin:$PATH"
+npm install --prefix "$HOME/.local/share/plompy-tools" --omit=dev --ignore-scripts @openai/codex@0.166.0
+export PATH="$HOME/.local/share/plompy-tools/node_modules/.bin:$PATH"
 codex --version
 ```
 

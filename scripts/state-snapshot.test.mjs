@@ -37,7 +37,7 @@ const session = "c3c9cfe5-9659-4d5a-a2c2-ec73b1b64056";
 const marker = "synthetic-private-transcript-never-print";
 
 async function fixture(t) {
-  const directory = await mkdtemp(join(tmpdir(), "szpont-state-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "plompy-state-test-"));
   await chmod(directory, 0o700);
   t.after(() => rm(directory, { recursive: true, force: true }));
   return {
@@ -72,7 +72,7 @@ function legacy(path, version = 0) {
 async function noStaging(directory) {
   assert.equal(
     (await readdir(directory)).filter((name) =>
-      name.startsWith(".szpont-snapshot-"),
+      name.startsWith(".plompy-snapshot-"),
     ).length,
     0,
   );

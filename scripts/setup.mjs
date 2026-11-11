@@ -1,3 +1,4 @@
+import { normalizeEnvironment, compatiblePath } from "./brand-compat.mjs";
 import { constants } from "node:fs";
 import {
   lstat,
@@ -25,6 +26,7 @@ import { createInterface } from "node:readline/promises";
 import { StringDecoder } from "node:string_decoder";
 
 const execute = promisify(execFile);
+const defaultPrivateRoot = () => compatiblePath(join(homedir(), ".local/share/plompy"), join(homedir(), ".local/share/szpont"));
 const sourceRoot = await realpath(
   fileURLToPath(new URL("../", import.meta.url)),
 );
@@ -86,7 +88,7 @@ export function shellQuote(value) {
 }
 export function serializeEnvironment(env) {
   return (
-    "# Private Szpont configuration. Load only as the dedicated service account.\n" +
+    "# Private Plompy configuration. Load only as the dedicated service account.\n" +
     Object.entries(env)
       .map(([key, value]) => `${key}=${shellQuote(value)}`)
       .join("\n") +
@@ -259,14 +261,14 @@ export async function setup(options, dependencies = {}) {
   if (!["linux", "darwin"].includes(process.platform)) fail("platform");
   await checkRuntime();
   const root = privatePath(
-    options.root ?? join(homedir(), ".local/share/szpont"),
+    options.root ?? defaultPrivateRoot(),
   );
   const envFile = privatePath(options.envFile ?? join(root, "agent.env"));
   const runner = options.runner ?? "codex";
   if (!["codex", "claude", "opencode"].includes(runner)) fail("configuration");
   if (
-    process.env.SZPONT_CONTAINER_RUNNER &&
-    runner !== process.env.SZPONT_CONTAINER_RUNNER
+    normalizeEnvironment().PLOMPY_CONTAINER_RUNNER &&
+    runner !== normalizeEnvironment().PLOMPY_CONTAINER_RUNNER
   )
     fail("container");
   if (
@@ -297,38 +299,38 @@ export async function setup(options, dependencies = {}) {
     : validateToken(options.hiddenToken);
   const env = {
     DISCORD_BOT_TOKEN: token,
-    SZPONT_DISCORD_GUILD_ID: options.guildId,
-    SZPONT_DISCORD_OWNER_ID: options.ownerId,
-    SZPONT_DISCORD_BOT_ID: options.botId,
-    SZPONT_DISCORD_PARENT_CHANNEL_ID: options.forumId,
-    SZPONT_WORKSPACE: paths.workspace,
-    SZPONT_STATE_DIR: paths.state,
-    SZPONT_ARTIFACTS_DIR: paths.artifacts,
-    SZPONT_BROWSER_DIR: paths.browser,
+    PLOMPY_DISCORD_GUILD_ID: options.guildId,
+    PLOMPY_DISCORD_OWNER_ID: options.ownerId,
+    PLOMPY_DISCORD_BOT_ID: options.botId,
+    PLOMPY_DISCORD_PARENT_CHANNEL_ID: options.forumId,
+    PLOMPY_WORKSPACE: paths.workspace,
+    PLOMPY_STATE_DIR: paths.state,
+    PLOMPY_ARTIFACTS_DIR: paths.artifacts,
+    PLOMPY_BROWSER_DIR: paths.browser,
     CODEX_HOME: paths.codex,
     CLAUDE_CONFIG_DIR: paths.claude,
-    SZPONT_OPENCODE_HOME: paths.opencode,
+    PLOMPY_OPENCODE_HOME: paths.opencode,
     GH_CONFIG_DIR: paths.github,
-    SZPONT_RUNNER: runner,
-    SZPONT_CODEX_BIN: "codex",
-    SZPONT_CLAUDE_BIN: "claude",
-    SZPONT_OPENCODE_BIN: "opencode",
-    SZPONT_TASK_TIMEOUT_MS: "1200000",
+    PLOMPY_RUNNER: runner,
+    PLOMPY_CODEX_BIN: "codex",
+    PLOMPY_CLAUDE_BIN: "claude",
+    PLOMPY_OPENCODE_BIN: "opencode",
+    PLOMPY_TASK_TIMEOUT_MS: "1200000",
     ...(runner === "claude"
-      ? { SZPONT_CLAUDE_MODEL: "sonnet", SZPONT_CLAUDE_EFFORT: "high" }
+      ? { PLOMPY_CLAUDE_MODEL: "sonnet", PLOMPY_CLAUDE_EFFORT: "high" }
       : {}),
     ...(runner === "opencode"
       ? {
-          SZPONT_OPENCODE_MODEL: options.opencodeModel,
-          SZPONT_OPENCODE_HOST_EXECUTION: "allow",
+          PLOMPY_OPENCODE_MODEL: options.opencodeModel,
+          PLOMPY_OPENCODE_HOST_EXECUTION: "allow",
         }
       : {}),
   };
   try {
     loadConfig({
       ...env,
-      ...(process.env.SZPONT_CONTAINER_RUNNER
-        ? { SZPONT_CONTAINER_RUNNER: process.env.SZPONT_CONTAINER_RUNNER }
+      ...(normalizeEnvironment().PLOMPY_CONTAINER_RUNNER
+        ? { PLOMPY_CONTAINER_RUNNER: normalizeEnvironment().PLOMPY_CONTAINER_RUNNER }
         : {}),
     });
   } catch {
@@ -446,7 +448,7 @@ export const usage = `Usage: node scripts/setup.mjs [options]
 Guided private setup; installs no runner, account, service or browser and performs no network checks.
 Build first with npm run build using Node >=26.13.0 <27. Linux is the supported deployment host.
 
-  --root /absolute/private/szpont  Default: ~/.local/share/szpont
+  --root /absolute/private/plompy  Default: ~/.local/share/plompy
   --env-file /absolute/agent.env   Default: ROOT/agent.env
   --runner codex|claude|opencode   Default: codex; other adapters are experimental Linux host integrations
   --guild-id ID --owner-id ID --bot-id ID --forum-id ID
@@ -619,8 +621,8 @@ async function guided(options) {
     if (!options.root)
       options.root =
         (await rl.question(
-          `Private root [${join(homedir(), ".local/share/szpont")}]: `,
-        )) || join(homedir(), ".local/share/szpont");
+          `Private root [${defaultPrivateRoot()}]: `,
+        )) || defaultPrivateRoot();
     if (!options.runner)
       options.runner =
         (await rl.question(
@@ -674,12 +676,12 @@ Run as this dedicated account, from this source checkout:
 set -a
 . ${shellQuote(envFile)}
 set +a
-${runner === "opencode" ? 'env HOME="$SZPONT_OPENCODE_HOME" XDG_CONFIG_HOME="$SZPONT_OPENCODE_HOME/config" XDG_DATA_HOME="$SZPONT_OPENCODE_HOME/data" XDG_STATE_HOME="$SZPONT_OPENCODE_HOME/state" XDG_CACHE_HOME="$SZPONT_OPENCODE_HOME/cache" ' : ""}${auth}
+${runner === "opencode" ? 'env HOME="$PLOMPY_OPENCODE_HOME" XDG_CONFIG_HOME="$PLOMPY_OPENCODE_HOME/config" XDG_DATA_HOME="$PLOMPY_OPENCODE_HOME/data" XDG_STATE_HOME="$PLOMPY_OPENCODE_HOME/state" XDG_CACHE_HOME="$PLOMPY_OPENCODE_HOME/cache" ' : ""}${auth}
 npm run doctor -- --check-login
 # Explicit read-only Discord permission check; contacts Discord using the bot token:
 npm run doctor -- --check-discord
 # Start only after prerequisite checks and private-forum permissions are reviewed:
-flock -n -E 75 "$SZPONT_STATE_DIR/engine.lock" npm --prefix apps/discord-agent start
+flock -n -E 75 "$PLOMPY_STATE_DIR/engine.lock" npm --prefix apps/discord-agent start
 
 Claude/OpenCode remain experimental host adapters; the published Docker image is Codex-only.
 Runtime security findings remain in SECURITY.md; successful setup is not deployment acceptance.`;

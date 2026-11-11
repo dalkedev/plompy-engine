@@ -7,7 +7,7 @@ Imagine an agent publishing a post. The website accepts it. Before the agent can
 confirmation, its process times out. The local task now looks interrupted, but the post is
 already public. Starting the whole task again can publish the same thing twice.
 
-This is one of the problems behind **[szpont-engine](https://github.com/dalkedev/szpont-engine)**:
+This is one of the problems behind **[plompy-engine](https://github.com/dalkedev/plompy-engine)**:
 a small, self-hosted engine connecting private Discord threads to Codex CLI sessions,
 a SQLite queue and a private Markdown workspace. Send a task from your phone; the work
 happens on your own Linux machine.
@@ -65,7 +65,7 @@ The public repository contains the engine, tests, dependency locks and synthetic
 A setup command creates a separate private Git workspace outside the source checkout:
 
 ```sh
-npm run init:workspace -- "$HOME/.local/share/szpont/workspace"
+npm run init:workspace -- "$HOME/.local/share/plompy/workspace"
 ```
 
 That workspace holds personality instructions, owner preferences, notes and transcripts. The
@@ -97,6 +97,6 @@ a Unix account still share a trust boundary.
 The starting promise is smaller: keep local state durable, preserve the right conversation,
 and expose interrupted or uncertain work before continuing it.
 
-The [source is MIT-licensed](https://github.com/dalkedev/szpont-engine). Start with
+The [source is MIT-licensed](https://github.com/dalkedev/plompy-engine). Start with
 [`store.ts`](../../apps/discord-agent/src/store.ts) for state transitions and
 [`engine.ts`](../../apps/discord-agent/src/engine.ts) for execution and notification handling.

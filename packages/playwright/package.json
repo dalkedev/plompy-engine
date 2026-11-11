@@ -1,9 +1,9 @@
 {
-  "name": "@szpont/playwright-tools",
+  "name": "@plompy/playwright-tools",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Optional, pinned Playwright MCP tooling for Szpont runners",
+  "description": "Optional, pinned Playwright MCP tooling for Plompy runners",
   "engines": {
     "node": ">=26.13.0 <27"
   },

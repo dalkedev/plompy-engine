@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   writeFile,
   stat,
@@ -66,7 +67,9 @@ assert.doesNotMatch(
   /not found/,
   "every Node shared library must resolve",
 );
-assert.equal(process.env.HOME, "/tmp/szpont-home");
+assert.equal(process.env.HOME, "/tmp/plompy-home");
+assert.equal(await realpath("/opt/szpont"), "/opt/plompy");
+assert.equal(await realpath("/var/lib/szpont"), "/var/lib/plompy");
 assert.equal((await stat(process.env.HOME)).mode & 0o777, 0o700);
 const npmCache = execFileSync("npm", ["config", "get", "cache"], {
   encoding: "utf8",
@@ -74,7 +77,7 @@ const npmCache = execFileSync("npm", ["config", "get", "cache"], {
 }).trim();
 assert.equal(npmCache, join(process.env.HOME, ".npm"));
 await mkdir(npmCache, { recursive: true, mode: 0o700 });
-const cacheProbe = await mkdtemp(join(npmCache, "szpont-smoke-"));
+const cacheProbe = await mkdtemp(join(npmCache, "plompy-smoke-"));
 try {
   await writeFile(join(cacheProbe, "writable"), "synthetic\n", { mode: 0o600 });
 } finally {
@@ -88,7 +91,7 @@ assert.match(
   execFileSync("gh", ["--version"], { encoding: "utf8", timeout: 10_000 }),
   /^gh version /,
 );
-assert.equal(process.env.GH_CONFIG_DIR, "/var/lib/szpont/github");
+assert.equal(process.env.GH_CONFIG_DIR, "/var/lib/plompy/github");
 assert.equal((await stat(process.env.GH_CONFIG_DIR)).mode & 0o777, 0o700);
 await assert.rejects(access(join(process.env.GH_CONFIG_DIR, "hosts.yml")), {
   code: "ENOENT",
@@ -96,7 +99,7 @@ await assert.rejects(access(join(process.env.GH_CONFIG_DIR, "hosts.yml")), {
 const adapterFlags = [
   "--no-daemon",
   "-C",
-  process.env.SZPONT_WORKSPACE,
+  process.env.PLOMPY_WORKSPACE,
   "--sandbox",
   "workspace-write",
   "--ask-for-approval",
@@ -105,9 +108,9 @@ const adapterFlags = [
   "-c",
   "sandbox_workspace_write.network_access=true",
   "--add-dir",
-  process.env.SZPONT_ARTIFACTS_DIR,
+  process.env.PLOMPY_ARTIFACTS_DIR,
   "--add-dir",
-  process.env.SZPONT_BROWSER_DIR,
+  process.env.PLOMPY_BROWSER_DIR,
   "exec",
 ];
 assert.match(
@@ -119,9 +122,9 @@ assert.match(
   /Usage:/,
 );
 const workflowConfig = {
-  workspace: process.env.SZPONT_WORKSPACE,
-  artifactsDir: process.env.SZPONT_ARTIFACTS_DIR,
-  browserDir: process.env.SZPONT_BROWSER_DIR,
+  workspace: process.env.PLOMPY_WORKSPACE,
+  artifactsDir: process.env.PLOMPY_ARTIFACTS_DIR,
+  browserDir: process.env.PLOMPY_BROWSER_DIR,
 };
 for (const session of [null, "11111111-1111-4111-8111-111111111111"]) {
   const args = codexArgs(workflowConfig, session, { workflow: true });
@@ -143,7 +146,7 @@ const syntheticPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWZkAAAAASUVORK5CYII=",
   "base64",
 );
-const imageFiles = await materializeImages(process.env.SZPONT_STATE_DIR, [
+const imageFiles = await materializeImages(process.env.PLOMPY_STATE_DIR, [
   {
     mediaType: "image/png",
     sha256: imageDigest(syntheticPng),
@@ -193,27 +196,27 @@ await assert.rejects(access(join(process.env.CODEX_HOME, "auth.json")), {
   code: "ENOENT",
 });
 await assert.rejects(
-  writeFile("/opt/szpont/image-must-stay-read-only", "test"),
+  writeFile("/opt/plompy/image-must-stay-read-only", "test"),
 );
 assert.equal(
   execFileSync("git", ["branch", "--show-current"], {
-    cwd: process.env.SZPONT_WORKSPACE,
+    cwd: process.env.PLOMPY_WORKSPACE,
     encoding: "utf8",
   }).trim(),
   "memory",
 );
 const policy = await readFile(
-  join(process.env.SZPONT_WORKSPACE, "agent/POLICY.md"),
+  join(process.env.PLOMPY_WORKSPACE, "agent/POLICY.md"),
   "utf8",
 );
 assert.ok(policy.length > 0, "synthetic workspace policy must be initialized");
-assert.equal((await stat(process.env.SZPONT_WORKSPACE)).mode & 0o777, 0o700);
+assert.equal((await stat(process.env.PLOMPY_WORKSPACE)).mode & 0o777, 0o700);
 
 // Exercise the actual packaged CLI with network disabled. Registration must
 // configure the remote server without initiating OAuth discovery or a model.
 const configure = (args) =>
   execFileSync(
-    "/opt/szpont/scripts/docker-entrypoint.sh",
+    "/opt/plompy/scripts/docker-entrypoint.sh",
     ["integrations", ...args],
     { encoding: "utf8", timeout: 20_000 },
   );
@@ -237,7 +240,7 @@ for (const id of ["perplexity", "firecrawl", "tinyfish", "posthog"]) {
   assert.match(configure(["remove", id, "--yes"]), /removed/);
 }
 // Test API-key registration with a synthetic token, never a real account request.
-const credentials = await mkdtemp("/tmp/szpont-smoke-credentials-");
+const credentials = await mkdtemp("/tmp/plompy-smoke-credentials-");
 try {
   const file = join(credentials, "synthetic.token");
   await writeFile(file, "synthetic-mcp-token-not-a-real-credential", {
@@ -271,7 +274,7 @@ const holder = spawn(
     "-n",
     "-E",
     "75",
-    join(process.env.SZPONT_STATE_DIR, "engine.lock"),
+    join(process.env.PLOMPY_STATE_DIR, "engine.lock"),
     "/bin/sh",
     "-ec",
     "printf 'locked\\n'; exec sleep 30",
@@ -294,7 +297,7 @@ try {
   ]);
   for (const command of [["init"], ["integrations", "status"]]) {
     const competing = spawnSync(
-      "/opt/szpont/scripts/docker-entrypoint.sh",
+      "/opt/plompy/scripts/docker-entrypoint.sh",
       command,
       { timeout: 3000 },
     );
@@ -313,7 +316,7 @@ try {
   }
 }
 
-const path = join(process.env.SZPONT_STATE_DIR, "container-smoke.sqlite");
+const path = join(process.env.PLOMPY_STATE_DIR, "container-smoke.sqlite");
 const store = new Store(path);
 const id = "111111111111111111",
   thread = "222222222222222222";
@@ -325,7 +328,7 @@ assert.equal(reopened.get(id)?.prompt, "Synthetic offline container smoke");
 reopened.close();
 // Exercise the shipped workflow/store/snapshot modules on fresh synthetic state.
 const workflowRoot = await mkdtemp(
-  join(process.env.SZPONT_STATE_DIR, "work-smoke-"),
+  join(process.env.PLOMPY_STATE_DIR, "work-smoke-"),
 );
 let workStore;
 try {
@@ -389,7 +392,7 @@ try {
   await rm(workflowRoot, { recursive: true, force: true });
 }
 await writeFile(
-  join(process.env.SZPONT_ARTIFACTS_DIR, "container-smoke.txt"),
+  join(process.env.PLOMPY_ARTIFACTS_DIR, "container-smoke.txt"),
   "synthetic\n",
   { mode: 0o600 },
 );

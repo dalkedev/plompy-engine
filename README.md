@@ -1,16 +1,16 @@
 <div align="center">
 
-![szpont-engine — Codex, Claude Code and OpenCode in persistent private threads](assets/brand/readme-banner.png)
+![plompy-engine — Codex, Claude Code and OpenCode in persistent private threads](assets/brand/readme-banner.png)
 
-# szpont-engine
+# plompy-engine
 
 **Run coding agents from private Discord threads.**
 
 One CLI session per thread. A durable queue for accepted work.
 Private Markdown context that survives the conversation.
 
-[![Offline checks](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml/badge.svg)](https://github.com/dalkedev/szpont-engine/actions/workflows/checks.yml)
-[![Release](https://img.shields.io/github/v/release/dalkedev/szpont-engine?color=FF6B35&labelColor=111315)](https://github.com/dalkedev/szpont-engine/releases)
+[![Offline checks](https://github.com/dalkedev/plompy-engine/actions/workflows/checks.yml/badge.svg)](https://github.com/dalkedev/plompy-engine/actions/workflows/checks.yml)
+[![Release](https://img.shields.io/github/v/release/dalkedev/plompy-engine?color=FF6B35&labelColor=111315)](https://github.com/dalkedev/plompy-engine/releases)
 [![Node.js 26](https://img.shields.io/badge/Node.js-26-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
 [![MIT license](https://img.shields.io/badge/license-MIT-FF6B35?labelColor=111315)](LICENSE)
 
@@ -18,12 +18,15 @@ Private Markdown context that survives the conversation.
 
 </div>
 
-szpont-engine connects a private Discord forum to coding agents on your own Linux machine.
+plompy-engine connects a private Discord forum to coding agents on your own Linux machine.
 Send a task, follow up in the same thread, and return to a saved result. The engine keeps the
 runner session, accepted work and recovery state together, so a disconnected client does not
 mean starting the conversation again.
 
 Your phone can go back in your pocket.
+
+> Upgrading an existing installation? Read the [0.12 migration guide](docs/migration-plompy.md) before changing service paths or Docker volumes.
+
 
 ## What the engine handles
 
@@ -48,8 +51,8 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone --branch v0.11.1 --depth 1 https://github.com/dalkedev/szpont-engine.git
-cd szpont-engine
+git clone --branch v0.12.0 --depth 1 https://github.com/dalkedev/plompy-engine.git
+cd plompy-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
 npm run demo -- session
@@ -74,7 +77,7 @@ runner directories, and a mode-0600 environment file outside this checkout.
 Existing installations are preserved. It installs no runner or service and does
 not authenticate accounts or contact Discord. [Setup options and automation](docs/setup.md).
 
-The default root is `$HOME/.local/share/szpont`. Edit its `workspace/agent/USER.md`
+The default root is `$HOME/.local/share/plompy`. Edit its `workspace/agent/USER.md`
 and `workspace/agent/POLICY.md` before asking the agent to act. For containers,
 continue with the [Docker volume workflow](docs/docker.md) instead.
 
@@ -86,11 +89,11 @@ printed commands and [runner guide](docs/runners.md).
 
 ```sh
 set -a
-. "$HOME/.local/share/szpont/agent.env"
+. "$HOME/.local/share/plompy/agent.env"
 set +a
 codex login
 npm run doctor -- --check-login --check-discord
-flock -n -E 75 "$SZPONT_STATE_DIR/engine.lock" npm --prefix apps/discord-agent start
+flock -n -E 75 "$PLOMPY_STATE_DIR/engine.lock" npm --prefix apps/discord-agent start
 ```
 
 `doctor` is local by default. `--check-discord` explicitly performs bounded read-only
@@ -153,7 +156,7 @@ alias for `!goal`; both currently require a Codex thread.
 For a code change, bind the repository when you start. For example, in a private thread:
 
 ```text
-!goal 30m --repo "/srv/szpont/artifacts/quantity-parser" Reject negative quantities, preserve zero as valid, and add regression tests. Run the parser tests and report the result.
+!goal 30m --repo "/srv/plompy/artifacts/quantity-parser" Reject negative quantities, preserve zero as valid, and add regression tests. Run the parser tests and report the result.
 ```
 
 This is an illustrative request for an existing project. Replace the path with the exact
@@ -231,7 +234,7 @@ while unavailable providers do not block eligible work for others.
 | **OpenCode** — experimental    | 1.19.5          | Operator-isolated Linux host; explicit host execution opt-in         |
 
 ```sh
-SZPONT_RUNNER=codex     # or claude / opencode
+PLOMPY_RUNNER=codex     # or claude / opencode
 ```
 
 This selects the default for **new conversations**. Existing threads and recovered jobs retain
@@ -297,9 +300,9 @@ adapters. See [image input, limits and privacy](docs/image-input.md).
 ## Public code. Private memory.
 
 ```text
-szpont-engine/                 # Public source and synthetic templates
-~/.config/szpont/agent.env     # Private credentials and deployment IDs
-~/.local/share/szpont/
+plompy-engine/                 # Public source and synthetic templates
+~/.config/plompy/agent.env     # Private credentials and deployment IDs
+~/.local/share/plompy/
   workspace/                  # Instructions, notes, transcripts and Git history
   state/                      # SQLite queue, private images and provider/session mappings
   codex/                      # Private Codex login and configuration
@@ -311,7 +314,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.11.1 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
+Version **0.12.0 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
 evidence. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.

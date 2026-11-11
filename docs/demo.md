@@ -58,7 +58,7 @@ If Chromium is already installed elsewhere, select that trusted executable
 instead of downloading another browser:
 
 ```sh
-SZPONT_CAPTURE_BROWSER=/absolute/path/to/chromium npm run capture
+PLOMPY_CAPTURE_BROWSER=/absolute/path/to/chromium npm run capture
 ```
 
 That browser starts with a fresh temporary profile. It does not attach to a

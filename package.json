@@ -1,6 +1,6 @@
 {
-  "name": "szpont-engine",
-  "version": "0.11.1",
+  "name": "plompy-engine",
+  "version": "0.12.0",
   "private": true,
   "description": "A self-hosted personal agent with Discord conversations and Git-backed memory",
   "engines": {

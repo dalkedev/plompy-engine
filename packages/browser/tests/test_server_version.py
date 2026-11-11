@@ -5,7 +5,7 @@ import tomllib
 
 from mcp import Client
 
-from szpont_browser import __version__, server
+from plompy_browser import __version__, server
 
 
 async def test_protocol_version_matches_installed_release(monkeypatch):
@@ -21,8 +21,8 @@ async def test_protocol_version_matches_installed_release(monkeypatch):
     project = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
     expected = project["project"]["version"]
     assert __version__ == expected
-    assert version("szpont-browser") == expected, "Install this source before testing its release metadata"
+    assert version("plompy-browser") == expected, "Install this source before testing its release metadata"
     async with Client(server.mcp) as client:
-        assert client.server_info.name == "Szpont Browser"
+        assert client.server_info.name == "Plompy Browser"
         assert client.server_info.version == expected
         assert any(tool.name == "browser_snapshot" for tool in (await client.list_tools()).tools)

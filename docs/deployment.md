@@ -8,7 +8,7 @@ Keep a single instance. Acquire a lock in the private state directory **before**
 including before startup recovery. An example foreground command after loading configuration:
 
 ```sh
-flock -n -E 75 "$SZPONT_STATE_DIR/engine.lock" node /absolute/source/apps/discord-agent/dist/index.js
+flock -n -E 75 "$PLOMPY_STATE_DIR/engine.lock" node /absolute/source/apps/discord-agent/dist/index.js
 ```
 
 A service manager should provide the private environment file, restrictive umask (0077),

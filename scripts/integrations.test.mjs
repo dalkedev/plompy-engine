@@ -31,7 +31,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const cli = join(root, "scripts/integrations.mjs");
 
 async function fixture(t, runner = "claude") {
-  const dir = await mkdtemp(join(tmpdir(), "szpont-integration-cli-"));
+  const dir = await mkdtemp(join(tmpdir(), "plompy-integration-cli-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const workspace = join(dir, "workspace"),
     state = join(dir, "state"),
@@ -47,11 +47,11 @@ async function fixture(t, runner = "claude") {
   const env = {
     PATH: `${join(dir, "bin")}:${process.env.PATH}`,
     HOME: dir,
-    SZPONT_WORKSPACE: workspace,
-    SZPONT_STATE_DIR: state,
-    SZPONT_RUNNER: runner,
-    SZPONT_CLAUDE_MCP_CONFIG: join(dir, "claude", "mcp.json"),
-    SZPONT_OPENCODE_CONFIG: join(dir, "opencode", "provider.json"),
+    PLOMPY_WORKSPACE: workspace,
+    PLOMPY_STATE_DIR: state,
+    PLOMPY_RUNNER: runner,
+    PLOMPY_CLAUDE_MCP_CONFIG: join(dir, "claude", "mcp.json"),
+    PLOMPY_OPENCODE_CONFIG: join(dir, "opencode", "provider.json"),
     DISCORD_BOT_TOKEN: "synthetic-discord-secret",
     GH_TOKEN: "synthetic-gh-secret",
     GITHUB_TOKEN: "synthetic-github-secret",
@@ -154,8 +154,8 @@ test("GitHub setup is isolated, idempotent and never starts login implicitly", a
 for (const runner of ["claude", "opencode"])
   test(`explicit ${runner} selection configures its default MCP file without changing the service default`, async (t) => {
     const f = await fixture(t, "codex");
-    delete f.env.SZPONT_CLAUDE_MCP_CONFIG;
-    delete f.env.SZPONT_OPENCODE_CONFIG;
+    delete f.env.PLOMPY_CLAUDE_MCP_CONFIG;
+    delete f.env.PLOMPY_OPENCODE_CONFIG;
     const result = await f.invoke([
       "add",
       "openai-docs",
@@ -165,13 +165,13 @@ for (const runner of ["claude", "opencode"])
     ]);
     assert.match(result, new RegExp(`Runner: ${runner}`));
     assert.match(result, /existing threads keep their runner/);
-    const path = join(f.dir, runner, "szpont-mcp.json");
+    const path = join(f.dir, runner, "plompy-mcp.json");
     const document = JSON.parse(await readFile(path, "utf8"));
     const entry =
-      document[runner === "claude" ? "mcpServers" : "mcp"].szpont_openai_docs;
+      document[runner === "claude" ? "mcpServers" : "mcp"].plompy_openai_docs;
     assert.equal(entry.url, "https://developers.openai.com/mcp");
     assert.equal(entry.type, runner === "claude" ? "http" : "remote");
-    assert.equal(f.env.SZPONT_RUNNER, "codex");
+    assert.equal(f.env.PLOMPY_RUNNER, "codex");
     const selected = JSON.parse(
       await f.invoke(["status", "--runner", runner, "--json"]),
     );
@@ -195,7 +195,7 @@ test("unsupported runners and unavailable container runners are rejected before 
     f.invoke(["add", "github", "--runner", "unknown-cli", "--yes"]),
     /Unsupported runner/,
   );
-  f.env.SZPONT_CONTAINER_RUNNER = "codex";
+  f.env.PLOMPY_CONTAINER_RUNNER = "codex";
   await assert.rejects(
     f.invoke(["add", "openai-docs", "--runner", "claude", "--yes"]),
     /container packages Codex only/,
@@ -208,17 +208,17 @@ test("configuration mismatch is preserved on add and remove", async (t) => {
   const f = await fixture(t);
   await f.invoke(["add", "openai-docs", "--yes"]);
   const json = JSON.parse(
-    await readFile(f.env.SZPONT_CLAUDE_MCP_CONFIG, "utf8"),
+    await readFile(f.env.PLOMPY_CLAUDE_MCP_CONFIG, "utf8"),
   );
-  json.mcpServers.szpont_openai_docs.url = "https://different.example/mcp";
+  json.mcpServers.plompy_openai_docs.url = "https://different.example/mcp";
   const bytes = JSON.stringify(json);
-  await writeFile(f.env.SZPONT_CLAUDE_MCP_CONFIG, bytes, { mode: 0o600 });
+  await writeFile(f.env.PLOMPY_CLAUDE_MCP_CONFIG, bytes, { mode: 0o600 });
   await assert.rejects(f.invoke(["add", "openai-docs", "--yes"]), /differs/);
   await assert.rejects(
     f.invoke(["remove", "openai-docs", "--yes"]),
     /differs|matches/,
   );
-  assert.equal(await readFile(f.env.SZPONT_CLAUDE_MCP_CONFIG, "utf8"), bytes);
+  assert.equal(await readFile(f.env.PLOMPY_CLAUDE_MCP_CONFIG, "utf8"), bytes);
   assert.equal(
     JSON.parse(await f.invoke(["status", "--json"])).integrations[0].status,
     "conflict",
@@ -230,8 +230,8 @@ for (const provider of ["claude", "opencode"])
     const f = await fixture(t, provider);
     const path =
       provider === "claude"
-        ? f.env.SZPONT_CLAUDE_MCP_CONFIG
-        : f.env.SZPONT_OPENCODE_CONFIG;
+        ? f.env.PLOMPY_CLAUDE_MCP_CONFIG
+        : f.env.PLOMPY_OPENCODE_CONFIG;
     await mkdir(dirname(path), { mode: 0o700 });
     const existing =
       provider === "claude"
@@ -254,7 +254,7 @@ test("operator instructions and symlinks fail before MCP configuration is change
   const path = join(f.workspace, "agent", "INTEGRATIONS.md");
   await writeFile(path, "# My own instructions\n", { mode: 0o600 });
   await assert.rejects(f.invoke(["add", "openai-docs", "--yes"]), /Preserve/);
-  await assert.rejects(readFile(f.env.SZPONT_CLAUDE_MCP_CONFIG), /ENOENT/);
+  await assert.rejects(readFile(f.env.PLOMPY_CLAUDE_MCP_CONFIG), /ENOENT/);
   await assert.rejects(readFile(join(f.state, "integrations.json")), /ENOENT/);
   await rm(path);
   await symlink(join(f.dir, "outside.md"), path);
@@ -266,7 +266,7 @@ test("private state cannot point into source, workspace or symlink aliases", asy
   const f = await fixture(t);
   for (const state of [f.publicRoot, join(f.workspace, "state")])
     await assert.rejects(
-      createContext({ ...f.env, SZPONT_STATE_DIR: state }, f.publicRoot),
+      createContext({ ...f.env, PLOMPY_STATE_DIR: state }, f.publicRoot),
       /overlap/,
     );
   await symlink(f.publicRoot, join(f.dir, "alias"));
@@ -299,14 +299,14 @@ test("CLI defaults match runtime lexical paths even through a state-directory al
   await mkdir(join(f.dir, "alternate", "state"), { mode: 0o700 });
   await symlink(join(f.dir, "alternate", "state"), join(f.dir, "state-alias"));
   const ctx = await createContext(
-    { ...f.env, SZPONT_STATE_DIR: join(f.dir, "state-alias") },
+    { ...f.env, PLOMPY_STATE_DIR: join(f.dir, "state-alias") },
     f.publicRoot,
   );
   assert.ok(ctx.config.githubConfigDir.endsWith("/github"));
   assert.ok(!ctx.config.githubConfigDir.endsWith("/alternate/github"));
   assert.equal(
     ctx.config.browserDir,
-    await canonical("/var/lib/szpont/browser"),
+    await canonical("/var/lib/plompy/browser"),
   );
 });
 
@@ -329,7 +329,7 @@ test("custom MCP spec is explicit, private, and can be removed without changing 
   await writeFile(
     spec,
     JSON.stringify({
-      name: "szpont_team",
+      name: "plompy_team",
       server: { url: "https://docs.example/mcp" },
     }),
     { mode: 0o600 },
@@ -366,7 +366,7 @@ test("setup lock prevents competing configuration and non-TTY login does not att
 
 test("generated integration guidance explicitly scopes tools to the configured provider", () => {
   const text = playbook([
-    { id: "context7", name: "szpont_context7", provider: "claude" },
+    { id: "context7", name: "plompy_context7", provider: "claude" },
   ]);
   assert.match(text, /only when the current thread uses claude/);
   assert.match(text, /Other runners do not inherit/);
@@ -428,11 +428,11 @@ for (const runner of ["claude", "opencode"])
       await f.invoke(["add", id, "--yes"]);
       const path =
         runner === "claude"
-          ? f.env.SZPONT_CLAUDE_MCP_CONFIG
-          : f.env.SZPONT_OPENCODE_CONFIG;
+          ? f.env.PLOMPY_CLAUDE_MCP_CONFIG
+          : f.env.PLOMPY_OPENCODE_CONFIG;
       const config = JSON.parse(await readFile(path, "utf8"));
       const entry =
-        config[runner === "claude" ? "mcpServers" : "mcp"]["szpont_" + id];
+        config[runner === "claude" ? "mcpServers" : "mcp"]["plompy_" + id];
       assert.equal(entry.url, url);
       const status = JSON.parse(await f.invoke(["status", id, "--json"]));
       assert.equal(status.integrations[0].status, "configured");
@@ -461,10 +461,10 @@ test("Firecrawl keyless is explicit and unsupported authentication never registe
   );
   await f.invoke(["add", "firecrawl", "--auth", "keyless", "--yes"]);
   const value = JSON.parse(
-    await readFile(f.env.SZPONT_CLAUDE_MCP_CONFIG, "utf8"),
+    await readFile(f.env.PLOMPY_CLAUDE_MCP_CONFIG, "utf8"),
   );
   assert.equal(
-    value.mcpServers.szpont_firecrawl.url,
+    value.mcpServers.plompy_firecrawl.url,
     "https://mcp.firecrawl.dev/v2/mcp",
   );
   assert.equal(Object.keys(value.mcpServers).length, 1);
@@ -473,7 +473,7 @@ test("Firecrawl keyless is explicit and unsupported authentication never registe
 test("new playbooks distinguish isolated browsing, external research and analytics access", () => {
   const text = playbook(
     ["playwright", "perplexity", "firecrawl", "tinyfish", "posthog"].map(
-      (id) => ({ id, name: "szpont_" + id, provider: "opencode" }),
+      (id) => ({ id, name: "plompy_" + id, provider: "opencode" }),
     ),
   );
   assert.match(text, /fresh isolated headless session/);
@@ -513,19 +513,19 @@ test("a manifest cannot transfer Playwright approval to another provider or serv
     {
       id: "perplexity",
       provider: "claude",
-      name: "szpont_perplexity",
+      name: "plompy_perplexity",
       toolApproval: "approve",
     },
     {
       id: "playwright",
       provider: "claude",
-      name: "szpont_playwright",
+      name: "plompy_playwright",
       toolApproval: "approve",
     },
     {
       id: "playwright",
       provider: "codex",
-      name: "szpont_playwright",
+      name: "plompy_playwright",
       toolApproval: "auto",
     },
   ]) {
@@ -538,4 +538,29 @@ test("a manifest cannot transfer Playwright approval to another provider or serv
     );
     assert.equal(await readFile(path, "utf8"), before);
   }
+});
+
+test("legacy integrations remain inspectable, cannot be duplicated, and can be explicitly renamed", async (t) => {
+  const f = await fixture(t);
+  const entry = { id: "openai-docs", provider: "claude", name: "szpont_openai_docs", server: { url: "https://developers.openai.com/mcp" } };
+  const manifestPath = join(f.state, "integrations.json");
+  const instructionsPath = join(f.workspace, "agent/INTEGRATIONS.md");
+  const legacyHome = join(f.dir, "claude");
+  await mkdir(legacyHome, { mode: 0o700 });
+  const legacyFile = join(legacyHome, "szpont-mcp.json");
+  await writeFile(legacyFile, JSON.stringify({ mcpServers: { szpont_openai_docs: { type: "http", url: entry.server.url } } }), { mode: 0o600 });
+  await writeFile(manifestPath, JSON.stringify({ schemaVersion: 1, integrations: [entry] }), { mode: 0o600 });
+  await writeFile(instructionsPath, playbook([entry]).replace("Managed by Plompy", "Managed by Szpont"), { mode: 0o600 });
+  delete f.env.PLOMPY_CLAUDE_MCP_CONFIG;
+  for (const key of Object.keys(f.env)) if (key.startsWith("PLOMPY_")) { f.env[key.replace("PLOMPY_", "SZPONT_")] = f.env[key]; delete f.env[key]; }
+  const before = await readFile(legacyFile, "utf8");
+  const status = JSON.parse(await f.invoke(["status", "openai-docs", "--json"]));
+  assert.equal(status.integrations[0].status, "configured");
+  await assert.rejects(f.invoke(["add", "openai-docs", "--yes"]), /legacy MCP identifier/);
+  assert.equal(await readFile(legacyFile, "utf8"), before);
+  await f.invoke(["remove", "openai-docs", "--yes"]);
+  await f.invoke(["add", "openai-docs", "--yes"]);
+  const servers = JSON.parse(await readFile(legacyFile, "utf8")).mcpServers;
+  assert.deepEqual(Object.keys(servers), ["plompy_openai_docs"]);
+  assert.match(await readFile(instructionsPath, "utf8"), /Managed by Plompy/);
 });

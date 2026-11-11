@@ -144,7 +144,7 @@ export async function snapshotState({ operation, source, destination }) {
 
     // All temporary material stays in the private destination filesystem. A killed
     // process can leave this private staging directory, but never a partial final file.
-    temporary = await mkdtemp(join(parent, ".szpont-snapshot-"));
+    temporary = await mkdtemp(join(parent, ".plompy-snapshot-"));
     await chmod(temporary, 0o700);
     const staged = join(temporary, "state.sqlite");
     const reservation = await open(staged, "wx", 0o600);

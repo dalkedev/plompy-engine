@@ -31,7 +31,7 @@ const playwrightLauncher = fileURLToPath(
 function playwrightOptions(f, fake, toolApproval) {
   return {
     ...f.options,
-    name: "szpont_playwright",
+    name: "plompy_playwright",
     server: {
       command: process.execPath,
       args: [
@@ -48,7 +48,7 @@ function playwrightOptions(f, fake, toolApproval) {
 }
 
 async function fixture(t, provider = "claude") {
-  const directory = await mkdtemp(join(tmpdir(), "szpont-mcp-"));
+  const directory = await mkdtemp(join(tmpdir(), "plompy-mcp-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const publicRoot = join(directory, "public");
   const privateRoot = join(directory, "private");
@@ -63,7 +63,7 @@ async function fixture(t, provider = "claude") {
     claudeMcpConfig: join(privateRoot, "claude-mcp.json"),
     opencodeConfig: join(privateRoot, "opencode.json"),
   };
-  const options = { provider, config, name: "szpont_docs", server: remote };
+  const options = { provider, config, name: "plompy_docs", server: remote };
   return {
     directory,
     publicRoot,
@@ -223,7 +223,7 @@ for (const provider of ["claude", "opencode"]) {
     const registered = await registerMcp(f.options);
     assert.deepEqual(registered, {
       provider,
-      name: "szpont_docs",
+      name: "plompy_docs",
       status: "configured",
       changed: true,
     });
@@ -231,7 +231,7 @@ for (const provider of ["claude", "opencode"]) {
     assert.deepEqual(actual.provider, before.provider);
     assert.deepEqual(actual[key].existing, before[key].existing);
     assert.deepEqual(
-      actual[key].szpont_docs,
+      actual[key].plompy_docs,
       provider === "claude"
         ? { type: "http", url: remote.url }
         : { type: "remote", url: remote.url, enabled: true },
@@ -243,7 +243,7 @@ for (const provider of ["claude", "opencode"]) {
     assert.equal(await readFile(f.path, "utf8"), snapshot);
     assert.deepEqual(await unregisterMcp(f.options), {
       provider,
-      name: "szpont_docs",
+      name: "plompy_docs",
       status: "removed",
       changed: true,
     });
@@ -262,20 +262,20 @@ for (const provider of ["claude", "opencode"]) {
   test(`${provider}: local Camoufox uses the provider's stdio shape`, async (t) => {
     const f = await fixture(t, provider);
     const env = {
-      SZPONT_BROWSER_PROFILE: join(f.privateRoot, "profile"),
-      SZPONT_BROWSER_ARTIFACTS: join(f.privateRoot, "artifacts"),
+      PLOMPY_BROWSER_PROFILE: join(f.privateRoot, "profile"),
+      PLOMPY_BROWSER_ARTIFACTS: join(f.privateRoot, "artifacts"),
       CAMOUFOX_EXECUTABLE_PATH: join(f.privateRoot, "browser-bin"),
       DISPLAY: ":99",
     };
     const server = {
       command: "/usr/bin/python3",
-      args: ["-m", "szpont_browser"],
+      args: ["-m", "plompy_browser"],
       env,
     };
     await registerMcp({ ...f.options, server });
     const actual = JSON.parse(await readFile(f.path, "utf8"));
     assert.deepEqual(
-      actual[provider === "claude" ? "mcpServers" : "mcp"].szpont_docs,
+      actual[provider === "claude" ? "mcpServers" : "mcp"].plompy_docs,
       provider === "claude"
         ? { type: "stdio", ...server }
         : {
@@ -291,7 +291,7 @@ for (const provider of ["claude", "opencode"]) {
     const f = await fixture(t, provider);
     const bytes = JSON.stringify({
       [provider === "claude" ? "mcpServers" : "mcp"]: {
-        szpont_docs: {
+        plompy_docs: {
           url: "https://changed.example.test/mcp",
           headers: { Authorization: secret },
         },
@@ -310,8 +310,8 @@ for (const provider of ["claude", "opencode"]) {
       registerMcp({ ...f.options, config: { publicRoot: f.publicRoot } }),
       new RegExp(
         provider === "claude"
-          ? "SZPONT_CLAUDE_MCP_CONFIG"
-          : "SZPONT_OPENCODE_CONFIG",
+          ? "PLOMPY_CLAUDE_MCP_CONFIG"
+          : "PLOMPY_OPENCODE_CONFIG",
       ),
     );
   });
@@ -468,21 +468,21 @@ test("Codex local command arguments are passed without a shell", async (t) => {
   const fake = codexFake();
   const server = {
     command: "/path with spaces/python",
-    args: ["-m", "szpont_browser", "literal-$(echo ignored)"],
+    args: ["-m", "plompy_browser", "literal-$(echo ignored)"],
     env: {
       DISPLAY: ":99",
-      SZPONT_BROWSER_PROFILE: join(f.privateRoot, "browser profile"),
+      PLOMPY_BROWSER_PROFILE: join(f.privateRoot, "browser profile"),
     },
   };
   await registerMcp({ ...f.options, server, execute: fake.execute });
   assert.deepEqual(fake.calls[1].args, [
     "mcp",
     "add",
-    "szpont_docs",
+    "plompy_docs",
     "--env",
     "DISPLAY=:99",
     "--env",
-    `SZPONT_BROWSER_PROFILE=${server.env.SZPONT_BROWSER_PROFILE}`,
+    `PLOMPY_BROWSER_PROFILE=${server.env.PLOMPY_BROWSER_PROFILE}`,
     "--",
     server.command,
     ...server.args,
@@ -554,7 +554,7 @@ test("Codex never overwrites or removes a differing entry", async (t) => {
   const f = await fixture(t, "codex");
   const fake = codexFake();
   fake.set({
-    name: "szpont_docs",
+    name: "plompy_docs",
     enabled: true,
     transport: {
       type: "streamable_http",
@@ -585,7 +585,7 @@ for (const extra of [
     const f = await fixture(t, "codex");
     const fake = codexFake();
     fake.set({
-      name: "szpont_docs",
+      name: "plompy_docs",
       enabled: true,
       transport: { type: "streamable_http", url: remote.url },
       ...extra,
@@ -643,7 +643,7 @@ for (const server of [
   {
     command: "python",
     args: [],
-    env: { SZPONT_BROWSER_PROFILE: "relative/path" },
+    env: { PLOMPY_BROWSER_PROFILE: "relative/path" },
   },
   { command: "python", args: "shell string" },
 ]) {
@@ -671,7 +671,7 @@ test("unsafe provider/server names and browser paths inside public source are re
       server: {
         command: "python",
         args: [],
-        env: { SZPONT_BROWSER_PROFILE: join(f.publicRoot, "browser") },
+        env: { PLOMPY_BROWSER_PROFILE: join(f.publicRoot, "browser") },
       },
     }),
     /public source/,
@@ -698,7 +698,7 @@ for (const provider of ["codex", "claude", "opencode"]) {
       assert.equal(
         JSON.parse(await readFile(f.path, "utf8"))[
           provider === "claude" ? "mcpServers" : "mcp"
-        ].szpont_docs.url,
+        ].plompy_docs.url,
         options.server.url,
       );
   });
@@ -767,7 +767,7 @@ test("raw Codex tool policy omitted by mcp get is preserved as an operator confl
   const f = await fixture(t, "codex"),
     fake = codexFake();
   const path = join(f.config.codexHome, "config.toml");
-  const bytes = `# Operator policy must survive CLI projections.\n[mcp_servers.\"szpont_docs\"]\nurl = ${JSON.stringify(remote.url)}\n[mcp_servers.\"szpont_docs\".tools.browser_click]\napproval_mode = \"prompt\"\n`;
+  const bytes = `# Operator policy must survive CLI projections.\n[mcp_servers.\"plompy_docs\"]\nurl = ${JSON.stringify(remote.url)}\n[mcp_servers.\"plompy_docs\".tools.browser_click]\napproval_mode = \"prompt\"\n`;
   await writeFile(path, bytes, { mode: 0o600 });
   const options = { ...f.options, execute: fake.execute };
   assert.equal((await inspectMcp(options)).status, "conflict");
@@ -790,7 +790,7 @@ for (const toolApproval of ["approve", "prompt"])
       parsed = toml.parse(bytes);
     assert.equal(bytes.startsWith(before), true);
     assert.equal(
-      parsed.mcp_servers.szpont_playwright.default_tools_approval_mode,
+      parsed.mcp_servers.plompy_playwright.default_tools_approval_mode,
       toolApproval,
     );
     assert.equal(parsed.default_tools_approval_mode, undefined);
@@ -816,7 +816,7 @@ test("default Playwright does not enable tool approval and a later opt-in preser
   const path = join(f.config.codexHome, "config.toml"),
     before = await readFile(path, "utf8");
   assert.equal(
-    toml.parse(before).mcp_servers.szpont_playwright
+    toml.parse(before).mcp_servers.plompy_playwright
       .default_tools_approval_mode,
     undefined,
   );
@@ -838,11 +838,11 @@ test("raw operator overrides and unknown settings cannot be erased through the l
   const path = join(f.config.codexHome, "config.toml");
   for (const tail of [
     'default_tools_approval_mode = "prompt"\n',
-    'default_tools_approval_mode = "approve"\n[mcp_servers."szpont_playwright".tools.browser_click]\napproval_mode = "prompt"\n',
+    'default_tools_approval_mode = "approve"\n[mcp_servers."plompy_playwright".tools.browser_click]\napproval_mode = "prompt"\n',
     'default_tools_approval_mode = "approve"\nfuture_operator_policy = "synthetic-private-setting"\n',
     'default_tools_approval_mode = "approve"\ndisabled_tools = ["browser_click"]\n',
   ]) {
-    const before = `[mcp_servers."szpont_playwright"]\ncommand = ${JSON.stringify(options.server.command)}\nargs = ${JSON.stringify(options.server.args)}\n${tail}`;
+    const before = `[mcp_servers."plompy_playwright"]\ncommand = ${JSON.stringify(options.server.command)}\nargs = ${JSON.stringify(options.server.args)}\n${tail}`;
     await writeFile(path, before, { mode: 0o600 });
     assert.equal((await inspectMcp(options)).status, "conflict");
     await assert.rejects(registerMcp(options), /preserved/);
@@ -858,7 +858,7 @@ test("approval never applies to custom commands, remote services, other runners 
   for (const changes of [
     { provider: "claude" },
     { provider: "opencode" },
-    { name: "szpont_custom" },
+    { name: "plompy_custom" },
     { server: remote },
     { toolApproval: "auto" },
     { server: { ...options.server, command: "/untrusted/node" } },

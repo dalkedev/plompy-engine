@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Szpont bounded work checkpoint",
+  "title": "Plompy bounded work checkpoint",
   "type": "object",
   "additionalProperties": false,
   "required": ["outcome", "summary", "nextAction"],

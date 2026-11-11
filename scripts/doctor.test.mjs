@@ -25,11 +25,11 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const script = join(root, "scripts/doctor.mjs");
 const secret = "synthetic-private-token-DO-NOT-DISCLOSE";
 const requiredKeys = [
-  "SZPONT_WORKSPACE",
-  "SZPONT_STATE_DIR",
-  "SZPONT_ARTIFACTS_DIR",
+  "PLOMPY_WORKSPACE",
+  "PLOMPY_STATE_DIR",
+  "PLOMPY_ARTIFACTS_DIR",
   "CODEX_HOME",
-  "SZPONT_BROWSER_DIR",
+  "PLOMPY_BROWSER_DIR",
 ];
 const resultFor = (result, id) =>
   result.checks.find((check) => check.id === id);
@@ -38,7 +38,7 @@ async function fixture(
   t,
   { version = "codex-cli 0.166.0", loginCode = 0 } = {},
 ) {
-  const temporary = await mkdtemp(join(tmpdir(), "szpont-doctor-"));
+  const temporary = await mkdtemp(join(tmpdir(), "plompy-doctor-"));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const publicRoot = join(temporary, "public-source");
   await mkdir(publicRoot);
@@ -81,11 +81,11 @@ if (process.argv.slice(2).join(' ') === '--version') {
     PATH: process.env.PATH,
     HOME: temporary,
     DISCORD_BOT_TOKEN: secret,
-    SZPONT_DISCORD_GUILD_ID: "111111111111111111",
-    SZPONT_DISCORD_OWNER_ID: "222222222222222222",
-    SZPONT_DISCORD_BOT_ID: "333333333333333333",
-    SZPONT_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
-    SZPONT_CODEX_BIN: binary,
+    PLOMPY_DISCORD_GUILD_ID: "111111111111111111",
+    PLOMPY_DISCORD_OWNER_ID: "222222222222222222",
+    PLOMPY_DISCORD_BOT_ID: "333333333333333333",
+    PLOMPY_DISCORD_PARENT_CHANNEL_ID: "444444444444444444",
+    PLOMPY_CODEX_BIN: binary,
     UNRELATED_SECRET: secret,
     GIT_DIR: join(publicRoot, "injected.git"),
     ...Object.fromEntries(
@@ -125,7 +125,7 @@ function assertPrivateOutput(result, data) {
   for (const output of [formatReport(result), formatReport(result, true)]) {
     assert.equal(output.includes(secret), false);
     assert.equal(output.includes(data.temporary), false);
-    assert.equal(output.includes(data.env.SZPONT_CODEX_BIN), false);
+    assert.equal(output.includes(data.env.PLOMPY_CODEX_BIN), false);
   }
 }
 
@@ -193,7 +193,7 @@ test("doctor requires patched metadata and a matching actual in-memory SQLite ve
 
 test("the compiled loader rejects missing identities without exposing values or invoking Codex", async (t) => {
   const data = await fixture(t);
-  delete data.env.SZPONT_DISCORD_OWNER_ID;
+  delete data.env.PLOMPY_DISCORD_OWNER_ID;
   const result = await data.inspect({ checkLogin: true });
   assert.equal(result.ok, false);
   assert.equal(resultFor(result, "configuration").status, "FAIL");
@@ -206,9 +206,9 @@ test("the compiled loader rejects missing identities without exposing values or 
 test("configuration validation retains the loader's identity and timeout constraints", async (t) => {
   const data = await fixture(t);
   for (const patch of [
-    { SZPONT_DISCORD_GUILD_ID: "invalid" },
-    { SZPONT_TASK_TIMEOUT_MS: "0" },
-    { SZPONT_WORKSPACE: "relative-workspace" },
+    { PLOMPY_DISCORD_GUILD_ID: "invalid" },
+    { PLOMPY_TASK_TIMEOUT_MS: "0" },
+    { PLOMPY_WORKSPACE: "relative-workspace" },
   ]) {
     const result = await runDoctor({
       env: { ...data.env, ...patch },
@@ -222,7 +222,7 @@ test("configuration validation retains the loader's identity and timeout constra
 test("missing private directories fail without creating directories, an SQLite database or auth files", async (t) => {
   const data = await fixture(t);
   const missing = join(data.temporary, "not-created", "state");
-  data.env.SZPONT_STATE_DIR = missing;
+  data.env.PLOMPY_STATE_DIR = missing;
   const before = await snapshot(data.temporary);
   const result = await data.inspect();
   assert.equal(resultFor(result, "path_separation").status, "PASS");
@@ -237,7 +237,7 @@ test("a file cannot masquerade as a private directory", async (t) => {
   const data = await fixture(t);
   const file = join(data.temporary, "not-a-directory");
   await writeFile(file, "synthetic");
-  data.env.SZPONT_ARTIFACTS_DIR = file;
+  data.env.PLOMPY_ARTIFACTS_DIR = file;
   const result = await data.inspect();
   assert.equal(resultFor(result, "private_directories").status, "FAIL");
   assert.equal(result.ok, false);
@@ -258,7 +258,7 @@ test("public root aliases and private ancestors of source cannot bypass separati
   const data = await fixture(t);
   const alias = join(data.temporary, "source-alias");
   await symlink(data.publicRoot, alias, "dir");
-  data.env.SZPONT_BROWSER_DIR = data.temporary;
+  data.env.PLOMPY_BROWSER_DIR = data.temporary;
   const result = await data.inspect({ publicRoot: alias });
   assert.equal(resultFor(result, "path_separation").status, "FAIL");
 });
@@ -269,17 +269,17 @@ test("overlapping private directories and relative browser paths are rejected", 
   // doctor's existing state/workspace overlap check.
   data.env.GH_CONFIG_DIR = join(data.temporary, "private", "github");
   for (const value of [
-    data.env.SZPONT_WORKSPACE,
-    join(data.env.SZPONT_WORKSPACE, "state"),
+    data.env.PLOMPY_WORKSPACE,
+    join(data.env.PLOMPY_WORKSPACE, "state"),
   ]) {
-    data.env.SZPONT_STATE_DIR = value;
+    data.env.PLOMPY_STATE_DIR = value;
     assert.equal(
       resultFor(await data.inspect(), "path_separation").status,
       "FAIL",
     );
   }
-  data.env.SZPONT_STATE_DIR = join(data.temporary, "private", "state");
-  data.env.SZPONT_BROWSER_DIR = "relative-browser";
+  data.env.PLOMPY_STATE_DIR = join(data.temporary, "private", "state");
+  data.env.PLOMPY_BROWSER_DIR = "relative-browser";
   assert.equal(
     resultFor(await data.inspect(), "path_separation").status,
     "FAIL",
@@ -289,8 +289,8 @@ test("overlapping private directories and relative browser paths are rejected", 
 test("different private directory names resolving to the same target are rejected", async (t) => {
   const data = await fixture(t);
   const alias = join(data.temporary, "state-alias");
-  await symlink(data.env.SZPONT_STATE_DIR, alias, "dir");
-  data.env.SZPONT_ARTIFACTS_DIR = alias;
+  await symlink(data.env.PLOMPY_STATE_DIR, alias, "dir");
+  data.env.PLOMPY_ARTIFACTS_DIR = alias;
   assert.equal(
     resultFor(await data.inspect(), "path_separation").status,
     "FAIL",
@@ -306,13 +306,13 @@ test(
   },
   async (t) => {
     const data = await fixture(t);
-    await chmod(data.env.SZPONT_STATE_DIR, 0o500);
-    t.after(() => chmod(data.env.SZPONT_STATE_DIR, 0o700).catch(() => {}));
-    const before = await stat(data.env.SZPONT_STATE_DIR);
+    await chmod(data.env.PLOMPY_STATE_DIR, 0o500);
+    t.after(() => chmod(data.env.PLOMPY_STATE_DIR, 0o700).catch(() => {}));
+    const before = await stat(data.env.PLOMPY_STATE_DIR);
     const result = await data.inspect();
     assert.equal(resultFor(result, "private_writability").status, "FAIL");
     assert.equal(result.ok, false);
-    const after = await stat(data.env.SZPONT_STATE_DIR);
+    const after = await stat(data.env.PLOMPY_STATE_DIR);
     assert.equal(after.mode, before.mode);
     assert.equal(after.mtimeMs, before.mtimeMs);
   },
@@ -320,15 +320,15 @@ test(
 
 test("an inherited parent Git repository is not accepted as an initialized workspace", async (t) => {
   const data = await fixture(t);
-  const nested = join(data.env.SZPONT_WORKSPACE, "nested");
+  const nested = join(data.env.PLOMPY_WORKSPACE, "nested");
   await mkdir(nested);
-  data.env.SZPONT_WORKSPACE = nested;
+  data.env.PLOMPY_WORKSPACE = nested;
   assert.equal(resultFor(await data.inspect(), "workspace_git").status, "FAIL");
 });
 
 test("Git metadata cannot be a symlink back into public source", async (t) => {
   const data = await fixture(t);
-  const metadata = join(data.env.SZPONT_WORKSPACE, ".git");
+  const metadata = join(data.env.PLOMPY_WORKSPACE, ".git");
   const publicMetadata = join(data.publicRoot, "public.git");
   const { rename } = await import("node:fs/promises");
   await rename(metadata, publicMetadata);
@@ -355,7 +355,7 @@ test("a mismatched or unexpected CLI response fails without echoing stdout or st
 
 test("an unavailable Codex executable produces a fixed failure rather than raw process errors", async (t) => {
   const data = await fixture(t);
-  data.env.SZPONT_CODEX_BIN = join(data.temporary, secret);
+  data.env.PLOMPY_CODEX_BIN = join(data.temporary, secret);
   const result = await data.inspect();
   assert.equal(resultFor(result, "codex_version").status, "FAIL");
   assert.equal(result.ok, false);
@@ -407,6 +407,7 @@ test("an unbuilt checkout produces a fixed configuration failure without loading
   const copied = join(data.publicRoot, "scripts", "doctor.mjs");
   await mkdir(dirname(copied));
   await copyFile(script, copied);
+  await copyFile(join(dirname(script), "brand-compat.mjs"), join(dirname(copied), "brand-compat.mjs"));
   await assert.rejects(
     execute(process.execPath, [copied, "--json"], { env: data.env }),
     (error) => {
@@ -441,9 +442,9 @@ test("Claude diagnostics inspect the selected private home without requiring an 
   await mkdir(home);
   const env = {
     ...data.env,
-    SZPONT_RUNNER: "claude",
+    PLOMPY_RUNNER: "claude",
     CLAUDE_CONFIG_DIR: home,
-    SZPONT_CLAUDE_BIN: data.env.SZPONT_CODEX_BIN,
+    PLOMPY_CLAUDE_BIN: data.env.PLOMPY_CODEX_BIN,
   };
   delete env.CODEX_HOME;
   const result = await runDoctor({ env, publicRoot: data.publicRoot });
@@ -461,16 +462,16 @@ test("OpenCode diagnostics require explicit host execution and distinguish local
   await mkdir(home);
   const env = {
     ...data.env,
-    SZPONT_RUNNER: "opencode",
-    SZPONT_OPENCODE_HOME: home,
-    SZPONT_OPENCODE_MODEL: "synthetic-provider/synthetic-model",
-    SZPONT_OPENCODE_BIN: data.env.SZPONT_CODEX_BIN,
+    PLOMPY_RUNNER: "opencode",
+    PLOMPY_OPENCODE_HOME: home,
+    PLOMPY_OPENCODE_MODEL: "synthetic-provider/synthetic-model",
+    PLOMPY_OPENCODE_BIN: data.env.PLOMPY_CODEX_BIN,
   };
   delete env.CODEX_HOME;
   const blocked = await runDoctor({ env, publicRoot: data.publicRoot });
   assert.equal(blocked.ok, false);
   assert.equal(resultFor(blocked, "opencode_host_execution").status, "FAIL");
-  env.SZPONT_OPENCODE_HOST_EXECUTION = "allow";
+  env.PLOMPY_OPENCODE_HOST_EXECUTION = "allow";
   await mkdir(join(home, "data", "opencode"), { recursive: true });
   await writeFile(
     join(home, "data", "opencode", "auth.json"),
@@ -628,7 +629,7 @@ test("Discord and login opt-ins can run together without changing their independ
 
 test("invalid local configuration never sends the token to Discord", async (t) => {
   const data = await fixture(t);
-  delete data.env.SZPONT_DISCORD_GUILD_ID;
+  delete data.env.PLOMPY_DISCORD_GUILD_ID;
   const result = await data.inspect({
     checkDiscord: true,
     fetchImpl: () =>
@@ -643,7 +644,7 @@ test("invalid local configuration never sends the token to Discord", async (t) =
 
 test("explicit Discord reads remain separate from unrelated missing local directories", async (t) => {
   const data = await fixture(t);
-  data.env.SZPONT_STATE_DIR = join(data.temporary, "absent-state");
+  data.env.PLOMPY_STATE_DIR = join(data.temporary, "absent-state");
   const network = discordFixture();
   const result = await data.inspect({
     checkDiscord: true,

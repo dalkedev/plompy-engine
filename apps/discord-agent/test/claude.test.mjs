@@ -22,7 +22,7 @@ import {
 const sid = "01a12345-1234-7456-8456-123456789abc";
 const otherSid = "01a12345-1234-7456-8456-123456789def";
 async function fixture(t, body = "") {
-  const root = await mkdtemp(join(tmpdir(), "szpont-claude-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-claude-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await Promise.all(
     ["workspace", "state", "artifacts", "browser", "codex", "claude"].map(
@@ -139,12 +139,12 @@ test("Claude grants MCP tool permissions only for an explicit operator config", 
 
 test("Claude consumes the wizard's discovered private MCP configuration in its actual child arguments", async (t) => {
   const { config: fixtureConfig, root } = await fixture(t);
-  const path = join(fixtureConfig.claudeHome, "szpont-mcp.json");
+  const path = join(fixtureConfig.claudeHome, "plompy-mcp.json");
   await writeFile(
     path,
     JSON.stringify({
       mcpServers: {
-        szpont_context7: { type: "http", url: "https://example.test/mcp" },
+        plompy_context7: { type: "http", url: "https://example.test/mcp" },
       },
     }),
     { mode: 0o600 },
@@ -161,17 +161,17 @@ test("Claude consumes the wizard's discovered private MCP configuration in its a
   );
   const config = loadConfig({
     DISCORD_BOT_TOKEN: fixtureConfig.token,
-    SZPONT_DISCORD_GUILD_ID: fixtureConfig.guildId,
-    SZPONT_DISCORD_OWNER_ID: fixtureConfig.ownerId,
-    SZPONT_DISCORD_BOT_ID: fixtureConfig.botId,
-    SZPONT_DISCORD_PARENT_CHANNEL_ID: fixtureConfig.parentId,
-    SZPONT_WORKSPACE: fixtureConfig.workspace,
-    SZPONT_STATE_DIR: fixtureConfig.stateDir,
-    SZPONT_ARTIFACTS_DIR: fixtureConfig.artifactsDir,
-    SZPONT_BROWSER_DIR: fixtureConfig.browserDir,
-    SZPONT_RUNNER: "claude",
+    PLOMPY_DISCORD_GUILD_ID: fixtureConfig.guildId,
+    PLOMPY_DISCORD_OWNER_ID: fixtureConfig.ownerId,
+    PLOMPY_DISCORD_BOT_ID: fixtureConfig.botId,
+    PLOMPY_DISCORD_PARENT_CHANNEL_ID: fixtureConfig.parentId,
+    PLOMPY_WORKSPACE: fixtureConfig.workspace,
+    PLOMPY_STATE_DIR: fixtureConfig.stateDir,
+    PLOMPY_ARTIFACTS_DIR: fixtureConfig.artifactsDir,
+    PLOMPY_BROWSER_DIR: fixtureConfig.browserDir,
+    PLOMPY_RUNNER: "claude",
     CLAUDE_CONFIG_DIR: fixtureConfig.claudeHome,
-    SZPONT_CLAUDE_BIN: fixtureConfig.claudeBin,
+    PLOMPY_CLAUDE_BIN: fixtureConfig.claudeBin,
   });
   assert.equal(config.claudeMcpConfig, path);
   const result = await runClaude(

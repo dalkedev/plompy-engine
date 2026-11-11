@@ -8,8 +8,8 @@ import zipfile
 
 import pytest
 
-from szpont_browser.config import BrowserError
-from szpont_browser.fetch import extract_archive, install, verify_archive
+from plompy_browser.config import BrowserError
+from plompy_browser.fetch import extract_archive, install, verify_archive
 
 
 @pytest.fixture
@@ -34,14 +34,14 @@ def offline_install(tmp_path, monkeypatch):
         "url": "https://github.com/daijro/camoufox/releases/download/offline-fixture/browser.zip",
         "size": archive.stat().st_size, "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
     }))
-    monkeypatch.setattr("szpont_browser.fetch.sys.platform", "linux")
-    monkeypatch.setattr("szpont_browser.fetch.platform.machine", lambda: "x86_64")
-    monkeypatch.setattr("szpont_browser.fetch.os.geteuid", lambda: 0)
+    monkeypatch.setattr("plompy_browser.fetch.sys.platform", "linux")
+    monkeypatch.setattr("plompy_browser.fetch.platform.machine", lambda: "x86_64")
+    monkeypatch.setattr("plompy_browser.fetch.os.geteuid", lambda: 0)
 
     def reject_download(*args, **kwargs):
         pytest.fail("offline provisioning must not download an archive")
 
-    monkeypatch.setattr("szpont_browser.fetch.urllib.request.urlopen", reject_download)
+    monkeypatch.setattr("plompy_browser.fetch.urllib.request.urlopen", reject_download)
     return manifest, archive
 
 
@@ -99,8 +99,8 @@ def test_install_is_traversable_after_atomic_rename_with_restrictive_umask(
         assert directory.stat().st_mode & stat.S_IXOTH
     assert (destination / "camoufox-bin").stat().st_mode & stat.S_IXOTH
     assert (destination / "application.ini").stat().st_mode & stat.S_IROTH
-    assert stat.S_IMODE((destination / ".szpont-build.json").stat().st_mode) == 0o644
-    assert not list(shared_parent.rglob(".szpont-browser-*"))
+    assert stat.S_IMODE((destination / ".plompy-build.json").stat().st_mode) == 0o644
+    assert not list(shared_parent.rglob(".plompy-browser-*"))
 
 
 def test_install_preserves_existing_private_parent_permissions(

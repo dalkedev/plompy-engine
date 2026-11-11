@@ -17,7 +17,7 @@ npm run integrations
 The interactive menu first asks which runner's tools to configure: **Codex**,
 **Claude Code**, or **OpenCode**. It then offers the supported integrations and
 asks for confirmation before changing local configuration. The selected runner
-defaults to `SZPONT_RUNNER`, or Codex when that variable is unset.
+defaults to `PLOMPY_RUNNER`, or Codex when that variable is unset.
 
 For scripts and terminals without a TTY, use explicit subcommands and `--runner`
 to choose the tools' target:
@@ -29,7 +29,7 @@ npm run integrations -- status github --runner opencode --json
 ```
 
 `--runner` only selects where this setup command configures or inspects tools. It
-does not edit the service's `SZPONT_RUNNER` setting or switch existing Discord
+does not edit the service's `PLOMPY_RUNNER` setting or switch existing Discord
 threads. Each runner still needs its own installed CLI and separate model-account
 login. See [runner setup](runners.md) for those prerequisites.
 
@@ -82,7 +82,7 @@ argument, Discord conversation, issue, or source file. Review the access GitHub
 shows before approving it.
 
 `GH_CONFIG_DIR` selects the private GitHub configuration directory. When omitted,
-the engine uses a `github` directory alongside `SZPONT_STATE_DIR`, outside the
+the engine uses a `github` directory alongside `PLOMPY_STATE_DIR`, outside the
 public checkout. A fresh installation starts without a GitHub login; your normal
 `~/.config/gh` is not imported. The agent receives the dedicated configuration
 path and does not inherit `GH_TOKEN` or `GITHUB_TOKEN` from the launching shell.
@@ -120,7 +120,7 @@ npm run integrations -- add camoufox \
   --yes
 ```
 
-The integration connects the configured runner to `python -m szpont_browser`,
+The integration connects the configured runner to `python -m plompy_browser`,
 using the explicit executable, private browser profile and artifact paths. Keep
 manual login and automated use on the same profile, browser binary and display.
 Finish account login yourself in the headed browser when a task needs it.
@@ -142,7 +142,7 @@ then explicitly download its matching browser as the service account:
 
 ```sh
 npm ci --prefix packages/playwright
-node packages/playwright/install-browser.mjs --cache-dir "$SZPONT_BROWSER_DIR/playwright/cache"
+node packages/playwright/install-browser.mjs --cache-dir "$PLOMPY_BROWSER_DIR/playwright/cache"
 npm run integrations -- add playwright --yes
 ```
 
@@ -184,7 +184,7 @@ npm run integrations -- add playwright --runner codex --yes --tool-approval appr
 ```
 
 This writes `default_tools_approval_mode = "approve"` only inside
-`mcp_servers.szpont_playwright` in the private Codex configuration. It applies to
+`mcp_servers.plompy_playwright` in the private Codex configuration. It applies to
 tools from that server, including actions that navigate, type, click or submit
 forms. It does not authorize an unrelated task, approve other MCP servers, change
 the session's global approval policy, or override managed security controls.
@@ -244,7 +244,7 @@ npm run integrations -- add posthog --yes
 These commands only register local configuration. They do not connect to the
 service, start an OAuth flow, authenticate remotely, list tools, or make a billable tool
 call. Complete the selected client's native MCP authorization separately as the
-same service account. Szpont's noninteractive worker does not complete browser
+same service account. Plompy's noninteractive worker does not complete browser
 sign-in for you. A native OAuth entry is useful only when that installed client
 can finish and retain the service's authorization; verify this on your deployment.
 
@@ -320,7 +320,7 @@ automation work free. Use only the capabilities needed for the task and reconcil
 an uncertain remote run before retrying it. See [TinyFish's MCP tools and usage rules](https://docs.tinyfish.ai/mcp-integration).
 
 **PostHog** connects the operator's existing project to MCP. It does not install an
-analytics SDK, add website tracking, or collect Szpont usage telemetry. The catalog
+analytics SDK, add website tracking, or collect Plompy usage telemetry. The catalog
 sets PostHog's actual server-side read-only filter for both authentication modes;
 this increment has no write-mode flag. Use a **personal API key** with the MCP
 Server preset and reviewed project permissions, not a project's public capture
@@ -343,7 +343,7 @@ account. A remote server specification looks like this:
 
 ```json
 {
-  "name": "szpont_team_docs",
+  "name": "plompy_team_docs",
   "server": {
     "url": "https://mcp.example.com/mcp"
   }
@@ -354,7 +354,7 @@ A local stdio server uses an executable and a separate argument array:
 
 ```json
 {
-  "name": "szpont_team_tools",
+  "name": "plompy_team_tools",
   "server": {
     "command": "/absolute/private/tools/team-mcp",
     "args": ["--stdio"]
@@ -375,7 +375,7 @@ environment variables. Remote URLs must use HTTPS and cannot contain credentials
 query parameters or fragments. Put authentication in a separately reviewed,
 private provider/server configuration rather than in this specification.
 
-Custom server names must start with `szpont_` and use only lowercase letters,
+Custom server names must start with `plompy_` and use only lowercase letters,
 digits and underscores. This keeps managed entries identifiable. The `custom`
 choice can register more than one server; `remove custom --yes` removes all
 matching managed custom entries for the selected runner.
@@ -384,16 +384,16 @@ matching managed custom entries for the selected runner.
 
 The interactive runner choice or explicit `--runner` determines where MCP
 configuration is registered. Without an explicit choice, the command uses
-`SZPONT_RUNNER`, or Codex when unset:
+`PLOMPY_RUNNER`, or Codex when unset:
 
 | Runner      | Configuration                                                                                                                                                                                                                   |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Codex       | Private `$CODEX_HOME/config.toml`; remote entries and explicit Playwright approval use an atomically validated managed block. Other local stdio uses `codex mcp add`. Ownership checks compare parsed TOML and `codex mcp get`. |
-| Claude Code | `$CLAUDE_CONFIG_DIR/szpont-mcp.json`, with a `mcpServers` object; `SZPONT_CLAUDE_MCP_CONFIG` overrides this path                                                                                                                |
-| OpenCode    | `$SZPONT_OPENCODE_HOME/szpont-mcp.json`, with an `mcp` object; `SZPONT_OPENCODE_CONFIG` overrides this path                                                                                                                     |
+| Claude Code | `$CLAUDE_CONFIG_DIR/plompy-mcp.json`, with a `mcpServers` object; `PLOMPY_CLAUDE_MCP_CONFIG` overrides this path                                                                                                                |
+| OpenCode    | `$PLOMPY_OPENCODE_HOME/plompy-mcp.json`, with an `mcp` object; `PLOMPY_OPENCODE_CONFIG` overrides this path                                                                                                                     |
 
 These paths use the runner's private home. When configuring a non-default runner
-without an explicit home, `claude` or `opencode` alongside `SZPONT_STATE_DIR` is
+without an explicit home, `claude` or `opencode` alongside `PLOMPY_STATE_DIR` is
 used. Keep setup and service paths consistent when selecting a new default.
 
 For example, configure the same documentation service independently for two
@@ -404,7 +404,7 @@ npm run integrations -- add openai-docs --runner claude --yes
 npm run integrations -- add openai-docs --runner opencode --yes
 ```
 
-Claude Code and OpenCode automatically load their fixed private `szpont-mcp.json`
+Claude Code and OpenCode automatically load their fixed private `plompy-mcp.json`
 file on the next service start when it exists and passes the private-file and JSON
 checks. No extra environment setting is needed for that managed default. An
 explicit path override takes precedence. When neither an override nor a managed
@@ -428,11 +428,11 @@ a new runner.
 
 ## Docker
 
-The **0.11.1 image includes this command and GitHub CLI**. After taking a verified
+The **0.12.0 image includes this command and GitHub CLI**. After taking a verified
 pre-upgrade snapshot, stop the engine and pull the selected release:
 
 ```sh
-export SZPONT_IMAGE=ghcr.io/dalkedev/szpont-engine:0.11.1
+export PLOMPY_IMAGE=ghcr.io/dalkedev/plompy-engine:0.12.0
 docker compose stop engine
 docker compose pull engine
 docker compose run --rm -it engine integrations

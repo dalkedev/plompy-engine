@@ -30,7 +30,7 @@ export async function buildServiceEntry(
         "A credential file is accepted only with --auth api-key.",
       );
     return {
-      name: `szpont_${id}`,
+      name: `plompy_${id}`,
       server: { url: definition.endpoints[auth] },
     };
   }
@@ -80,7 +80,7 @@ export async function buildServiceEntry(
     );
   }
   return {
-    name: `szpont_${id}`,
+    name: `plompy_${id}`,
     server: { command: process.execPath, args: [bridgeEntry, id, path] },
   };
 }

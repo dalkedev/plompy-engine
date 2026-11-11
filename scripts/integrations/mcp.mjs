@@ -26,8 +26,10 @@ const playwrightLauncher = fileURLToPath(
   new URL("../../packages/playwright/launch.mjs", import.meta.url),
 );
 const pathVariables = new Set([
+  "PLOMPY_BROWSER_PROFILE",
   "SZPONT_BROWSER_PROFILE",
   "SZPONT_BROWSER_ARTIFACTS",
+  "PLOMPY_BROWSER_ARTIFACTS",
   "CAMOUFOX_EXECUTABLE_PATH",
   "XAUTHORITY",
   "XDG_CACHE_HOME",
@@ -216,7 +218,7 @@ async function input(options) {
     if (
       !["approve", "prompt"].includes(options.toolApproval) ||
       provider !== "codex" ||
-      name !== "szpont_playwright" ||
+      !["plompy_playwright", "szpont_playwright"].includes(name) ||
       server.url ||
       server.command !== process.execPath ||
       server.env ||
@@ -476,8 +478,8 @@ async function registerCodexTable(options) {
       ? ""
       : `default_tools_approval_mode = ${JSON.stringify(options.toolApproval)}\n`;
   const after = `${before ?? ""}\n[mcp_servers.${JSON.stringify(options.name)}]\n${fields}${approval}`;
-  const staging = await mkdtemp(join(home, ".szpont-mcp-check-"));
-  const temporary = join(home, `.szpont-mcp-${randomUUID()}.tmp`);
+  const staging = await mkdtemp(join(home, ".plompy-mcp-check-"));
+  const temporary = join(home, `.plompy-mcp-${randomUUID()}.tmp`);
   try {
     await writeFile(join(staging, "config.toml"), after, {
       mode: 0o600,
@@ -523,8 +525,8 @@ function jsonPath(options) {
     options.provider === "claude" ? "claudeMcpConfig" : "opencodeConfig";
   const setting =
     options.provider === "claude"
-      ? "SZPONT_CLAUDE_MCP_CONFIG"
-      : "SZPONT_OPENCODE_CONFIG";
+      ? "PLOMPY_CLAUDE_MCP_CONFIG"
+      : "PLOMPY_OPENCODE_CONFIG";
   if (!options.config[key])
     throw new Error(
       `Set ${setting} to an explicit absolute private JSON file before configuring MCP.`,

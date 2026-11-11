@@ -4,13 +4,14 @@ import json
 import os
 import socket
 import sys
+from pathlib import Path
 
 import pytest
 
-from szpont_browser.config import BrowserError, Config, browser_environment
-from szpont_browser.profile import ProfileLock, load_identity
-from szpont_browser.refs import ReferenceStore
-from szpont_browser.urls import checked_url, display_url, parse_public_url, public_address
+from plompy_browser.config import BrowserError, Config, browser_environment
+from plompy_browser.profile import ProfileLock, load_identity
+from plompy_browser.refs import ReferenceStore
+from plompy_browser.urls import checked_url, display_url, parse_public_url, public_address
 
 
 @pytest.fixture
@@ -72,13 +73,13 @@ def test_profile_lock_is_exclusive_and_released(config):
         one.release()
     two.acquire()
     two.release()
-    assert (config.profile / ".szpont.lock").stat().st_mode & 0o777 == 0o600
+    assert (config.profile / ".plompy.lock").stat().st_mode & 0o777 == 0o600
 
 
 def test_profile_lock_rejects_symlink(config):
     target = config.profile / "target"
     target.touch()
-    (config.profile / ".szpont.lock").symlink_to(target)
+    (config.profile / ".plompy.lock").symlink_to(target)
     with pytest.raises(OSError):
         ProfileLock(config.profile).acquire()
 
@@ -95,10 +96,10 @@ def test_identity_reused_exactly_without_persisting_process_secrets(config, monk
     assert first == second
     assert first["headless"] is False and first["accept_downloads"] is False
     assert first["user_data_dir"] == str(config.profile)
-    text = (config.profile / ".szpont-identity.json").read_text()
+    text = (config.profile / ".plompy-identity.json").read_text()
     assert "never-persist" not in text and '"DISPLAY"' not in text
     assert "CODEX_API_KEY" not in first["env"]
-    assert (config.profile / ".szpont-identity.json").stat().st_mode & 0o777 == 0o600
+    assert (config.profile / ".plompy-identity.json").stat().st_mode & 0o777 == 0o600
 
 
 def test_changed_browser_cannot_silently_reuse_or_rotate_fingerprint(config):
@@ -109,7 +110,7 @@ def test_changed_browser_cannot_silently_reuse_or_rotate_fingerprint(config):
 
 
 def test_invalid_identity_fails_closed(config):
-    (config.profile / ".szpont-identity.json").write_text('{"unexpected":"data"}')
+    (config.profile / ".plompy-identity.json").write_text('{"unexpected":"data"}')
     with pytest.raises(BrowserError, match="identity_invalid"):
         load_identity(config, lambda: {})
 
@@ -135,23 +136,24 @@ def test_config_requires_explicit_executable_and_nonoverlapping_absolute_state_p
         Config.from_env({})
     with pytest.raises(BrowserError, match="overlap"):
         Config.from_env({"CAMOUFOX_EXECUTABLE_PATH": str(config.executable),
-                         "SZPONT_BROWSER_PROFILE": str(config.profile),
-                         "SZPONT_BROWSER_ARTIFACTS": str(config.profile / "artifacts")})
+                         "PLOMPY_BROWSER_PROFILE": str(config.profile),
+                         "PLOMPY_BROWSER_ARTIFACTS": str(config.profile / "artifacts")})
     assert Config.from_env({"CAMOUFOX_EXECUTABLE_PATH": str(config.executable)}).profile.is_absolute()
 
 
 def test_browser_environment_does_not_inherit_credentials():
-    env = browser_environment({"PATH": "/usr/bin", "DISPLAY": ":1", "HOME": "/var/lib/szpont", "SZPONT_API_TOKEN": "secret", "OPENAI_API_KEY": "secret"})
+    env = browser_environment({"PATH": "/usr/bin", "DISPLAY": ":1", "HOME": "/var/lib/plompy", "PLOMPY_API_TOKEN": "secret", "OPENAI_API_KEY": "secret"})
     assert env["DISPLAY"] == ":1"
     assert set(env) == {"PATH", "DISPLAY", "HOME", "GDK_BACKEND", "MOZ_ENABLE_WAYLAND"}
 
 
-async def test_official_mcp_stdio_discovers_tools_and_reports_blocked_navigation_without_launch(config):
+@pytest.mark.parametrize("module,prefix", [("plompy_browser", "PLOMPY"), ("szpont_browser", "SZPONT")])
+async def test_official_mcp_stdio_discovers_tools_and_reports_blocked_navigation_without_launch(config, module, prefix):
     from mcp import Client
     from mcp.client.stdio import StdioServerParameters
-    parameters = StdioServerParameters(command=sys.executable, args=["-m", "szpont_browser"], env={
+    parameters = StdioServerParameters(command=sys.executable, args=["-m", module], env={
         "PATH": os.environ["PATH"], "CAMOUFOX_EXECUTABLE_PATH": str(config.executable),
-        "SZPONT_BROWSER_PROFILE": str(config.profile), "SZPONT_BROWSER_ARTIFACTS": str(config.artifacts),
+        f"{prefix}_BROWSER_PROFILE": str(config.profile), f"{prefix}_BROWSER_ARTIFACTS": str(config.artifacts),
     })
     async with Client(parameters) as client:
         tools = await client.list_tools()
@@ -161,4 +163,61 @@ async def test_official_mcp_stdio_discovers_tools_and_reports_blocked_navigation
         }
         result = await client.call_tool("browser_open", {"url": "http://127.0.0.1"})
         assert "url_blocked" in json.dumps(result.model_dump(mode="json"))
-    assert not (config.profile / ".szpont-identity.json").exists()
+    assert not (config.profile / ".plompy-identity.json").exists()
+
+
+def test_legacy_environment_aliases_preserve_profiles_and_new_values_win(config):
+    env = {"CAMOUFOX_EXECUTABLE_PATH": str(config.executable),
+           "SZPONT_BROWSER_PROFILE": str(config.profile),
+           "SZPONT_BROWSER_ARTIFACTS": str(config.artifacts)}
+    assert Config.from_env(env) == config
+    replacement = str(config.profile.parent / "explicit-profile")
+    assert Config.from_env({**env, "PLOMPY_BROWSER_PROFILE": replacement}).profile == Path(replacement)
+    with pytest.raises(BrowserError, match="profile"):
+        Config.from_env({**env, "PLOMPY_BROWSER_PROFILE": ""})
+
+
+def test_legacy_identity_is_reused_without_rotation_and_ambiguity_is_rejected(config):
+    from plompy_browser.profile import identity_path
+    first = load_identity(config, lambda: {"env": {"CAMOU_CONFIG_1": "persisted-identity"}})
+    current = config.profile / ".plompy-identity.json"
+    legacy = config.profile / ".szpont-identity.json"
+    current.rename(legacy)
+    before = legacy.read_bytes()
+    def must_not_generate():
+        raise AssertionError("legacy fingerprint rotated")
+    assert load_identity(config, must_not_generate) == first
+    assert identity_path(config.profile) == legacy
+    assert legacy.read_bytes() == before
+    assert not current.exists()
+    current.write_bytes(before)
+    with pytest.raises(BrowserError, match="both current and legacy"):
+        load_identity(config, must_not_generate)
+
+
+def test_new_browser_lock_excludes_legacy_process_and_releases_after_failure(config):
+    import fcntl
+    fd = os.open(config.profile / ".szpont.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    lock = ProfileLock(config.profile)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BrowserError, match="profile_locked"):
+            lock.acquire()
+    finally:
+        os.close(fd)
+    lock.acquire()
+    try:
+        fd = os.open(config.profile / ".szpont.lock", os.O_RDWR)
+        with pytest.raises(BlockingIOError):
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        os.close(fd)
+    finally:
+        lock.release()
+
+
+def test_legacy_python_namespace_remains_available_without_launch():
+    from szpont_browser import __version__ as legacy_version
+    from plompy_browser import __version__
+    from szpont_browser.config import Config as LegacyConfig
+    assert legacy_version == __version__
+    assert callable(LegacyConfig.from_env)

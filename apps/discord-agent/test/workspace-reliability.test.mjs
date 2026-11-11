@@ -16,7 +16,7 @@ import { syncMemory } from "../dist/workspace.js";
 
 const exec = promisify(execFile);
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "szpont-memory-retry-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-memory-retry-"));
   const workspace = join(root, "workspace");
   for (const path of ["agent/memory", "agent/journal", "agent/conversations"])
     await mkdir(join(workspace, path), { recursive: true });

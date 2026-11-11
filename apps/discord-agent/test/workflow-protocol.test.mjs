@@ -30,7 +30,7 @@ const valid = {
 const json = (patch = {}) => JSON.stringify({ ...valid, ...patch });
 
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-workflow-protocol-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-workflow-protocol-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   for (const name of ["workspace", "state", "artifacts", "browser", "codex"])
     await mkdir(join(root, name));

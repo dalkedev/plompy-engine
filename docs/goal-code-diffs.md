@@ -5,8 +5,8 @@ For a practical walkthrough, see [your first supervised code goal](first-goal.md
 Bind the actual code repository when starting a goal:
 
 ```text
-!goal 30m --repo /var/lib/szpont/artifacts/app Fix the parser and verify regressions.
-!loop 2h --repo "/var/lib/szpont/artifacts/My App" Implement the agreed change.
+!goal 30m --repo /var/lib/plompy/artifacts/app Fix the parser and verify regressions.
+!loop 2h --repo "/var/lib/plompy/artifacts/My App" Implement the agreed change.
 ```
 
 The path must be the Git repository's root, inside the configured workspace or

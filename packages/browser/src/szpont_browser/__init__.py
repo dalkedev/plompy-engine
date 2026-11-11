@@ -1,3 +1,6 @@
-"""Szpont's local browser bridge. Importing this package launches nothing."""
+"""Compatibility import path for private pre-0.12 MCP configurations.
 
-__version__ = "0.11.1"
+New installations use plompy_browser. This alias launches nothing and preserves
+python -m szpont_browser and its provisioning/login submodules during upgrades.
+"""
+from plompy_browser import __path__, __version__

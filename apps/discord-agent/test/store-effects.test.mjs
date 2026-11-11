@@ -129,7 +129,7 @@ test("new dirty data is immediately due and stale failures cannot postpone it", 
 });
 
 test("effects persist through restart without resetting a retry or rerunning completed model work", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "szpont-effects-"));
+  const dir = mkdtempSync(join(tmpdir(), "plompy-effects-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, "queue.sqlite");
   let store = new Store(path);

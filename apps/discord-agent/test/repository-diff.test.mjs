@@ -42,7 +42,7 @@ async function fixture(
   t,
   entries = { "source.ts": "export const value = 1;\n" },
 ) {
-  const directory = await mkdtemp(join(tmpdir(), "szpont-repository-diff-"));
+  const directory = await mkdtemp(join(tmpdir(), "plompy-repository-diff-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const root = join(directory, "repo");
   await mkdir(root);
@@ -120,7 +120,7 @@ test("actual step diff starts at dirty bytes and survives worker staging and com
   );
   assert.equal(git(root, "status", "--porcelain"), workerStatus);
   assert.equal(git(root, "rev-parse", "HEAD"), workerHead);
-  assert.doesNotMatch(evidence.patch, /szpont-repository-diff-/);
+  assert.doesNotMatch(evidence.patch, /plompy-repository-diff-/);
   assert.match(evidence.note, /not proof of authorship/);
 });
 
@@ -331,7 +331,7 @@ test("encoded unusual paths and actual mode/content changes form a real reversib
   assert.equal(evidence.status, "complete");
   assert.match(evidence.patch, /old mode 100644\nnew mode 100755/);
   assert.match(evidence.patch, /\\012/);
-  assert.doesNotMatch(evidence.patch, /szpont-diff-/);
+  assert.doesNotMatch(evidence.patch, /plompy-diff-/);
   execFileSync("git", ["-C", root, "apply", "--check", "--reverse", "-"], {
     input: evidence.patch,
     stdio: ["pipe", "pipe", "pipe"],

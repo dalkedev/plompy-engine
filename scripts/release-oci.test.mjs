@@ -7,7 +7,7 @@ import test from 'node:test';
 import { inspectLayout, verifyCombinedIndex } from './release-oci.mjs';
 
 function fixture(t, architecture = 'amd64', { sbom = true } = {}) {
-  const directory = mkdtempSync(join(tmpdir(), 'szpont-release-oci-'));
+  const directory = mkdtempSync(join(tmpdir(), 'plompy-release-oci-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   mkdirSync(join(directory, 'blobs', 'sha256'), { recursive: true });
   const put = (value, extra = {}) => {

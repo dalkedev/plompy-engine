@@ -9,7 +9,7 @@ import { threadStatus } from "../dist/status.js";
 const thread = "5555000000000000001";
 const id = (n) => String(5555000000000001000n + BigInt(n));
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "szpont-effects-engine-"));
+  const root = await mkdtemp(join(tmpdir(), "plompy-effects-engine-"));
   for (const name of [
     "workspace/agent/memory",
     "workspace/agent/conversations",

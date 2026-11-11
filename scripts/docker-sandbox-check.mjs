@@ -4,12 +4,12 @@ import { execFileSync } from "node:child_process";
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const workspace = process.env.SZPONT_WORKSPACE;
-const artifacts = process.env.SZPONT_ARTIFACTS_DIR;
+const workspace = process.env.PLOMPY_WORKSPACE;
+const artifacts = process.env.PLOMPY_ARTIFACTS_DIR;
 const temporary = [];
 try {
   const privateDirectory = async (parent) => {
-    const directory = await mkdtemp(join(parent, ".szpont-sandbox-check-"));
+    const directory = await mkdtemp(join(parent, ".plompy-sandbox-check-"));
     temporary.push(directory);
     return directory;
   };
@@ -28,21 +28,21 @@ try {
   await rm(outside);
   const environment = { ...process.env };
   delete environment.DISCORD_BOT_TOKEN;
-  delete environment.SZPONT_GIT_SSH_COMMAND;
+  delete environment.PLOMPY_GIT_SSH_COMMAND;
   execFileSync(
     "codex",
     [
       "sandbox",
       "--permission-profile",
-      "szpont-container-check",
+      "plompy-container-check",
       "-C",
       workspace,
       "-c",
-      `permissions.szpont-container-check={extends=":workspace",filesystem={${JSON.stringify(artifacts)}="write"},network={enabled=true}}`,
+      `permissions.plompy-container-check={extends=":workspace",filesystem={${JSON.stringify(artifacts)}="write"},network={enabled=true}}`,
       "--",
       "/bin/sh",
       "-ec",
-      'printf allowed > "$1"; printf allowed > "$2"; cache=$(npm config get cache); mkdir -p "$cache"; cache_probe=$(mktemp "$cache/.szpont-cache-check.XXXXXX"); printf cached > "$cache_probe"; rm "$cache_probe"; if printf forbidden > "$3" 2>/dev/null; then exit 42; fi',
+      'printf allowed > "$1"; printf allowed > "$2"; cache=$(npm config get cache); mkdir -p "$cache"; cache_probe=$(mktemp "$cache/.plompy-cache-check.XXXXXX"); printf cached > "$cache_probe"; rm "$cache_probe"; if printf forbidden > "$3" 2>/dev/null; then exit 42; fi',
       "container-sandbox-check",
       workspaceProbe,
       artifactProbe,

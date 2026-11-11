@@ -1,3 +1,4 @@
+import { normalizeEnvironment } from "./brand-compat.mjs";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn, execFile } from "node:child_process";
 import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
@@ -295,7 +296,7 @@ async function main(args) {
   if (args[0] === "init") {
     const result = await initAcceptance(args[2]);
     // Discord expects JSON quoting; a shell command needs its own escaping.
-    const container = process.env.SZPONT_CONTAINER_RUNNER === "codex";
+    const container = normalizeEnvironment().PLOMPY_CONTAINER_RUNNER === "codex";
     const powershell = process.platform === "win32" && !container;
     const manifestArgument = powershell
       ? `'${result.manifest.replaceAll("'", "''")}'` // PowerShell

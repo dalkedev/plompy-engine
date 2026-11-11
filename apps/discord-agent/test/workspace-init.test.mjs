@@ -18,7 +18,7 @@ const exec = promisify(execFile);
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 const script = join(repo, "scripts/init-workspace.mjs");
 test("workspace initialization creates private Git memory outside the public checkout", async () => {
-  const temp = await mkdtemp(join(tmpdir(), "szpont-init-"));
+  const temp = await mkdtemp(join(tmpdir(), "plompy-init-"));
   const target = join(temp, "private-workspace");
   await exec(process.execPath, [script, target]);
   const user = await readFile(join(target, "agent/USER.md"), "utf8");
@@ -33,7 +33,7 @@ test("workspace initialization creates private Git memory outside the public che
   assert.equal(mode, 0o700);
 });
 test("workspace initialization refuses to overwrite existing owner memory", async () => {
-  const temp = await mkdtemp(join(tmpdir(), "szpont-init-"));
+  const temp = await mkdtemp(join(tmpdir(), "plompy-init-"));
   const target = join(temp, "existing");
   await mkdir(target);
   await writeFile(join(target, "keep.txt"), "owner data");
@@ -45,7 +45,7 @@ test("workspace initialization refuses public checkout descendants and symlink a
   const target = join(repo, "must-not-create-private-state");
   await assert.rejects(exec(process.execPath, [script, target]));
   await assert.rejects(access(target));
-  const temp = await mkdtemp(join(tmpdir(), "szpont-init-"));
+  const temp = await mkdtemp(join(tmpdir(), "plompy-init-"));
   await symlink(repo, join(temp, "alias"));
   await assert.rejects(
     exec(process.execPath, [
@@ -56,7 +56,7 @@ test("workspace initialization refuses public checkout descendants and symlink a
   await assert.rejects(access(target));
 });
 test("workspace rejection through a symlink never creates intermediate source directories", async () => {
-  const temp = await mkdtemp(join(tmpdir(), "szpont-init-"));
+  const temp = await mkdtemp(join(tmpdir(), "plompy-init-"));
   await symlink(repo, join(temp, "alias"));
   const forbiddenParent = join(repo, "must-not-create-parent");
   await assert.rejects(

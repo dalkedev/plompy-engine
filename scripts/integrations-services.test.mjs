@@ -26,7 +26,7 @@ import {
 const secret = "SYNTHETIC-mcp-private-token-only";
 async function fixture(t) {
   const dir = await realpath(
-    await mkdtemp(join(tmpdir(), "szpont-service-auth-")),
+    await mkdtemp(join(tmpdir(), "plompy-service-auth-")),
   );
   t.after(() => rm(dir, { recursive: true, force: true }));
   const config = {};
@@ -60,7 +60,7 @@ test("fixed services default to native OAuth without opening key files or instal
   ]);
   for (const id of remoteServiceIds)
     assert.deepEqual(await buildServiceEntry({}, id), {
-      name: `szpont_${id}`,
+      name: `plompy_${id}`,
       server: { url: remoteServices[id].endpoints.oauth },
     });
   assert.equal(
@@ -74,7 +74,7 @@ test("fixed services default to native OAuth without opening key files or instal
   assert.deepEqual(
     await buildServiceEntry({}, "firecrawl", { auth: "keyless" }),
     {
-      name: "szpont_firecrawl",
+      name: "plompy_firecrawl",
       server: { url: "https://mcp.firecrawl.dev/v2/mcp" },
     },
   );
@@ -100,7 +100,7 @@ test("key file reference is the only credential material in managed runner entri
   for (const id of remoteServiceIds) {
     try {
       const entry = await buildServiceEntry(f, id, { credentialFile: f.path });
-      assert.equal(entry.name, `szpont_${id}`);
+      assert.equal(entry.name, `plompy_${id}`);
       assert.equal(entry.server.command, process.execPath);
       assert.deepEqual(entry.server.args.slice(1), [id, f.path]);
       assert.equal(Object.hasOwn(entry.server, "env"), false);

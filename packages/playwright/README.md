@@ -11,7 +11,7 @@ Install explicitly on the Linux or macOS host, using the same service user:
 ```sh
 npm ci --prefix packages/playwright
 node packages/playwright/install-browser.mjs \
-  --cache-dir "$SZPONT_BROWSER_DIR/playwright/cache"
+  --cache-dir "$PLOMPY_BROWSER_DIR/playwright/cache"
 ```
 
 The second command downloads the pinned Chromium build and FFmpeg into that
@@ -27,7 +27,7 @@ review. After installing the pinned browser, generate an exact-path policy:
 
 ```sh
 node packages/playwright/apparmor-profile.mjs \
-  --cache-dir "$SZPONT_BROWSER_DIR/playwright/cache" > /private/chromium.apparmor
+  --cache-dir "$PLOMPY_BROWSER_DIR/playwright/cache" > /private/chromium.apparmor
 ```
 
 The generator only prints a policy; it changes no file, profile or kernel setting.
@@ -87,10 +87,10 @@ Run the focused offline tests and the real, synthetic loopback acceptance test:
 ```sh
 npm test --prefix packages/playwright
 node packages/playwright/smoke.mjs \
-  --cache-dir "$SZPONT_BROWSER_DIR/playwright/cache"
+  --cache-dir "$PLOMPY_BROWSER_DIR/playwright/cache"
 ```
 
-Alternatively set `SZPONT_PLAYWRIGHT_SMOKE_CACHE` and run
+Alternatively set `PLOMPY_PLAYWRIGHT_SMOKE_CACHE` and run
 `npm run smoke --prefix packages/playwright`. The smoke uses real stdio MCP and
 the installed browser: navigate, inspect snapshot references, type, click,
 assert the changed page, check PNG output and private permissions, reject file
