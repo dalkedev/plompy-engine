@@ -51,7 +51,8 @@ inference have not been tested.
 [Docker quickstart](docs/local/quickstart.md) · [Codex CLI](docs/local/codex.md) ·
 [Claude Code](docs/local/claude-code.md) · [OpenCode](docs/local/opencode.md) ·
 [Ollama](docs/local/ollama.md) · [Integration matrix](docs/local/integrations.md) ·
-[Verification and limits](docs/local/compatibility.md)
+[Verification and limits](docs/local/compatibility.md) ·
+[Release history](https://plompy.dev/docs/releases/)
 
 ```sh
 mkdir -m 700 plompy-local

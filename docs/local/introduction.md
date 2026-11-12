@@ -4,6 +4,8 @@ Plompy Local connects an agent on your computer to selected tools running behind
 
 Plompy Local 0.13.0 ships as ready-made Docker images and a small starter kit. Download it, connect your preferred agent, and choose its tools. The Local images are separate from the Discord engine image. Check [Compatibility and verification](compatibility.md) for what has actually been tested.
 
+See [what shipped in each release](releases.md), including the current 0.13.0 Local images.
+
 ## Pick your starting point
 
 - [Run locally with Docker](quickstart.md): start the tools gateway, connect a client, and try a small task.

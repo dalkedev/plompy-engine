@@ -1,5 +1,7 @@
 # Documentation
 
+- **[Release history](https://plompy.dev/docs/releases/)**: published versions, changes, downloads and upgrade boundaries.
+
 - **[Upgrade to Plompy 0.12](migration-plompy.md)**: retain existing sessions, private state, browser identity and Docker volumes.
 
 plompy-engine connects a private Discord forum to persistent coding CLI sessions on
