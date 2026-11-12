@@ -20,7 +20,7 @@ In a private host terminal, with shell tracing disabled, capture the token into
 the environment without printing it:
 
 ```sh
-export PLOMPY_LOCAL_TOKEN="$(docker compose -f compose.local.yaml exec -T local cat /var/lib/plompy-local/secrets/access-token)"
+export PLOMPY_LOCAL_TOKEN="$(docker compose exec -T local cat /var/lib/plompy-local/secrets/access-token)"
 # Start codex, claude or opencode in this terminal after configuring MCP.
 ```
 
@@ -38,7 +38,7 @@ For example, after configuring Firecrawl API-key mode, run this in a private Bas
 
 ```sh
 read -r -s PLOMPY_INTEGRATION_KEY
-printf '%s' "$PLOMPY_INTEGRATION_KEY" | docker compose -f compose.local.yaml \
+printf '%s' "$PLOMPY_INTEGRATION_KEY" | docker compose \
   exec -T local node scripts/integrations.mjs credential firecrawl --stdin --mode local
 unset PLOMPY_INTEGRATION_KEY
 ```

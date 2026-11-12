@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { DEFAULT_CONFIG, integrationIds, loadConfig, validateConfig } from "../packages/local-mcp/src/config.mjs";
+import { version } from "../packages/local-mcp/src/version.mjs";
 
 const publicRoot = fileURLToPath(new URL("../", import.meta.url));
 const valueFlags = new Set(["config", "root", "auth", "credential-file", "tools", "url", "client-version", "write"]);
@@ -211,7 +212,7 @@ async function localHandshake(config) {
   const { Client } = await import(pathToFileURL(requireSdk.resolve("@modelcontextprotocol/sdk/client/index.js")));
   const { StreamableHTTPClientTransport } = await import(pathToFileURL(requireSdk.resolve("@modelcontextprotocol/sdk/client/streamableHttp.js")));
   const token = secretText(await privateFile(config.tokenFile, { max: 4098 }));
-  const client = new Client({ name: "plompy-local-doctor", version: "0.1.0" });
+  const client = new Client({ name: "plompy-local-doctor", version });
   try {
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${config.server.port}/mcp`), {
       requestInit: { headers: { Authorization: `Bearer ${token}` } },

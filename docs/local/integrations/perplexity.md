@@ -5,12 +5,22 @@ The Perplexity integration provides hosted search and research tools. Local mode
 ## Set up
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs add perplexity --mode local \
   --auth api-key --tools perplexity_search
 ```
 
 Add the key through the private credential command. Restart the gateway and reconnect the client. Missing credentials should produce an authentication-required status for this integration, without breaking other tools.
+
+## Apply the configuration
+
+After adding the integration and any required credential, restart the gateway and reconnect the host client so it discovers the updated tools:
+
+```sh
+docker compose restart local
+```
+
+Use `local-browser` instead of `local` if the browser service is running. A configuration change does not update an already running gateway automatically.
 
 ## Try it
 

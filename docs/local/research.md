@@ -58,4 +58,4 @@ No test or example in this repository sends mail. Actual sending is outside this
 
 ## Agent instructions
 
-The source checkout includes `examples/local/AGENTS.md` and `examples/local/company-research.md`. Merge the instructions deliberately into the project used by your host client: use its supported instruction file, such as `AGENTS.md` for Codex/OpenCode or `CLAUDE.md` for Claude Code. Preserve existing project guidance and fill in your own project context. They explain source handling and draft-only behavior; they do not configure MCP.
+The starter kit includes `AGENTS.md` and `company-research.md` beside `compose.yaml`. In a source checkout, these files live under `examples/local/`. Merge the instructions deliberately into the project used by your host client: use its supported instruction file, such as `AGENTS.md` for Codex/OpenCode or `CLAUDE.md` for Claude Code. Preserve existing project guidance and fill in your own project context. They explain source handling and draft-only behavior; they do not configure MCP.

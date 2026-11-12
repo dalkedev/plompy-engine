@@ -3,11 +3,11 @@
 ## On your computer
 
 - Docker Engine or Docker Desktop with Docker Compose.
-- Git and a source checkout containing `compose.local.yaml`.
+- The [0.13.0 Local starter kit](quickstart.md), downloaded with `curl` and extracted with `tar` or equivalent tools.
 - A compatible host MCP client, such as Codex, Claude Code or OpenCode, configured with a model you can use.
 - A free host port, `7331` by default.
 
-Docker runs the gateway on Linux. macOS and Windows users need Docker's Linux container environment. Platform-specific acceptance results belong in [Compatibility](compatibility.md); do not assume every platform has been tested because the image can build.
+Docker runs the gateway on Linux. macOS and Windows users need Docker's Linux container environment. Published Local images support Linux `amd64` and `arm64`. The browser needs a working Chromium sandbox; see [browser setup](browser.md) for the optional Linux AppArmor profile. Platform-specific acceptance results belong in [Compatibility](compatibility.md).
 
 ## Inside the image
 
@@ -21,9 +21,13 @@ Keep model credentials in your host client. Plompy Local needs no model subscrip
 
 Each external integration has separate requirements. A model subscription is not automatically a Perplexity API allowance or a Firecrawl subscription. Read the [integration catalog](integrations.md) before enabling a provider.
 
-## Source builds only for this extension
+## Choose the correct image
 
-The existing `ghcr.io/dalkedev/plompy-engine:0.12.0` image belongs to the Discord/Codex engine. It is not a Plompy Local image. Build the local Dockerfile from the repository's `main` branch. No Plompy Local registry image is published for this preview.
+- `ghcr.io/dalkedev/plompy-engine:0.13.0-local`: core MCP gateway, public web reads, integrations and artifacts.
+- `ghcr.io/dalkedev/plompy-engine:0.13.0-local-browser`: the same gateway plus sandboxed Chromium.
+- `ghcr.io/dalkedev/plompy-engine:0.13.0`: the separate Discord/Codex engine.
+
+The starter kit selects the Local images. You do not need Git, Node or a compiler on the host. For development or an inspected source revision, use [Build from source](source-build.md).
 
 ## Running without Docker
 

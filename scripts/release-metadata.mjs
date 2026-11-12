@@ -29,10 +29,21 @@ export function releaseMetadata({ tag, repository, revision, versions }) {
   return { version, image, tags: tags.join(','), prerelease: Boolean(match[4]) };
 }
 
+/** Local variants share the repository but can never move the engine's aliases. */
+export function variantTags(metadata, variant) {
+  assert(['local', 'local-browser'].includes(variant), 'Unsupported local image variant.');
+  return metadata.tags.split(',').map(tag => {
+    const name = `${tag}-${variant}`;
+    assert(name.slice(name.lastIndexOf(':') + 1).length <= 128, 'Variant tag exceeds the registry tag length.');
+    return name;
+  }).join(',');
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const json = (path) => JSON.parse(readFileSync(resolve(root, path), 'utf8'));
   const lock = json('apps/discord-agent/package-lock.json');
+  const localLock = json('packages/local-mcp/package-lock.json');
   const browser = browserVersions({
     project: readFileSync(resolve(root, 'packages/browser/pyproject.toml'), 'utf8'),
     lock: readFileSync(resolve(root, 'packages/browser/uv.lock'), 'utf8'),
@@ -41,9 +52,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     tag: process.env.RELEASE_TAG,
     repository: process.env.GITHUB_REPOSITORY,
     revision: process.env.GITHUB_SHA,
-    versions: [json('package.json').version, json('apps/discord-agent/package.json').version, lock.version, lock.packages[''].version, ...browser],
+    versions: [json('package.json').version, json('apps/discord-agent/package.json').version, lock.version, lock.packages[''].version, json('packages/local-mcp/package.json').version, localLock.version, localLock.packages[''].version, ...browser],
   });
-  const output = Object.entries(result).map(([key, value]) => `${key}=${value}\n`).join('');
+  const output = Object.entries({ ...result, local_tags: variantTags(result, 'local'), local_browser_tags: variantTags(result, 'local-browser') }).map(([key, value]) => `${key}=${value}\n`).join('');
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, output);
   process.stdout.write(output);
 }

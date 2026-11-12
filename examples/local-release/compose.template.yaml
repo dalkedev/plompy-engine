@@ -1,0 +1,44 @@
+name: plompy-local
+
+x-local: &local
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+    - seccomp=./docker-browser-seccomp.json
+  ports:
+    - "127.0.0.1:7331:7331"
+  environment:
+    PLOMPY_LOCAL_CONFIG: /var/lib/plompy-local/config/config.json
+  volumes:
+    - local-config:/var/lib/plompy-local/config
+    - local-secrets:/var/lib/plompy-local/secrets
+    - local-artifacts:/var/lib/plompy-local/artifacts
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,size=512m,mode=1777
+  shm_size: 256m
+  stop_grace_period: 30s
+  pids_limit: 256
+  mem_limit: 1g
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "5m"
+      max-file: "2"
+
+services:
+  local:
+    <<: *local
+    image: ghcr.io/dalkedev/plompy-engine:@VERSION@-local
+  local-browser:
+    <<: *local
+    profiles: [browser]
+    image: ghcr.io/dalkedev/plompy-engine:@VERSION@-local-browser
+    mem_limit: 2g
+
+volumes:
+  local-config:
+  local-secrets:
+  local-artifacts:

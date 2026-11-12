@@ -18,7 +18,7 @@ The command registers an environment variable name, not the secret itself. If a 
 Generate the fragment from the running container:
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs --mode local codex
 ```
 
@@ -37,7 +37,7 @@ Merge it into your private Codex configuration. The generator is print-only; it 
 In a private terminal with shell tracing disabled:
 
 ```sh
-export PLOMPY_LOCAL_TOKEN="$(docker compose -f compose.local.yaml exec -T local cat /var/lib/plompy-local/secrets/access-token)"
+export PLOMPY_LOCAL_TOKEN="$(docker compose exec -T local cat /var/lib/plompy-local/secrets/access-token)"
 codex
 ```
 

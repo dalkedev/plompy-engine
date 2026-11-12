@@ -5,7 +5,7 @@ Plompy's existing GitHub integration uses `gh`. The local gateway wraps selected
 ## Set up
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs add github --mode local
 ```
 
@@ -14,6 +14,16 @@ The current adapter requires a dedicated, minimally scoped GitHub token even whe
 ## Permissions
 
 This research profile does not expose arbitrary `gh` arguments, shell commands, repository writes, issue creation, comments, pull requests or merges. The two tools are `github_search_repositories` (a query, at most 20 results) and `github_repository` (an owner and repository name). Inspect their schemas in the client before using the adapter.
+
+## Apply the configuration
+
+After adding the integration and any required credential, restart the gateway and reconnect the host client so it discovers the updated tools:
+
+```sh
+docker compose restart local
+```
+
+Use `local-browser` instead of `local` if the browser service is running. A configuration change does not update an already running gateway automatically.
 
 ## Try it
 

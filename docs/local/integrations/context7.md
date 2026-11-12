@@ -5,12 +5,22 @@ Context7 supplies library documentation to an agent. It is a hosted documentatio
 ## Set up
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs add context7 --mode local \
   --tools resolve-library-id,query-docs
 ```
 
 The configured public HTTPS endpoint is `https://mcp.context7.com/mcp`. Use only authentication modes actually supported by the local adapter. A provider's native client OAuth flow is not automatically supported by the gateway.
+
+## Apply the configuration
+
+After adding the integration and any required credential, restart the gateway and reconnect the host client so it discovers the updated tools:
+
+```sh
+docker compose restart local
+```
+
+Use `local-browser` instead of `local` if the browser service is running. A configuration change does not update an already running gateway automatically.
 
 ## Try it
 

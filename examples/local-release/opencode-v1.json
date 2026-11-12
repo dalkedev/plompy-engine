@@ -1,0 +1,11 @@
+{
+  "mcp": {
+    "plompy": {
+      "type": "remote",
+      "url": "http://127.0.0.1:7331/mcp",
+      "oauth": false,
+      "headers": { "Authorization": "Bearer {env:PLOMPY_LOCAL_TOKEN}" },
+      "enabled": true
+    }
+  }
+}

@@ -5,7 +5,7 @@ Firecrawl can discover pages and extract their content. It is an external servic
 ## Limited keyless setup
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs add firecrawl --mode local \
   --auth keyless --tools firecrawl_search,firecrawl_scrape
 ```
@@ -14,7 +14,25 @@ Keyless access is subject to the vendor's current restrictions and availability.
 
 ## API-key setup
 
-Choose API-key mode and provide a dedicated key through the private credential workflow. Do not type the key in the command arguments or save it in your client project configuration. The local gateway does not perform Firecrawl OAuth login.
+Choose API-key mode:
+
+```sh
+docker compose exec -T local \
+  node scripts/integrations.mjs add firecrawl --mode local \
+  --auth api-key --tools firecrawl_search,firecrawl_scrape
+```
+
+Provide a dedicated key through the [private credential workflow](../credentials.md#add-a-vendor-key). Do not type the key in the command arguments or save it in your client project configuration. The local gateway does not perform Firecrawl OAuth login.
+
+## Apply the configuration
+
+After adding the integration and any required credential, restart the gateway and reconnect the host client so it discovers the updated tools:
+
+```sh
+docker compose restart local
+```
+
+Use `local-browser` instead of `local` if the browser service is running. A configuration change does not update an already running gateway automatically.
 
 ## Try it
 

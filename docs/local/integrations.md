@@ -37,18 +37,24 @@ Remote tool names are selected by the operator and intersected with the research
 
 ## Changing integrations
 
-Use the same integrations CLI with `--mode local`. The existing `--runner` paths remain for the Discord engine. Restart the gateway after changing its configuration so discovery reflects the new selection.
+Use the same integrations CLI with `--mode local`. The existing `--runner` paths remain for the Discord engine. Restart the gateway after changing its configuration so discovery reflects the new selection, then reconnect the host client:
+
+```sh
+docker compose restart local
+```
+
+Use `local-browser` if that is the running service.
 
 An explicit remote discovery diagnostic initializes MCP and lists permitted tools; it does not call a search or scrape tool:
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs test firecrawl --mode local --live
 ```
 
 The `--live` flag permits contacting that configured service. A subsequent authorized tool call is required before claiming the task or integration is live-tested.
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs status --mode local
 ```

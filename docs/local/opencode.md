@@ -13,7 +13,7 @@ OpenCode V1 places entries directly under `mcp` and uses `enabled`. V2 places th
 Generate the matching fragment:
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs opencode --client-version v1 --mode local
 ```
 
@@ -62,7 +62,7 @@ In a private host terminal, with shell tracing disabled, capture the token into
 the environment without printing it:
 
 ```sh
-export PLOMPY_LOCAL_TOKEN="$(docker compose -f compose.local.yaml exec -T local cat /var/lib/plompy-local/secrets/access-token)"
+export PLOMPY_LOCAL_TOKEN="$(docker compose exec -T local cat /var/lib/plompy-local/secrets/access-token)"
 opencode
 ```
 
@@ -74,7 +74,7 @@ running with the same host account may be able to inspect that environment.
 
 ## Preserve your existing configuration
 
-Merge the fragment into your current OpenCode configuration. Preserve other servers, providers and permission rules. The generator prints a fragment by default. An explicit file update must show the change, preserve unrelated fields and create a backup. JSONC comments require a JSONC-aware edit; do not overwrite a commented file with a plain JSON parser.
+For a new research project, save the matching JSON example as `opencode.json` in that project directory, then run `opencode` from that directory. Keep the starter kit in its own directory and capture the token there before changing into the research project. For an existing project or user-level setup, merge the fragment into its current OpenCode configuration. Preserve other servers, providers and permission rules. The generator prints a fragment by default. An explicit file update must show the change, preserve unrelated fields and create a backup. JSONC comments require a JSONC-aware edit; do not overwrite a commented file with a plain JSON parser.
 
 ## Verify in two steps
 

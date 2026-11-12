@@ -41,9 +41,12 @@ is required inside the container. The existing Discord mode remains available.
   quality and tool calling depend on the chosen model; hosted integrations still
   receive their requests.
 
-This mode is **unreleased source**. Build the checked-out source locally; the existing
-`0.12.0` image does not contain it. It does not expose email sending or general shell
-execution tools. Paid provider calls and actual Ollama inference have not been tested.
+Plompy Local **0.13.0** includes ready-made Linux `amd64` and `arm64` images:
+`ghcr.io/dalkedev/plompy-engine:0.13.0-local` and the optional
+`ghcr.io/dalkedev/plompy-engine:0.13.0-local-browser`. Download the small starter kit;
+no source checkout or host Node installation is needed. It does not expose email
+sending or general shell execution tools. Paid provider calls and actual Ollama
+inference have not been tested.
 
 [Docker quickstart](docs/local/quickstart.md) · [Codex CLI](docs/local/codex.md) ·
 [Claude Code](docs/local/claude-code.md) · [OpenCode](docs/local/opencode.md) ·
@@ -51,10 +54,15 @@ execution tools. Paid provider calls and actual Ollama inference have not been t
 [Verification and limits](docs/local/compatibility.md)
 
 ```sh
-docker compose -f compose.local.yaml build local
-docker compose -f compose.local.yaml run --rm -T local node scripts/integrations.mjs init --mode local
-docker compose -f compose.local.yaml up -d local
-docker compose -f compose.local.yaml exec -T local node scripts/integrations.mjs test --mode local
+mkdir -m 700 plompy-local
+cd plompy-local
+curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz \
+  -o plompy-local-0.13.0.tar.gz
+tar -xzf plompy-local-0.13.0.tar.gz
+docker compose pull local
+docker compose run --rm -T local node scripts/integrations.mjs init --mode local
+docker compose up -d local
+docker compose exec -T local node scripts/integrations.mjs test --mode local
 ```
 
 Use the quickstart to export the access token into your client's environment, select
@@ -86,7 +94,7 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone --branch v0.12.0 --depth 1 https://github.com/dalkedev/plompy-engine.git
+git clone --branch v0.13.0 --depth 1 https://github.com/dalkedev/plompy-engine.git
 cd plompy-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -349,7 +357,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.12.0 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
+Version **0.13.0 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
 evidence. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
