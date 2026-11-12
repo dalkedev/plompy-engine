@@ -39,6 +39,27 @@ jobs:
           umask 0077
           node --test scripts/integrations-mcp.test.mjs scripts/state-snapshot.test.mjs
 
+  local-mcp:
+    name: Local MCP / offline protocol and research boundaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Node runtime dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libatomic1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26.13.0'
+          package-manager-cache: false
+      - name: Install the locked local MCP package
+        run: npm ci --prefix packages/local-mcp --ignore-scripts --no-audit --no-fund
+      - name: Test real local MCP transport and synthetic providers
+        run: npm run test:local
+
   provider-tools:
     name: Provider tools / MCP and Playwright
     runs-on: ubuntu-24.04

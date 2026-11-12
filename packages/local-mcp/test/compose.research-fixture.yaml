@@ -1,0 +1,13 @@
+# Test-only override. Never use this entry point to serve arbitrary local networks.
+# It injects one exact synthetic HTTP fixture host through a JavaScript test API.
+services:
+  local:
+    image: plompy-local-browser:development
+    build:
+      target: local-browser
+    ports: !override
+      - "127.0.0.1:17331:7331"
+    volumes:
+      - ./packages/local-mcp/test:/opt/plompy/packages/local-mcp/test:ro
+    command: [node, packages/local-mcp/test/research-fixture-server.mjs]
+    mem_limit: 2g

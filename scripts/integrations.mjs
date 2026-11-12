@@ -483,6 +483,25 @@ export async function runIntegrations(
     output = process.stdout,
   } = {},
 ) {
+  const localMode = args.indexOf("--mode");
+  if (localMode !== -1) {
+    if (args[localMode + 1] !== "local" || args.lastIndexOf("--mode") !== localMode)
+      throw new Error("Use --mode local exactly once for the independent local MCP service.");
+    const { runLocalIntegrations } = await import("./local-integrations.mjs");
+    return runLocalIntegrations([...args.slice(0, localMode), ...args.slice(localMode + 2)], {
+      env,
+      print: (value) => output.write(String(value) + "\n"),
+      readSecret: async () => {
+        if (input.isTTY) throw new Error("Pipe the credential through stdin; secret arguments are never accepted.");
+        let secret = "";
+        for await (const chunk of input) {
+          secret += chunk.toString("utf8");
+          if (Buffer.byteLength(secret) > 4098) throw new Error("Credential input exceeds its limit.");
+        }
+        return secret;
+      },
+    });
+  }
   env = normalizeEnvironment(env);
   const options = {},
     positional = [];

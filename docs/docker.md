@@ -1,5 +1,10 @@
 # Docker deployment
 
+This page covers the existing Discord engine container. For the separate local
+integration server used by Codex CLI, Claude Code, OpenCode and other MCP clients,
+see [Plompy Local Docker quickstart](local/quickstart.md). The local mode starts
+without Discord or a model account inside the container.
+
 For installations created before 0.12, follow the [Plompy migration guide](migration-plompy.md) and use `compose.legacy.yaml` to retain existing volumes. Do not initialize empty replacement volumes.
 
 This image packages and verifies **Codex only**. `PLOMPY_RUNNER` must be `codex`;

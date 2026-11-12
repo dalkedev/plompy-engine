@@ -9,6 +9,7 @@
   "scripts": {
     "build": "npm --prefix apps/discord-agent run build",
     "test": "npm --prefix apps/discord-agent test && node --test scripts/*.test.mjs",
+    "test:local": "npm test --prefix packages/local-mcp",
     "doctor": "node scripts/doctor.mjs",
     "setup": "node scripts/setup.mjs",
     "acceptance": "node scripts/acceptance.mjs",
