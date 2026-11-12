@@ -1,0 +1,216 @@
+{
+  "version": "Local MCP preview",
+  "updated": "2026-11-12",
+  "pages": [
+    {
+      "slug": "",
+      "source": "introduction.md",
+      "title": "Introduction",
+      "description": "Choose the local tools gateway or the existing Discord agent engine.",
+      "group": "Start here"
+    },
+    {
+      "slug": "quickstart",
+      "source": "quickstart.md",
+      "title": "Run locally with Docker",
+      "description": "Build the local gateway and connect your chosen host MCP client.",
+      "group": "Start here"
+    },
+    {
+      "slug": "architecture",
+      "source": "architecture.md",
+      "title": "How it works",
+      "description": "Understand the client, gateway, integration and artifact boundaries.",
+      "group": "Start here"
+    },
+    {
+      "slug": "requirements",
+      "source": "requirements.md",
+      "title": "Installation and requirements",
+      "description": "Check the host, container, model and integration requirements.",
+      "group": "Start here"
+    },
+    {
+      "slug": "other-clients",
+      "source": "other-clients.md",
+      "title": "Choose your client",
+      "description": "Connect a host agent supporting Streamable HTTP and private bearer authentication.",
+      "group": "Connect"
+    },
+    {
+      "slug": "codex",
+      "source": "codex.md",
+      "title": "Connecting Codex",
+      "description": "Add the local MCP endpoint with an environment-based bearer token.",
+      "group": "Connect"
+    },
+    {
+      "slug": "claude-code",
+      "source": "claude-code.md",
+      "title": "Connecting Claude Code",
+      "description": "Connect Claude Code over HTTP without sharing model credentials with Docker.",
+      "group": "Connect"
+    },
+    {
+      "slug": "opencode",
+      "source": "opencode.md",
+      "title": "Connecting OpenCode",
+      "description": "Use the correct V1 or V2 schema and keep the local token out of project files.",
+      "group": "Connect"
+    },
+    {
+      "slug": "ollama",
+      "source": "ollama.md",
+      "title": "Local models with Ollama",
+      "description": "Use Ollama as the host agent model provider while Plompy supplies MCP tools.",
+      "group": "Connect"
+    },
+    {
+      "slug": "integrations",
+      "source": "integrations.md",
+      "title": "Integration catalog",
+      "description": "Choose integrations deliberately and understand their actual local-mode status.",
+      "group": "Connect"
+    },
+    {
+      "slug": "credentials",
+      "source": "credentials.md",
+      "title": "Credentials and OAuth",
+      "description": "Keep local access and vendor credentials separate from project and artifact data.",
+      "group": "Connect"
+    },
+    {
+      "slug": "browser",
+      "source": "browser.md",
+      "title": "Browser setup",
+      "description": "Use the optional container browser with sandboxed, read-only navigation.",
+      "group": "Work with tools"
+    },
+    {
+      "slug": "security",
+      "source": "security.md",
+      "title": "Permissions and security",
+      "description": "Understand access checks, data flow and the limits of a local container.",
+      "group": "Work with tools"
+    },
+    {
+      "slug": "artifacts",
+      "source": "artifacts.md",
+      "title": "Files and exports",
+      "description": "Save bounded CSV, JSON and Markdown artifacts without overwriting unrelated files.",
+      "group": "Work with tools"
+    },
+    {
+      "slug": "research",
+      "source": "research.md",
+      "title": "Company research and drafts",
+      "description": "Find public company evidence and prepare university-project messages without sending.",
+      "group": "Work with tools"
+    },
+    {
+      "slug": "maintenance",
+      "source": "maintenance.md",
+      "title": "Updates, backup and uninstall",
+      "description": "Replace the image while preserving private configuration, secrets and results.",
+      "group": "Operate"
+    },
+    {
+      "slug": "discord",
+      "source": "discord.md",
+      "title": "Existing Discord mode",
+      "description": "Keep the original runner engine and the new local tools gateway separate.",
+      "group": "Operate"
+    },
+    {
+      "slug": "compatibility",
+      "source": "compatibility.md",
+      "title": "Compatibility and verification",
+      "description": "Separate implementation, offline checks, container evidence and external-account tests.",
+      "group": "Operate"
+    },
+    {
+      "slug": "troubleshooting",
+      "source": "troubleshooting.md",
+      "title": "Troubleshooting",
+      "description": "Diagnose the exact failing layer instead of assuming that a process means success.",
+      "group": "Operate"
+    },
+    {
+      "slug": "integrations/web",
+      "source": "integrations/web.md",
+      "title": "Public web",
+      "description": "Read public webpages without a vendor account.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/playwright",
+      "source": "integrations/playwright.md",
+      "title": "Playwright",
+      "description": "Render public pages in the optional sandboxed browser image.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/github",
+      "source": "integrations/github.md",
+      "title": "GitHub",
+      "description": "Use a controlled read adapter instead of unrestricted GitHub CLI commands.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/firecrawl",
+      "source": "integrations/firecrawl.md",
+      "title": "Firecrawl",
+      "description": "Add hosted search and page extraction with explicit read tools.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/perplexity",
+      "source": "integrations/perplexity.md",
+      "title": "Perplexity",
+      "description": "Use your own API access for source-oriented search.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/openai-docs",
+      "source": "integrations/openai-docs.md",
+      "title": "OpenAI Docs",
+      "description": "Read official developer documentation through its public MCP endpoint.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/context7",
+      "source": "integrations/context7.md",
+      "title": "Context7",
+      "description": "Resolve a library and query its documentation.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/posthog",
+      "source": "integrations/posthog.md",
+      "title": "PostHog",
+      "description": "Read an existing project with a scoped credential and read-only restrictions.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/custom",
+      "source": "integrations/custom.md",
+      "title": "Custom MCP",
+      "description": "Understand why arbitrary custom tools are excluded from the first research profile.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/camoufox",
+      "source": "integrations/camoufox.md",
+      "title": "Camoufox",
+      "description": "Understand the existing host integration and its local-container limitation.",
+      "group": "Integrations"
+    },
+    {
+      "slug": "integrations/tinyfish",
+      "source": "integrations/tinyfish.md",
+      "title": "TinyFish",
+      "description": "Keep autonomous remote browser actions outside the first research profile.",
+      "group": "Integrations"
+    }
+  ]
+}

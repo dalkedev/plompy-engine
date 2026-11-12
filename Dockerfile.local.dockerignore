@@ -1,0 +1,25 @@
+# Strict build allowlist. No host state, credentials, artifacts, Git or test fixtures.
+**
+!Dockerfile.local
+!Dockerfile.local.dockerignore
+!LICENSE
+!scripts/
+!scripts/brand-compat.mjs
+!scripts/integrations.mjs
+!scripts/local-integrations.mjs
+!scripts/integrations/
+!scripts/integrations/**
+!packages/
+!packages/local-mcp/
+!packages/local-mcp/package.json
+!packages/local-mcp/package-lock.json
+!packages/local-mcp/server.mjs
+!packages/local-mcp/src/
+!packages/local-mcp/src/**
+!packages/mcp-bridge/
+!packages/mcp-bridge/src/
+!packages/mcp-bridge/src/**
+!packages/playwright/
+!packages/playwright/package.json
+!packages/playwright/package-lock.json
+!packages/playwright/runtime.mjs

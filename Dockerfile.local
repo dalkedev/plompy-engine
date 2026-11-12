@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1
+FROM node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS local-base
+LABEL org.opencontainers.image.title="Plompy Local MCP" \
+      org.opencontainers.image.description="Local integration tools for an external MCP client" \
+      org.opencontainers.image.source="https://github.com/dalkedev/plompy-engine" \
+      org.opencontainers.image.licenses="MIT"
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates gh libatomic1 tini \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /opt/plompy
+COPY packages/local-mcp/package.json packages/local-mcp/package-lock.json ./packages/local-mcp/
+RUN npm ci --prefix packages/local-mcp --omit=dev --ignore-scripts --no-audit --no-fund \
+    && npm cache clean --force
+RUN install -d -m 0700 -o node -g node \
+      /var/lib/plompy-local /var/lib/plompy-local/config /var/lib/plompy-local/secrets /var/lib/plompy-local/artifacts
+ENV NODE_ENV=production \
+    PLOMPY_LOCAL_CONFIG=/var/lib/plompy-local/config/config.json \
+    HOME=/tmp/plompy-local-home \
+    TMPDIR=/tmp
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["node", "packages/local-mcp/server.mjs"]
+
+# Install browser dependencies before application sources so code changes do not
+# re-download Chromium. Reuse the locked optional package from the Discord mode.
+FROM local-base AS browser-dependencies
+COPY packages/playwright/package.json packages/playwright/package-lock.json ./packages/playwright/
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/plompy-browsers
+RUN npm ci --prefix packages/playwright --omit=dev --ignore-scripts --no-audit --no-fund \
+    && node packages/playwright/node_modules/playwright/cli.js install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm cache clean --force
+
+FROM local-base AS local
+COPY scripts/brand-compat.mjs scripts/integrations.mjs scripts/local-integrations.mjs ./scripts/
+COPY scripts/integrations ./scripts/integrations
+COPY packages/mcp-bridge/src ./packages/mcp-bridge/src
+COPY packages/playwright/package.json packages/playwright/runtime.mjs ./packages/playwright/
+COPY packages/local-mcp/server.mjs ./packages/local-mcp/
+COPY packages/local-mcp/src ./packages/local-mcp/src
+COPY LICENSE ./LICENSE
+USER node:node
+
+# The smaller core image has no browser binaries or system browser libraries.
+FROM browser-dependencies AS local-browser
+COPY --from=local /opt/plompy /opt/plompy
+USER node:node

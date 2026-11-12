@@ -25,6 +25,41 @@ mean starting the conversation again.
 
 Your phone can go back in your pocket.
 
+## Local tools for your own agent
+
+The new **Plompy Local** mode gives an independently running Codex CLI, Claude Code,
+OpenCode or compatible MCP client selected research tools through an authenticated
+Streamable HTTP endpoint. Start it in Docker, connect your client, and keep the
+conversation and model choice in that client. No Discord bot or second model account
+is required inside the container. The existing Discord mode remains available.
+
+- Read public sources with bounded HTTP fetching or optional sandboxed Chromium.
+- Select supported search/documentation integrations using your own credentials.
+- Save sourced research, email drafts, CSV, JSON and Markdown in a persistent volume.
+- Use a compatible local model through Ollama in your agent, or choose its supported
+  hosted provider. Ollama is the model provider, not the MCP client. Local-model
+  quality and tool calling depend on the chosen model; hosted integrations still
+  receive their requests.
+
+This mode is **unreleased source**. Build the checked-out source locally; the existing
+`0.12.0` image does not contain it. It does not expose email sending or general shell
+execution tools. Paid provider calls and actual Ollama inference have not been tested.
+
+[Docker quickstart](docs/local/quickstart.md) · [Codex CLI](docs/local/codex.md) ·
+[Claude Code](docs/local/claude-code.md) · [OpenCode](docs/local/opencode.md) ·
+[Ollama](docs/local/ollama.md) · [Integration matrix](docs/local/integrations.md) ·
+[Verification and limits](docs/local/compatibility.md)
+
+```sh
+docker compose -f compose.local.yaml build local
+docker compose -f compose.local.yaml run --rm -T local node scripts/integrations.mjs init --mode local
+docker compose -f compose.local.yaml up -d local
+docker compose -f compose.local.yaml exec -T local node scripts/integrations.mjs test --mode local
+```
+
+Use the quickstart to export the access token into your client's environment, select
+integrations, and print the appropriate client configuration without embedding secrets.
+
 > Upgrading an existing installation? Read the [0.12 migration guide](docs/migration-plompy.md) before changing service paths or Docker volumes.
 
 
