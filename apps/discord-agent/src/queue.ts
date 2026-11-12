@@ -29,7 +29,7 @@ export function threadQueue(
     "Queue in this thread (accepted order):",
     ...items.map(
       (item) =>
-        `${item.id}: ${item.status} — ${providerLabel(item.provider)}; ${reasons[item.reason]}.`,
+        `${item.id}: ${item.status}; ${providerLabel(item.provider)}; ${reasons[item.reason]}.`,
     ),
     ...(items.length ? [] : ["No queued or running tasks in this thread."]),
     running

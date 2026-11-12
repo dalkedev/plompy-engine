@@ -1,6 +1,6 @@
 <div align="center">
 
-![plompy-engine — Codex, Claude Code and OpenCode in persistent private threads](assets/brand/readme-banner.png)
+![plompy-engine: Codex, Claude Code and OpenCode in persistent private threads](assets/brand/readme-banner.png)
 
 # plompy-engine
 
@@ -229,9 +229,9 @@ while unavailable providers do not block eligible work for others.
 
 | Runner                         | CLI requirement | Where it runs                                                        |
 | ------------------------------ | --------------- | -------------------------------------------------------------------- |
-| **Codex** — default            | 0.166.0         | Linux host or the published Docker image                             |
-| **Claude Code** — experimental | >=2.1.285, <3   | Linux host with restricted mode and mandatory native Bash sandboxing |
-| **OpenCode** — experimental    | 1.19.5          | Operator-isolated Linux host; explicit host execution opt-in         |
+| **Codex** (default)            | 0.166.0         | Linux host or the published Docker image                             |
+| **Claude Code** (experimental) | >=2.1.285, <3   | Linux host with restricted mode and mandatory native Bash sandboxing |
+| **OpenCode** (experimental)    | 1.19.5          | Operator-isolated Linux host; explicit host execution opt-in         |
 
 ```sh
 PLOMPY_RUNNER=codex     # or claude / opencode

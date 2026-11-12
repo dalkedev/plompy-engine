@@ -1,19 +1,19 @@
 # Changelog
 
-## 0.12.0 — 2026-11-11 — Plompy Engine
+## 0.12.0 (2026-11-11): Plompy Engine
 
 - Rebrand the project, repository links, packages, CLI, configuration examples and container to **plompy-engine**.
 - Accept legacy `SZPONT_*` environment settings with explicit `PLOMPY_*` values taking precedence. Preserve existing state paths, managed MCP configurations, browser identity and cross-version locks.
 - Provide a [migration guide](docs/migration-plompy.md) and external-volume Compose override for existing installations. No private data, Discord identities, login profiles or service processes are moved automatically.
 - Introduce the Plompy identity, logo and repository artwork.
 
-## 0.11.1 — 2026-11-10
+## 0.11.1 (2026-11-10)
 
 - Add an explicit `--tool-approval approve` option for the built-in Codex Playwright integration, enabling unattended browser actions without changing global approval settings. Keep the default and `--yes` behavior unchanged; support an explicit `prompt` policy as well.
 - Inspect the private raw TOML alongside Codex MCP status, preserving operator approval overrides, tool restrictions and unknown settings that the CLI status projection omits. Validate scoped policy with the installed CLI before atomically installing configuration.
 - Document migration from an existing managed entry and the difference between configured tools and verified browser execution. Retain SQLite schema 6, provider bindings and browser sandboxing.
 
-## 0.11.0 — 2026-11-10
+## 0.11.0 (2026-11-10)
 
 - Add Playwright, Perplexity, Firecrawl, TinyFish and PostHog to the guided integrations menu for Codex, Claude Code and OpenCode, with maintained task instructions and explicit authentication modes.
 - Provision an optional pinned Playwright MCP server with isolated headless Chromium, sandboxing, private per-launch output and no runtime browser installation. Exercise navigation, snapshot references, typing, clicking, screenshots and concurrent session isolation on a synthetic local page.
@@ -22,14 +22,14 @@
 - Include the small API bridge in the Codex Docker image and test packaged configuration offline on both architectures. Browsers, model accounts and vendor access are provisioned separately.
 - Retain Node 26 LTS, SQLite schema 6, provider bindings, saved sessions and explicit recovery semantics.
 
-## 0.10.0 — 2026-11-10
+## 0.10.0 (2026-11-10)
 
 - Require official Node 26 LTS, at least 26.13.0, and SQLite 3.54.0 or newer. Migrate the pinned container, CI, host instructions and developer version files together. Node 24 is no longer supported by this release.
 - Verify the linked SQLite version from runtime metadata and a fresh in-memory SQL query before opening state. Reject unsupported or inconsistent runtimes during startup, setup, diagnostics and snapshots.
 - Address CVE-2026-119375 by using the patched SQLite embedded in the supported Node runtime; preserve the historical finding for older releases. No npm SQLite-driver replacement, custom Node build or database migration is involved.
 - Retain public SQLite schema 6, runner bindings, saved sessions and explicit recovery semantics. Take a coordinated private backup before changing the runtime or service release.
 
-## 0.9.0 — 2026-11-10
+## 0.9.0 (2026-11-10)
 
 - Add guided private setup for Codex and the experimental host adapters, hidden token input, explicit token-file/stdin automation and shell-quoted mode-0600 configuration. Preserve existing resources and failed/concurrent workspaces of uncertain ownership.
 - Add opt-in read-only `doctor --check-discord` checks for bot identity, guild owner, private forum and effective reply permissions, with bounded requests and credential-safe diagnostics. Default doctor remains offline.
@@ -38,12 +38,12 @@
 - Refresh guild ownership and roles from Discord before authorization instead of trusting an incomplete or stale Gateway cache. Preserve owner/privacy rejection when the fresh read fails.
 - Retain SQLite schema 6 and current recovery/provider semantics. The known Node 24 SQLite finding remains open; this release does not claim runtime remediation.
 
-## 0.8.1 — 2026-11-09
+## 0.8.1 (2026-11-09)
 
 - Keep the shared 30-job queue bound when resuming a safely paused supervised goal. A full queue leaves its saved candidate, control state and remaining budget unchanged; retry `!goal resume` after capacity is available.
 - Point unsuccessful goal controls to `!queue` as well as `!goal status`. Existing per-thread limits, supervision, providers and SQLite schema 6 are unchanged.
 
-## 0.8.0 — 2026-11-09
+## 0.8.0 (2026-11-09)
 
 - Bind a code repository to a supervised goal with `--repo <absolute path>`. Capture its working-tree contents before and after each worker step, so commits and staging cannot hide code or test changes from the fresh supervisor.
 - Persist the baseline before execution and seal the resulting patch with the worker candidate. Pause, restart and reviewer recovery retain the original evidence; later live edits cannot silently replace it.
@@ -51,7 +51,7 @@
 - Bound capture time, file sizes, inventory and patch output. Keep ignored secrets out, avoid following symlinks or hard links, disable Git diff/filter helpers, and report incomplete or unavailable captures explicitly.
 - Migrate public SQLite state to schema 6 while retaining existing sessions, jobs, images and goal history. Existing goals have no implicit repository binding. Take a coordinated backup before upgrading; older binaries cannot open schema 6.
 
-## 0.7.0 — 2026-11-07
+## 0.7.0 (2026-11-07)
 
 - Add `!goal` and its `!loop` alias for bounded Codex work reviewed after each step by a fresh supervisor session. Keep the worker's session, save candidates before review, and share one execution budget between both phases.
 - Add durable status, pause, resume and stop controls, blocked follow-up questions and explicit recovery. Review failures retain the candidate rather than replaying its worker; no-progress reviews stop after three attempts.
@@ -59,14 +59,14 @@
 - Migrate public SQLite schemas 0–4 to schema 5 while preserving jobs, provider bindings, image inputs and sessions. Back up before upgrading; rollback requires matching pre-upgrade state and binaries.
 - Keep supervised goals Codex-only. Claude Code and OpenCode remain available for ordinary tasks. Supervisor filesystem access is read-only; configured MCP permissions still require operator review.
 
-## 0.6.1 — 2026-11-06
+## 0.6.1 (2026-11-06)
 
 - Add `!queue` with current-thread task IDs, accepted order and waiting reasons. Share runner and predecessor predicates with the scheduler; keep other conversations and task content private. Inspection does not call a model, retry a task or predict a start time.
 - Warn immediately when a normal message is accepted into a blocked thread, and point to recovery guidance and the blocking task's saved result.
 - Order status, default result readback and recovery suggestions by durable acceptance order, so wall-clock rollback cannot select an older workflow or failure.
 - Retain public SQLite schema 4, runner bindings and existing recovery rules. This patch does not add parallel workers or update private deployments automatically.
 
-## 0.6.0 — 2026-11-06
+## 0.6.0 (2026-11-06)
 
 ### Guided integrations
 
@@ -89,7 +89,7 @@
 - Keep Claude Code and OpenCode as experimental host adapters, with operator-provided model access and isolation. The Docker image remains Codex-only; live Discord, model, browser and account acceptance remain deployment checks.
 - Align the browser package's public version constant and MCP initialization metadata with the coordinated release version.
 
-## 0.5.0 — 2026-11-05
+## 0.5.0 (2026-11-05)
 
 ### Discord image input
 
@@ -105,7 +105,7 @@
 - Preserve schema-3 jobs and provider bindings during migration. Rolling back to 0.4.0 requires its compatible pre-upgrade snapshot and reconciliation of later work.
 - Add offline synthetic regressions for authorization, fetch limits, URL rejection, atomicity, migration, recovery, temporary-file cleanup and actual initial/resume subprocess arguments. No Discord messages, account actions or live inference are used as smoke tests.
 
-## 0.4.0 — 2026-11-05
+## 0.4.0 (2026-11-05)
 
 ### Runner adapters
 
@@ -134,7 +134,7 @@
 - Keep the published Docker image Codex-only. Reject alternative runner selection before initialization writes until independent container acceptance exists.
 - Preserve the actual Codex sandbox and the non-root, read-only image acceptance path on Linux amd64 and arm64.
 
-## 0.3.1 — 2026-11-05
+## 0.3.1 (2026-11-05)
 
 ### Recovery and ordering fixes
 
@@ -150,7 +150,7 @@
 - Reject incompatible private-deployment databases before mutation. Back up state before upgrade; a binary rollback requires restoring its matching pre-upgrade database snapshot.
 - Add offline regressions for transient commit failures, operator staging, clock corrections, continuation/recovery ordering, migration atomicity, variant mismatch and actual MCP initialization metadata.
 
-## 0.3.0 — 2026-11-04
+## 0.3.0 (2026-11-04)
 
 ### Durable work sessions
 
@@ -174,7 +174,7 @@
 - Keep uncertain external actions subject to manual reconciliation; no automatic replay, parallel browser workers or private-deployment upgrade is introduced.
 - Publish explicit 1.0 readiness criteria instead of treating a version number as evidence of production stability.
 
-## 0.2.0 — 2026-11-04
+## 0.2.0 (2026-11-04)
 
 ### Distribution and project experience
 
@@ -203,7 +203,7 @@
 - The Docker image packages the public engine and Codex CLI. The optional graphical Camoufox bridge is configured separately.
 - Releases do not contain conversations, real owner memory, browser profiles, credentials, or a preauthenticated account.
 
-## 0.1.0 — Initial public core
+## 0.1.0: Initial public core
 
 - Owner-configured Discord identities and a separate private workspace initializer.
 - Single-worker SQLite queue, exact per-thread Codex sessions and explicit interruption recovery.

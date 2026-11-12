@@ -550,7 +550,7 @@ export async function runIntegrations(
           "Interactive setup needs a TTY. Use list, or add <id> --yes with explicit options.",
         );
       print(
-        "Plompy integrations — connect tools to your own runner and accounts.\n",
+        "Plompy integrations: connect tools to your own runner and accounts.\n",
       );
       if (!options.runner) {
         print(
@@ -573,7 +573,7 @@ export async function runIntegrations(
       }
       print(
         catalog
-          .map((c, n) => `${n + 1}. ${c.name} — ${c.description}`)
+          .map((c, n) => `${n + 1}. ${c.name}: ${c.description}`)
           .join("\n") + "\n0. Exit",
       );
       const choice = await ask("Choose an integration: ");
@@ -631,7 +631,7 @@ export async function runIntegrations(
             )
           : results.length
             ? results
-                .map((r) => `${r.id}: ${r.status} — ${r.detail}`)
+                .map((r) => `${r.id}: ${r.status}: ${r.detail}`)
                 .join("\n")
             : "No managed integrations for this runner. Use add <id>.",
       );

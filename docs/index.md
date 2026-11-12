@@ -1,6 +1,6 @@
 # Documentation
 
-- **[Upgrade to Plompy 0.12](migration-plompy.md)** — retain existing sessions, private state, browser identity and Docker volumes.
+- **[Upgrade to Plompy 0.12](migration-plompy.md)**: retain existing sessions, private state, browser identity and Docker volumes.
 
 plompy-engine connects a private Discord forum to persistent coding CLI sessions on
 your own Linux machine. The public edition runs one shared worker. Start with Codex;
