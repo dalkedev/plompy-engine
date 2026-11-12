@@ -5,11 +5,21 @@ The built-in `web_fetch` tool retrieves public HTTP(S) pages with bounded respon
 ## Set up
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs add web --mode local
 ```
 
 Restart the service after configuration changes. Use local status to check whether the integration is enabled.
+
+## Apply the configuration
+
+After adding the integration and any required credential, restart the gateway and reconnect the host client so it discovers the updated tools:
+
+```sh
+docker compose restart local
+```
+
+Use `local-browser` instead of `local` if the browser service is running. A configuration change does not update an already running gateway automatically.
 
 ## Try it
 

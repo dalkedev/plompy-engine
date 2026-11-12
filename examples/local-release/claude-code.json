@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "plompy": {
+      "type": "http",
+      "url": "http://127.0.0.1:7331/mcp",
+      "headers": { "Authorization": "Bearer ${PLOMPY_LOCAL_TOKEN}" }
+    }
+  }
+}

@@ -7,14 +7,16 @@ your own Linux machine. The public edition runs one shared worker. Start with Co
 Claude Code and OpenCode are experimental host adapters, and the published Docker
 image supports Codex only.
 
-## Local MCP preview
+## Plompy Local 0.13.0
 
 [Plompy Local](local/introduction.md) adds selected tools in Docker for a host agent,
 without Discord setup. Start with the [local Docker quickstart](local/quickstart.md),
 then [connect Codex, Claude Code, OpenCode or another MCP client](local/other-clients.md).
 [Ollama](local/ollama.md) is an optional local model provider for a compatible agent.
-This source-built preview is separate from the published 0.12.0 Discord image;
-read the [verification record](local/compatibility.md) for tested boundaries.
+The 0.13.0 starter kit pulls ready-made core or browser images for Linux amd64/arm64.
+These are separate from the Discord engine image. Read the
+[verification record](local/compatibility.md) for tested boundaries, or
+[build from source](local/source-build.md) for development.
 
 ## Start here
 

@@ -34,7 +34,7 @@ The files remain in a Docker volume until you copy them out. From your host, cre
 
 ```sh
 mkdir -m 700 plompy-results
-docker compose -f compose.local.yaml cp \
+docker compose cp \
   local:/var/lib/plompy-local/artifacts/. ./plompy-results/
 ```
 

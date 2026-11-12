@@ -1,0 +1,3 @@
+[mcp_servers.plompy]
+url = "http://127.0.0.1:7331/mcp"
+bearer_token_env_var = "PLOMPY_LOCAL_TOKEN"

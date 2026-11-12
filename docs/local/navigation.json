@@ -1,5 +1,5 @@
 {
-  "version": "Local MCP preview",
+  "version": "Plompy Local 0.13.0",
   "updated": "2026-11-12",
   "pages": [
     {
@@ -13,7 +13,7 @@
       "slug": "quickstart",
       "source": "quickstart.md",
       "title": "Run locally with Docker",
-      "description": "Build the local gateway and connect your chosen host MCP client.",
+      "description": "Pull the ready-made local gateway image and connect your chosen host MCP client.",
       "group": "Start here"
     },
     {
@@ -106,6 +106,13 @@
       "title": "Company research and drafts",
       "description": "Find public company evidence and prepare university-project messages without sending.",
       "group": "Work with tools"
+    },
+    {
+      "slug": "source-build",
+      "source": "source-build.md",
+      "title": "Build from source",
+      "description": "Build a selected engine revision instead of using published Local images.",
+      "group": "Operate"
     },
     {
       "slug": "maintenance",

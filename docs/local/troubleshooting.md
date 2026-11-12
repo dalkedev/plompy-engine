@@ -4,7 +4,7 @@ Check container startup, MCP authentication, tool discovery and actual tool exec
 
 ## Connection refused
 
-Check `docker compose -f compose.local.yaml ps` and confirm the selected service is running. Core and browser services share port `7331`; do not start both at once. Confirm that the container listener is reachable through the loopback publication.
+Check `docker compose ps` and confirm the selected service is running. Core and browser services share port `7331`; do not start both at once. Confirm that the container listener is reachable through the loopback publication.
 
 The host client URL is `http://127.0.0.1:7331/mcp`. Inside a different container, `127.0.0.1` means that other container. This quickstart places the MCP client on the host.
 
@@ -30,7 +30,7 @@ Read the integration-specific error. Reduce batch size and wait according to the
 
 ## Browser unavailable
 
-Use the browser image and profile, not just the core image with a Playwright configuration entry. Verify the sandbox diagnostic for the host platform. Do not disable sandboxing to silence the error.
+Use the browser image and profile, not just the core image with a Playwright configuration entry. Verify the sandbox diagnostic for the host platform. The [browser guide](browser.md#if-the-sandbox-cannot-start) explains the optional Linux AppArmor profile for actual user-namespace denials. Do not disable sandboxing to silence the error.
 
 ## URL denied
 
@@ -42,4 +42,4 @@ Use a flat basename with the correct extension. Choose a new filename if a diffe
 
 ## Where to report a problem
 
-Include the source revision, operating system, Docker and host client versions, the step that failed and a redacted error. Exclude tokens, private config files, cookies, company drafts and account data unless you deliberately intend to share them.
+Include the release version or source revision, image tag/digest, operating system, Docker and host client versions, the step that failed and a redacted error. Exclude tokens, private config files, cookies, company drafts and account data unless you deliberately intend to share them.

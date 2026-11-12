@@ -1,6 +1,6 @@
 # What has been verified
 
-These pages describe the Local MCP source-build preview on the repository's `main` branch. Publishing its documentation does not create a container release. Local mode is not included in `v0.12.0`, and no Plompy Local registry image is published for this preview.
+These pages describe Plompy Local 0.13.0. The release provides separate core and browser images plus a downloadable starter kit. The older `v0.12.0` Discord image does not contain Local mode. A container release does not establish that your model account or third-party API credentials work.
 
 ## Version boundaries
 
@@ -8,12 +8,12 @@ These pages describe the Local MCP source-build preview on the repository's `mai
 | --- | --- |
 | Local runtime | Node 26.13.0 or newer Node 26 |
 | MCP SDK | Pinned by `packages/local-mcp/package-lock.json` |
-| Docker | Source build from `Dockerfile.local` |
+| Docker | `0.13.0-local` and `0.13.0-local-browser`, Linux `amd64` and `arm64` |
 | Host clients | Codex and Claude Code export; explicit OpenCode V1 or V2 config |
 | Local inference | Ollama configuration guide, not tested in this acceptance run |
 | Existing engine OpenCode runner | Independently pinned to 1.19.5 |
 | Browser | Pinned optional Playwright dependency, sandbox enabled |
-| Existing published engine release | 0.12.0, Discord/Codex image |
+| Separate Discord engine image | `0.13.0`, Codex runner inside the engine |
 
 ## Verification levels
 
@@ -29,7 +29,7 @@ The following checks were completed on 12 November 2026. The test sources and re
 
 | Check | Result and boundary |
 | --- | --- |
-| Core and browser Docker images | Both source targets built successfully. No image was pushed to a registry. |
+| Core and browser Docker images | Both source targets built successfully and ran the recorded acceptance checks. Release images and architectures are verified separately by the release workflow. |
 | Real sandboxed browser | Chromium ran as UID 1000 with no sandbox-disabling flag. It read JavaScript-rendered contacts, retained the final source URL, and blocked POST and metadata requests. |
 | Actual Codex 0.159.2 client | An isolated client parsed the generated TOML and completed `plompy_status` against Docker. A deterministic local Responses mock handled two model requests; a completed MCP tool event was asserted. |
 | Actual Claude Code 2.1.197 client | An isolated client completed an authenticated MCP connection health check and reported Connected. No Claude agent/model turn was run. |

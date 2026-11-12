@@ -2,7 +2,7 @@
 
 Plompy Local connects an agent on your computer to selected tools running behind a local MCP endpoint. Your host client, such as Codex, Claude Code or OpenCode, plans the task and writes the response. Plompy handles the enabled integrations and local artifacts.
 
-Plompy Local is a source-build preview on the repository's `main` branch. Build it with `compose.local.yaml`. It is separate from the published `0.12.0` Discord engine image, which does not contain this mode. Check [Compatibility and verification](compatibility.md) for what has actually been tested.
+Plompy Local 0.13.0 ships as ready-made Docker images and a small starter kit. Download it, connect your preferred agent, and choose its tools. The Local images are separate from the Discord engine image. Check [Compatibility and verification](compatibility.md) for what has actually been tested.
 
 ## Pick your starting point
 
@@ -19,7 +19,7 @@ Plompy Local is a source-build preview on the repository's `main` branch. Build 
 | Plompy provides | Selected tools and artifact storage | Queue, runner sessions, memory and recovery |
 | Model credentials in the container | Not required | Required by the selected runner |
 | Discord configuration | Not required | Required |
-| Compose file | `compose.local.yaml` | `compose.yaml` |
+| Compose setup | `compose.yaml` from the Local starter kit | `compose.yaml` from the engine repository |
 
 The local gateway does not start a second model behind your host agent. It does not give Plompy access to every account or tool on your computer.
 

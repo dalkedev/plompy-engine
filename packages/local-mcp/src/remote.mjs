@@ -7,6 +7,7 @@ import { catalog } from '../../../scripts/integrations/catalog.mjs';
 import { safeStreamFetch, assertPublicUrl } from './network.mjs';
 import { LocalError, safeError } from './errors.mjs';
 import { compileSchema } from './schema.mjs';
+import { version } from './version.mjs';
 
 // Never grant a vendor's entire catalog or trust its readOnlyHint as permission.
 export const readTools = Object.freeze({
@@ -82,7 +83,7 @@ export async function connectRemote(id, entry, {artifactsDir, registerSecret = (
   }
   const allowed = entry.allowedTools ?? [];
   if (!allowed.length || (id !== 'custom' && allowed.some(name => !readTools[id]?.includes(name)))) throw new LocalError('UNSUPPORTED');
-  const client = new Client({name:`plompy-local-${id}`,version:'0.1.0'}, {capabilities:{}});
+  const client = new Client({name:`plompy-local-${id}`,version}, {capabilities:{}});
   client.onerror = () => {};
   const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
     fetch:createRemoteFetch(endpoint, headers, {fetchImpl,signal}),

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { browserVersions, releaseMetadata } from './release-metadata.mjs';
+import { browserVersions, releaseMetadata, variantTags } from './release-metadata.mjs';
 
 const metadata = (overrides = {}) => releaseMetadata({ tag: 'v0.2.0', repository: 'Owner/Engine', revision: 'a'.repeat(40), versions: ['0.2.0', '0.2.0'], ...overrides });
 
@@ -36,4 +36,15 @@ test('the browser lock version participates in release consistency checks', () =
   assert.deepEqual(browserVersions({ project, lock }), ['0.2.0', '0.2.0']);
   assert.throws(() => metadata({ versions: browserVersions({ project, lock: lock.replace('version = "0.2.0"', 'version = "0.1.0"') }) }), /must agree/);
   assert.throws(() => browserVersions({ project, lock: '' }), /exactly one/);
+});
+
+
+test('local variants retain exact and architecture-independent revision tags without moving engine aliases', () => {
+  const result = metadata();
+  assert.equal(variantTags(result, 'local'), 'ghcr.io/owner/engine:0.2.0-local,ghcr.io/owner/engine:sha-aaaaaaaaaaaa-local,ghcr.io/owner/engine:0.2-local,ghcr.io/owner/engine:latest-local');
+  assert.equal(variantTags(result, 'local-browser'), 'ghcr.io/owner/engine:0.2.0-local-browser,ghcr.io/owner/engine:sha-aaaaaaaaaaaa-local-browser,ghcr.io/owner/engine:0.2-local-browser,ghcr.io/owner/engine:latest-local-browser');
+  assert.throws(() => variantTags(result, 'engine'), /Unsupported/);
+  assert.throws(() => variantTags({tags: 'ghcr.io/owner/engine:' + 'x'.repeat(128)}, 'local'), /length/);
+  const preview = metadata({tag:'v0.3.0-rc.1', versions:['0.3.0-rc.1']});
+  assert.equal(variantTags(preview, 'local').includes('latest'), false);
 });

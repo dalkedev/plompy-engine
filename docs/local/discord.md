@@ -1,8 +1,8 @@
 # Discord mode is still here
 
-The original engine accepts tasks from private Discord threads, stores work in a durable queue and launches a coding runner. That deployment uses `compose.yaml`, its private environment file, its runner credentials and its own volumes.
+The original engine accepts tasks from private Discord threads, stores work in a durable queue and launches a coding runner. That deployment uses the engine repository's `compose.yaml`, its private environment file, its runner credentials and its own volumes.
 
-The new local gateway uses `compose.local.yaml` and does not require a Discord token or channel. It does not start, migrate or restart your existing Discord bot.
+The Local starter kit has its own `compose.yaml` in a separate directory and uses the `local` or `local-browser` service. Source developers use `compose.local.yaml` from the repository. Local mode does not require a Discord token or channel. It does not start, migrate or restart your existing Discord bot.
 
 ## Existing documentation
 

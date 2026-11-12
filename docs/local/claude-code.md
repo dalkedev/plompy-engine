@@ -5,7 +5,7 @@ Run the [Docker quickstart](quickstart.md) first. Claude Code keeps its own mode
 ## Generate a configuration fragment
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs --mode local claude-code
 ```
 
@@ -43,7 +43,7 @@ Choose the configuration scope appropriate to your project. Inspect an existing 
 In a private terminal with shell tracing disabled:
 
 ```sh
-export PLOMPY_LOCAL_TOKEN="$(docker compose -f compose.local.yaml exec -T local cat /var/lib/plompy-local/secrets/access-token)"
+export PLOMPY_LOCAL_TOKEN="$(docker compose exec -T local cat /var/lib/plompy-local/secrets/access-token)"
 claude
 ```
 

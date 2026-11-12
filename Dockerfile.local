@@ -1,9 +1,13 @@
 # syntax=docker/dockerfile:1
 FROM node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS local-base
+ARG VERSION=0.13.0
+ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Plompy Local MCP" \
       org.opencontainers.image.description="Local integration tools for an external MCP client" \
       org.opencontainers.image.source="https://github.com/dalkedev/plompy-engine" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates gh libatomic1 tini \
     && rm -rf /var/lib/apt/lists/*

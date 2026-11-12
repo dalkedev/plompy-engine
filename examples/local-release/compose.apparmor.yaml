@@ -1,0 +1,13 @@
+# Optional on Linux hosts that deny Chromium's unprivileged user namespaces.
+# First install docker-local-apparmor as described in README.md.
+services:
+  local:
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./docker-browser-seccomp.json
+      - apparmor=plompy-local-container
+  local-browser:
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./docker-browser-seccomp.json
+      - apparmor=plompy-local-container

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.13.0 (2026-11-12): Local tools for your agent
+
+- Add an authenticated local MCP gateway for independently running Codex, Claude Code, OpenCode and compatible clients, without Discord or a second model account in the container.
+- Publish prebuilt `0.13.0-local` and `0.13.0-local-browser` variants for Linux amd64 and arm64, with a standalone Compose download. The existing default image remains the Discord/Codex engine.
+- Provide bounded public page reads, optional sandboxed Chromium, selected read-only integration tools and durable CSV, JSON and Markdown artifacts. Keep email sending and arbitrary shell/browser execution outside the research profile.
+- Export client-specific configuration with environment references for the local access token. Document optional Ollama model hosting, integration credentials, source-backed research and verification limits at [plompy.dev/docs](https://plompy.dev/docs/).
+- Test each release image's actual OCI runtime before registry promotion, retain provenance and SBOMs, and publish the tested bytes without rebuilding.
+- Retain existing Discord behavior, SQLite schema 6, private volumes and recovery semantics. No private deployment or client account is changed automatically.
+
 ## 0.12.0 (2026-11-11): Plompy Engine
 
 - Rebrand the project, repository links, packages, CLI, configuration examples and container to **plompy-engine**.

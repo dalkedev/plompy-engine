@@ -20,7 +20,7 @@ COPY packages/mcp-bridge/package.json packages/mcp-bridge/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS runtime
-ARG VERSION=0.12.0
+ARG VERSION=0.13.0
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Plompy Engine" \
       org.opencontainers.image.description="Self-hosted Discord agent engine with durable jobs and private Markdown memory" \

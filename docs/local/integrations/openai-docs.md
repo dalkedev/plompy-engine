@@ -5,12 +5,22 @@ This integration connects to the public official developer-documentation MCP ser
 ## Set up
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs add openai-docs --mode local \
   --tools search_openai_docs,fetch_openai_doc
 ```
 
 The catalog uses `https://developers.openai.com/mcp`. No model account is installed in Plompy by this action. Only the explicitly selected documentation tools are exposed.
+
+## Apply the configuration
+
+After adding the integration and any required credential, restart the gateway and reconnect the host client so it discovers the updated tools:
+
+```sh
+docker compose restart local
+```
+
+Use `local-browser` instead of `local` if the browser service is running. A configuration change does not update an already running gateway automatically.
 
 ## Try it
 

@@ -7,7 +7,7 @@ PostHog can help an agent inspect an existing product's analytics. It does not a
 For project discovery, enable the fixed read tool explicitly:
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs add posthog --mode local \
   --auth api-key --tools projects-get
 ```
@@ -15,6 +15,16 @@ docker compose -f compose.local.yaml exec local \
 Other permitted names are `event-definitions-list`, `insights-get-all`, `insight-get`, `dashboards-get-all` and `dashboard-get`, when the upstream actually advertises them. Select only the tools needed for your task. Provide a scoped personal API key through the credential workflow. Do not expose an entire account's catalog automatically.
 
 The gateway reuses the fixed PostHog destination and read-only request header from the managed bridge. Its local tool allowlist remains a separate restriction.
+
+## Apply the configuration
+
+After adding the integration and any required credential, restart the gateway and reconnect the host client so it discovers the updated tools:
+
+```sh
+docker compose restart local
+```
+
+Use `local-browser` instead of `local` if the browser service is running. A configuration change does not update an already running gateway automatically.
 
 ## Try it
 

@@ -1,6 +1,6 @@
 {
   "name": "@plompy/local-mcp",
-  "version": "0.1.0",
+  "version": "0.13.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=26.13.0 <27" },

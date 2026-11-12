@@ -1,23 +1,47 @@
 # Run locally with Docker
 
-Build the Local MCP preview from the repository's `main` branch. These commands build from source; they do not pull a published Plompy Local image. Do not use the `v0.12.0` release tag for this quickstart.
+Run Plompy Local 0.13.0 using ready-made container images. No source checkout, Node installation or local build is needed.
 
 ## Before you start
 
-Install Git and Docker with Compose. Choose a host MCP client such as Codex, Claude Code or OpenCode, with its usual model access configured. The Plompy container does not need model credentials or a Discord token. See [Requirements](requirements.md).
+Install Docker with Compose. Choose a host MCP client such as Codex, Claude Code or OpenCode, with its usual model access configured. The Plompy container does not need model credentials or a Discord token. See [Requirements](requirements.md).
 
-Clone the source into a new directory, then build the core gateway:
+## Download the starter kit
+
+Run these commands in a terminal on macOS or Linux, or a WSL shell with Docker access on Windows. Choose a new private directory:
 
 ```sh
-git clone --depth 1 https://github.com/dalkedev/plompy-engine.git
-cd plompy-engine
-docker compose -f compose.local.yaml build local
+mkdir -m 700 plompy-local
+cd plompy-local
+curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz \
+  -o plompy-local-0.13.0.tar.gz
 ```
+
+Optionally verify the downloaded archive against the release checksum before extracting it:
+
+```sh
+curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz.sha256 \
+  -o plompy-local-0.13.0.tar.gz.sha256
+shasum -a 256 -c plompy-local-0.13.0.tar.gz.sha256
+```
+
+The check must report `OK`. On Linux, `sha256sum -c plompy-local-0.13.0.tar.gz.sha256` is an alternative. If verification fails, stop and obtain a fresh copy of the release assets.
+
+Extract the kit and pull its core image:
+
+```sh
+tar -xzf plompy-local-0.13.0.tar.gz
+docker compose pull local
+```
+
+The kit includes `compose.yaml`, browser security profiles and example agent instructions. Its core image is `ghcr.io/dalkedev/plompy-engine:0.13.0-local`, available for Linux `amd64` and `arm64`. Keep running the commands below from this directory. Do not replace an existing Discord deployment's Compose file with this one.
+
+Prefer to build it yourself? Use the separate [source-build guide](source-build.md).
 
 ## Initialize the private volumes
 
 ```sh
-docker compose -f compose.local.yaml run --rm local \
+docker compose run --rm -T local \
   node scripts/integrations.mjs init --mode local
 ```
 
@@ -26,8 +50,8 @@ Initialization creates a private configuration and local access token. It preser
 ## Start the gateway
 
 ```sh
-docker compose -f compose.local.yaml up -d local
-docker compose -f compose.local.yaml exec local \
+docker compose up -d local
+docker compose exec -T local \
   node scripts/integrations.mjs status --mode local
 ```
 
@@ -36,7 +60,7 @@ The default endpoint is `http://127.0.0.1:7331/mcp`. Docker publishes it on host
 ## Check the local protocol
 
 ```sh
-docker compose -f compose.local.yaml exec local \
+docker compose exec -T local \
   node scripts/integrations.mjs test --mode local
 ```
 
@@ -71,6 +95,12 @@ A configured entry, a connected server and a completed tool call are separate ch
 
 For a company-research task, enable one search provider. [Firecrawl](integrations/firecrawl.md) supports a limited keyless path and a separately configured API-key path. [Perplexity](integrations/perplexity.md) requires your own API access. Review their costs before running an external test.
 
+After adding an integration or supplying its key, restart the selected gateway service and reconnect your client so it discovers the updated tools:
+
+```sh
+docker compose restart local
+```
+
 Add the [browser profile](browser.md) only if the pages you need require a rendered browser. Basic public page fetching is available in the core profile.
 
 ## Try a bounded task
@@ -84,3 +114,14 @@ Plompy's artifact tools. Do not send messages or invent missing contacts.
 ```
 
 Inspect the sources and drafts yourself. Expand to 30 companies once the small task produces useful evidence. See [the complete research example](research.md).
+
+## Retrieve your results
+
+Exported files persist in their own Docker volume. Copy them to a private host folder to review them:
+
+```sh
+mkdir -m 700 plompy-results
+docker compose cp local:/var/lib/plompy-local/artifacts/. ./plompy-results/
+```
+
+Use `local-browser` instead of `local` if that is the running service. See [Files and exports](artifacts.md) for supported formats and overwrite rules.
