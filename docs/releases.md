@@ -1,5 +1,7 @@
 # Releases and container images
 
+Browse the [public release history](https://plompy.dev/docs/releases/) for a page per published version. This guide covers distribution, upgrades and the maintainer workflow.
+
 A release is a versioned public source snapshot and a set of container images. It does not update an existing private deployment automatically. The [changelog](../CHANGELOG.md) records user-visible changes; the [Docker guide](docker.md) explains initial setup and private volumes.
 
 ## Choose an image
@@ -57,7 +59,7 @@ The [release workflow](../.github/workflows/release.yml) runs only on `v*` tag p
 
 The workflow also builds the allowlisted Local starter kit and its SHA-256 checksum, without including source state or credentials. The original tested OCI archives and their digest reports are retained as workflow artifacts for one day. A separate publishing job receives `packages: write` after all checks succeed. It revalidates the archive hashes, labels, runtime and attestation subjects, copies every manifest with `skopeo --preserve-digests`, and combines the unchanged amd64/arm64 runtime and attestation manifests into the release index. It does not rebuild the application or reinstall its dependencies. The final index is checked against the complete tested manifest set before its digest is recorded. Publishing uses the job's short-lived GitHub token; no personal registry token is needed. If retained artifacts have expired, rerun the complete workflow so both architectures are rebuilt and retested.
 
-After the workflow succeeds, inspect the published manifest and digest, pull the exact images without authentication to confirm public availability, and create the GitHub release with the relevant changelog entry and immutable image references. Attach the generated Local starter kit and its checksum. The workflow deliberately does not create a release announcement before the image has been verified. GitHub may initially create a GHCR package as private; check its package visibility for the first publication before documenting anonymous installation.
+After the workflow succeeds, inspect the published manifest and digest, pull the exact images without authentication to confirm public availability, and create the GitHub release with the relevant changelog entry and immutable image references. Attach the generated Local starter kit and its checksum. Then refresh the [release-history catalog](releases/README.md) and rebuild the website documentation from the canonical changelog. The workflow deliberately does not create a release announcement before the image has been verified. GitHub may initially create a GHCR package as private; check its package visibility for the first publication before documenting anonymous installation.
 
 The tag validator accepts SemVer versions with an optional prerelease, without build metadata (`+...`, which is not a Docker tag character). Release metadata and tag-selection behavior have their own offline test:
 

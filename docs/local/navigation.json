@@ -17,6 +17,14 @@
       "group": "Start here"
     },
     {
+      "slug": "releases",
+      "source": "releases.md",
+      "title": "Release history",
+      "description": "Every published Plompy release, with changes, downloads and historical boundaries.",
+      "group": "Start here",
+      "kind": "release-index"
+    },
+    {
       "slug": "architecture",
       "source": "architecture.md",
       "title": "How it works",
@@ -219,5 +227,6 @@
       "description": "Keep autonomous remote browser actions outside the first research profile.",
       "group": "Integrations"
     }
-  ]
+  ],
+  "releaseHistory": true
 }

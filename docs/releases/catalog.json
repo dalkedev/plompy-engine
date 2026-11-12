@@ -1,0 +1,192 @@
+{
+  "schema": 1,
+  "repository": "dalkedev/plompy-engine",
+  "checkedAt": "2026-11-12T16:54:05.526Z",
+  "latestStableTag": "v0.13.0",
+  "releases": [
+    {
+      "tag": "v0.13.0",
+      "title": "Local MCP, ready-made Docker images",
+      "publishedAt": "2026-11-12T16:45:24Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.13.0",
+      "assets": [
+        {
+          "name": "plompy-local-0.13.0.tar.gz",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz",
+          "size": 11923
+        },
+        {
+          "name": "plompy-local-0.13.0.tar.gz.sha256",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz.sha256",
+          "size": 93
+        }
+      ]
+    },
+    {
+      "tag": "v0.12.0",
+      "title": "small fish, your whole machine",
+      "publishedAt": "2026-11-11T22:43:20Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.12.0",
+      "assets": [
+        {
+          "name": "plompy-engine-brand-kit.zip",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.12.0/plompy-engine-brand-kit.zip",
+          "size": 3568562
+        }
+      ]
+    },
+    {
+      "tag": "v0.11.1",
+      "title": "unattended Playwright",
+      "publishedAt": "2026-11-10T17:44:33Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.11.1",
+      "assets": []
+    },
+    {
+      "tag": "v0.11.0",
+      "title": "browser, research and analytics tools",
+      "publishedAt": "2026-11-10T16:08:54Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.11.0",
+      "assets": []
+    },
+    {
+      "tag": "v0.10.0",
+      "title": "Node 26 LTS",
+      "publishedAt": "2026-11-10T14:05:58Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.10.0",
+      "assets": [
+        {
+          "name": "image-verification.json",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.10.0/image-verification.json",
+          "size": 1080
+        },
+        {
+          "name": "published-index.json",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.10.0/published-index.json",
+          "size": 1611
+        }
+      ]
+    },
+    {
+      "tag": "v0.9.0",
+      "title": "install, inspect, verify",
+      "publishedAt": "2026-11-10T11:24:06Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.9.0",
+      "assets": [
+        {
+          "name": "image-verification.json",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.9.0/image-verification.json",
+          "size": 1078
+        },
+        {
+          "name": "published-index.json",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.9.0/published-index.json",
+          "size": 1611
+        }
+      ]
+    },
+    {
+      "tag": "v0.8.1",
+      "title": "safe goal recovery under queue pressure",
+      "publishedAt": "2026-11-09T21:36:45Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.8.1",
+      "assets": []
+    },
+    {
+      "tag": "v0.8.0",
+      "title": "evidence for every reviewed step",
+      "publishedAt": "2026-11-09T17:25:59Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.8.0",
+      "assets": []
+    },
+    {
+      "tag": "v0.7.0",
+      "title": "supervised goals",
+      "publishedAt": "2026-11-07T21:29:16Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.7.0",
+      "assets": []
+    },
+    {
+      "tag": "v0.6.1",
+      "title": "Release 0.6.1",
+      "publishedAt": "2026-11-06T19:40:59Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.6.1",
+      "assets": []
+    },
+    {
+      "tag": "v0.6.0",
+      "title": "integrations and recovery without losing the thread",
+      "publishedAt": "2026-11-06T16:49:02Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.6.0",
+      "assets": []
+    },
+    {
+      "tag": "v0.5.0",
+      "title": "Private Discord image input",
+      "publishedAt": "2026-11-05T18:37:57Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.5.0",
+      "assets": []
+    },
+    {
+      "tag": "v0.4.0",
+      "title": "Provider-bound runners and offline demos",
+      "publishedAt": "2026-11-05T16:14:11Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.4.0",
+      "assets": []
+    },
+    {
+      "tag": "v0.3.1",
+      "title": "Recovery and clock-safe workflows",
+      "publishedAt": "2026-11-05T14:37:45Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.3.1",
+      "assets": []
+    },
+    {
+      "tag": "v0.3.0",
+      "title": "Durable bounded work sessions",
+      "publishedAt": "2026-11-04T19:55:02Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.3.0",
+      "assets": [
+        {
+          "name": "release-manifest-0.3.0.json",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.3.0/release-manifest-0.3.0.json",
+          "size": 1245
+        }
+      ]
+    },
+    {
+      "tag": "v0.2.0",
+      "title": "Release 0.2.0",
+      "publishedAt": "2026-11-04T19:20:04Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.2.0",
+      "assets": [
+        {
+          "name": "release-manifest.json",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.2.0/release-manifest.json",
+          "size": 774
+        },
+        {
+          "name": "szpont-engine-brand-kit.zip",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.2.0/szpont-engine-brand-kit.zip",
+          "size": 1647770
+        }
+      ]
+    }
+  ]
+}
