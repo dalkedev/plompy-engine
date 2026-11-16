@@ -18,7 +18,7 @@ Private Markdown context that survives the conversation.
 
 </div>
 
-plompy-engine connects a private Discord forum to coding agents on your own Linux machine.
+[Plompy](https://plompy.dev/) connects a private Discord forum to coding agents on your own Linux machine.
 Send a task, follow up in the same thread, and return to a saved result. The engine keeps the
 runner session, accepted work and recovery state together, so a disconnected client does not
 mean starting the conversation again.
