@@ -1,9 +1,28 @@
 {
   "schema": 1,
   "repository": "dalkedev/plompy-engine",
-  "checkedAt": "2026-11-18T09:32:36.365Z",
-  "latestStableTag": "v0.13.0",
+  "checkedAt": "2026-11-18T18:51:46.869Z",
+  "latestStableTag": "v0.13.1",
   "releases": [
+    {
+      "tag": "v0.13.1",
+      "title": "Configurable Local MCP port",
+      "publishedAt": "2026-11-18T18:51:31Z",
+      "prerelease": false,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v0.13.1",
+      "assets": [
+        {
+          "name": "plompy-local-0.13.1.tar.gz",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.13.1/plompy-local-0.13.1.tar.gz",
+          "size": 13129
+        },
+        {
+          "name": "plompy-local-0.13.1.tar.gz.sha256",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v0.13.1/plompy-local-0.13.1.tar.gz.sha256",
+          "size": 93
+        }
+      ]
+    },
     {
       "tag": "v1.0.0-alpha.1",
       "title": "Personal assistant preview",
