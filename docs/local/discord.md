@@ -1,6 +1,8 @@
-# Discord mode is still here
+# Run Plompy from Discord
 
 The original engine accepts tasks from private Discord threads, stores work in a durable queue and launches a coding runner. That deployment uses the engine repository's `compose.yaml`, its private environment file, its runner credentials and its own volumes.
+
+The [personal assistant preview](personal-assistant.md) adds notes, tasks and one-time reminders in a dedicated thread in the configured private forum. It requires the `1.0.0-alpha.1` engine image and explicit opt-in.
 
 The Local starter kit has its own `compose.yaml` in a separate directory and uses the `local` or `local-browser` service. Source developers use `compose.local.yaml` from the repository. Local mode does not require a Discord token or channel. It does not start, migrate or restart your existing Discord bot.
 

@@ -7,6 +7,8 @@
 - Record confirmed, failed, overdue and uncertain delivery attempts. The owner chooses a lateness window before enabling the assistant.
 - Keep assistant data in its own versioned SQLite file. The coding engine continues to use schema 6.
 
+[Set up the personal assistant and verify reminder delivery](https://plompy.dev/docs/personal-assistant/).
+
 ## 0.13.0 (2026-11-12): Local tools for your agent
 
 - Add an authenticated local MCP gateway for independently running Codex, Claude Code, OpenCode and compatible clients, without Discord or a second model account in the container.

@@ -10,11 +10,13 @@ One CLI session per thread. A durable queue for accepted work.
 Private Markdown context that survives the conversation.
 
 [![Offline checks](https://github.com/dalkedev/plompy-engine/actions/workflows/checks.yml/badge.svg)](https://github.com/dalkedev/plompy-engine/actions/workflows/checks.yml)
-[![Release](https://img.shields.io/github/v/release/dalkedev/plompy-engine?color=FF6B35&labelColor=111315)](https://github.com/dalkedev/plompy-engine/releases)
+[![Stable release](https://img.shields.io/github/v/release/dalkedev/plompy-engine?color=FF6B35&label=stable&labelColor=111315)](https://github.com/dalkedev/plompy-engine/releases/latest)
 [![Node.js 26](https://img.shields.io/badge/Node.js-26-111315?logo=nodedotjs&logoColor=F3F0E8)](package.json)
 [![MIT license](https://img.shields.io/badge/license-MIT-FF6B35?labelColor=111315)](LICENSE)
 
-[Quick start](#quick-start) · [Supervised goals](#from-a-task-to-a-reviewed-change) · [See it work](#see-it-work) · [Runners](#choose-a-runner) · [Documentation](docs/index.md)
+[Quick start](#quick-start) · [Personal assistant](#personal-assistant-preview) · [Supervised goals](#from-a-task-to-a-reviewed-change) · [See it work](#see-it-work) · [Runners](#choose-a-runner) · [Documentation](docs/index.md)
+
+**[Personal assistant prerelease · 1.0.0-alpha.1](https://github.com/dalkedev/plompy-engine/releases/tag/v1.0.0-alpha.1)**
 
 </div>
 
@@ -85,11 +87,20 @@ integrations, and print the appropriate client configuration without embedding s
 The public edition has **one global worker** for coding agents. Work sessions yield between verified steps.
 Still-image input and supervised goals use Codex.
 
-The [personal assistant preview](docs/personal-assistant.md) adds notes, tasks, follow-up
-questions and one-time reminders in a dedicated private Discord thread. The reminder
-scheduler runs independently of the coding worker.
+## Personal assistant preview
+
+Plompy **1.0.0-alpha.1** adds an opt-in personal assistant for the Discord engine.
+Set aside one thread in your private forum for notes, open tasks and one-time reminders.
+Use built-in Polish or English phrases, or type `!assistant help` for the command list.
+Plompy saves follow-up questions in SQLite and checks reminders independently of the
+coding worker. These operations run without a model call.
+
+[Enable and verify the assistant](docs/personal-assistant.md) ·
+[Read the web guide](https://plompy.dev/docs/personal-assistant/)
 
 ## Quick start
+
+The stable quick start below uses **0.13.0**.
 
 You need Linux, **Node.js 26.13.0+ (26.x LTS)**, Git, `flock`, your own Discord bot and an authenticated runner.
 The default path below uses Codex CLI **0.166.0**.

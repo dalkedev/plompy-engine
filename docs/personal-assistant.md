@@ -1,19 +1,23 @@
 # Personal assistant preview
 
-Plompy 1.0.0-alpha.1 can keep notes, tasks, and one-time reminders in a dedicated
-thread in the existing private Discord forum. The assistant recognizes built-in
-Polish and English phrases and explicit commands. It handles those operations
-without sending the conversation to a model or occupying the coding worker.
+The [Plompy 1.0.0-alpha.1 prerelease](https://github.com/dalkedev/plompy-engine/releases/tag/v1.0.0-alpha.1)
+adds an opt-in personal assistant to the Discord engine. The server owner can keep
+notes, tasks and one-time reminders in a dedicated thread in the existing private
+forum. The assistant handles supported Polish and English phrases and explicit
+commands without a model call or a slot in the coding queue.
 
 ## Enable the assistant
 
-1. Use the supported public engine on Node 26.13.0 or later within Node 26. Verify
-   compatibility and backups before changing a private fork or its runtime.
-2. Create a separate thread in the private forum already configured for Plompy.
-   Restrict forum access to the owner and bot, and review server administrator
-   access. The bot must be able to read the thread and send messages.
-3. Add the following to the private service environment file. Replace the
-   synthetic ID and select your locale, IANA time zone, and lateness window.
+1. Start with a working [Discord engine installation](deployment.md) in the server
+   you own. Use the alpha image for Docker or the `v1.0.0-alpha.1` source tag
+   on Node 26.13.0 or later within Node 26. Follow [backup and rollback](#backup-and-rollback)
+   before changing versions.
+2. Create a separate post in the private forum already configured for Plompy and
+   copy the post's thread ID. The bot needs access to read the thread and send
+   messages. Restrict forum access to the owner and bot, and review administrator
+   access.
+3. Add these values to the engine's private environment file. Replace the example
+   thread ID. Choose the locale, time zone and delivery window for your installation.
 
    ```dotenv
    PLOMPY_ASSISTANT_THREAD_ID=555555555555555555
@@ -22,18 +26,42 @@ without sending the conversation to a model or occupying the coding worker.
    PLOMPY_ASSISTANT_MAX_LATE_MINUTES=60
    ```
 
-4. Start the tested version under the existing instance lock. With Compose, use a
-   single engine service and set `PLOMPY_IMAGE` to the tested alpha image or build
-   the alpha checkout. Use the same private environment file as the service.
-5. Check the startup event for `"assistant":true`. To test the feature, the
-   owner can save a synthetic note, ask for a reminder tomorrow, then answer
-   the follow-up with a time. For a short reminder use
-   `!assistant remind in 1 minute | Check the test timer`.
+4. Restart a single engine instance under the existing instance lock. For
+   [Docker](docker.md), run these commands from the existing Compose project
+   with `PLOMPY_ENV_FILE` set to that private file. Keep the existing project name
+   and volumes.
 
-Keep the assistant in its own thread. The server owner and configured forum
-are checked using the engine's existing identity settings. The assistant uses
-its chosen thread for incoming commands and every delivery, including retries.
-Discord mentions are disabled for replies and reminders.
+   ```sh
+   export PLOMPY_IMAGE=ghcr.io/dalkedev/plompy-engine:1.0.0-alpha.1
+   docker compose config --quiet
+   docker compose pull engine
+   docker compose up -d --no-build engine
+   docker compose logs --tail=50 engine
+   ```
+
+| Setting | Accepted values and behavior |
+| --- | --- |
+| `PLOMPY_ASSISTANT_THREAD_ID` | Thread ID inside the configured forum. Set it to enable the assistant. |
+| `PLOMPY_ASSISTANT_LOCALE` | `en` (default) or `pl`. Selects reply language. |
+| `PLOMPY_ASSISTANT_TIME_ZONE` | IANA time zone such as `Europe/Warsaw`. Defaults to `UTC`. |
+| `PLOMPY_ASSISTANT_MAX_LATE_MINUTES` | Required when enabled. An integer from 1 to 1440 minutes after the scheduled time. |
+
+Commands must come from the configured server owner in the selected thread.
+The assistant posts replies, reminders and eligible retries to that same thread
+with Discord mentions disabled.
+
+## Verify the installation
+
+1. Check the engine logs for the `ready` event with `"assistant":true`.
+2. As the server owner, open the configured thread and type `!assistant help`.
+   Expect a command list in reply.
+3. Send `!assistant remind in 1 minute | Check the test timer`. Plompy replies with
+   a reminder ID and due time. Wait for the separate reminder message in the thread.
+4. Run `!assistant reminders` and find the same ID with status **accepted by Discord**.
+
+If startup fails after enabling the assistant, check that the chosen ID belongs to a
+thread under the configured forum and the bot can access it. Check the environment
+values and ownership of any existing `assistant.sqlite` before retrying.
 
 ## Use the thread
 
@@ -61,8 +89,8 @@ message. Use a 24-hour time. For a repeated hour at the end of daylight
 saving time, give the matching offset explicitly, for example
 `02:30 UTC+01:00`. For a skipped hour, choose a different time.
 
-This preview handles the supported phrases and commands. Lists display up to
-12 entries. The command help is always available as `!assistant help`.
+Lists display up to 12 entries. This preview accepts text and supports one-time
+reminders and tasks without deadlines. Type `!assistant help` for the command list.
 
 ## Delivery and recovery
 
@@ -74,7 +102,8 @@ send attempt has already started.
 
 - Discord accepting the message records the receipt. The owner can see that
   delivery state without relying on the model.
-- A definite rate-limit rejection can be retried, up to three total attempts.
+- A definite rate-limit rejection or a transient error before dispatch can be
+  retried, up to three total attempts within the delivery window.
   An uncertain send or crash during a send becomes **delivery uncertain**.
   Check the thread before replacing an uncertain reminder.
 - After downtime, reminders within the configured window can still be sent.

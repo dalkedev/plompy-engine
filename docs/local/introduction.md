@@ -4,13 +4,14 @@ Plompy Local connects an agent on your computer to selected tools running behind
 
 Plompy Local 0.13.0 ships as ready-made Docker images and a small starter kit. Download it, connect your preferred agent, and choose its tools. The Local images are separate from the Discord engine image. Check [Compatibility and verification](compatibility.md) for what has actually been tested.
 
-See [what shipped in each release](releases.md), including the current 0.13.0 Local images.
+The Discord engine also offers an opt-in personal assistant in `1.0.0-alpha.1`. It keeps notes, tasks and one-time reminders in a dedicated private thread. See [what shipped in each release](releases.md) for the stable and prerelease versions.
 
 ## Pick your starting point
 
 - [Run locally with Docker](quickstart.md): start the tools gateway, connect a client, and try a small task.
 - [Research companies and draft messages](research.md): gather public evidence and save drafts without connecting a mailbox.
-- [Use the existing Discord engine](discord.md): let Plompy run a coding agent from your private Discord threads.
+- [Run coding jobs from Discord](discord.md): let Plompy run a coding agent from your private Discord threads.
+- [Try the personal assistant preview](personal-assistant.md): enable a dedicated Discord thread and verify a reminder end to end.
 
 ## Two ways to use Plompy
 
@@ -25,8 +26,10 @@ See [what shipped in each release](releases.md), including the current 0.13.0 Lo
 
 The local gateway does not start a second model behind your host agent. It does not give Plompy access to every account or tool on your computer.
 
+The personal assistant runs inside the Discord engine. It uses built-in Polish and English phrases and stores its own data in SQLite. Its reminder timer runs independently of coding jobs and model availability.
+
 ## What stays with you
 
-Configuration, gateway credentials and generated files live in separate Docker volumes. You choose which integrations to enable. External search services and your model provider may receive task data when you use them. Read [Permissions and data flow](security.md) before connecting accounts.
+In Plompy Local, configuration, gateway credentials and generated files live in separate Docker volumes. You choose which integrations to enable. External search services and your model provider may receive task data when you use them. Read [Permissions and data flow](security.md) before connecting accounts.
 
 No Plompy subscription or account is needed. Model access and third-party integrations may have their own charges.

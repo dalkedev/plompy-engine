@@ -1,12 +1,12 @@
 {
-  "version": "Plompy Local 0.13.0",
-  "updated": "2026-11-12",
+  "version": "Plompy Engine and Local",
+  "updated": "2026-11-18",
   "pages": [
     {
       "slug": "",
       "source": "introduction.md",
       "title": "Introduction",
-      "description": "Choose the local tools gateway or the existing Discord agent engine.",
+      "description": "Set up the local MCP gateway, the Discord coding engine or the personal assistant preview.",
       "group": "Start here"
     },
     {
@@ -132,9 +132,18 @@
     {
       "slug": "discord",
       "source": "discord.md",
-      "title": "Existing Discord mode",
+      "title": "Discord engine",
       "description": "Keep the original runner engine and the new local tools gateway separate.",
-      "group": "Operate"
+      "group": "Operate",
+      "kind": "discord-engine"
+    },
+    {
+      "slug": "personal-assistant",
+      "source": "personal-assistant.md",
+      "title": "Personal assistant preview",
+      "description": "Enable private notes, tasks and one-time Discord reminders in Plompy 1.0.0-alpha.1. Verify delivery and preserve state.",
+      "group": "Operate",
+      "kind": "discord-engine"
     },
     {
       "slug": "compatibility",

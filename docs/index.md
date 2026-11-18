@@ -9,6 +9,13 @@ your own Linux machine. The public edition runs one shared worker. Start with Co
 Claude Code and OpenCode are experimental host adapters, and the published Docker
 image supports Codex only.
 
+## Personal assistant preview
+
+[Plompy 1.0.0-alpha.1](https://github.com/dalkedev/plompy-engine/releases/tag/v1.0.0-alpha.1)
+adds notes, tasks, pending questions and one-time reminders to a dedicated private
+thread. The [assistant runbook](personal-assistant.md) covers setup, verification,
+delivery after downtime and rollback.
+
 ## Plompy Local 0.13.0
 
 [Plompy Local](local/introduction.md) adds selected tools in Docker for a host agent,
