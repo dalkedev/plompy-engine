@@ -10,9 +10,10 @@ x-local: &local
     # syscalls are allowed without privileged mode or container capabilities.
     - seccomp=./scripts/docker-browser-seccomp.json
   ports:
-    - "127.0.0.1:7331:7331"
+    - "127.0.0.1:${PLOMPY_LOCAL_HOST_PORT:-7331}:7331"
   environment:
     PLOMPY_LOCAL_CONFIG: /var/lib/plompy-local/config/config.json
+    PLOMPY_LOCAL_HOST_PORT: "${PLOMPY_LOCAL_HOST_PORT:-}"
   volumes:
     - local-config:/var/lib/plompy-local/config
     - local-secrets:/var/lib/plompy-local/secrets

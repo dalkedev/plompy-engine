@@ -14,7 +14,7 @@ async function setup(t, options={}) {
   const root=await mkdtemp(join(await realpath(tmpdir()),'plompy-local-server-'));
   const config={schemaVersion:1,server:{host:'127.0.0.1',port:7331,allowedHosts:['127.0.0.1:7331'],allowedOrigins:[]},tokenFile:join(root,'secrets','token'),artifactsDir:join(root,'artifacts'),integrations:{web:{enabled:true},...options.integrations}};
   await mkdir(config.artifactsDir,{mode:0o700});
-  const instance=await startServer(config,{token,port:0,toolOptions:options.toolOptions,requestMs:options.requestMs});
+  const instance=await startServer(config,{token,port:0,publishedPort:options.publishedPort,toolOptions:options.toolOptions,requestMs:options.requestMs});
   const origin=`http://127.0.0.1:${instance.address.port}`;
   config.server.allowedHosts=[new URL(origin).host];
   const clients=[];
@@ -46,6 +46,22 @@ test('auth, Host, Origin, exact endpoint, methods and JSON limits fail closed',a
   assert.equal((await fetch(origin+'/mcp',{headers})).status,405);
   assert.equal((await fetch(origin+'/mcp',{method:'POST',headers,body:'bad-json'})).status,400);
   assert.equal((await fetch(origin+'/mcp',{method:'POST',headers,body:JSON.stringify({data:'x'.repeat(2_097_152)})})).status,413);
+});
+test('the published port accepts only configured loopback authorities and still requires auth', async t => {
+  const { origin } = await setup(t, { publishedPort: 17331 });
+  const health = (host, headers = {}) => new Promise((resolve, reject) => {
+    const request = httpRequest(`${origin}/health`, { headers: { Host: host, ...headers } }, response => {
+      response.resume();
+      resolve(response.statusCode);
+    });
+    request.on('error', reject).end();
+  });
+  const auth = { Authorization: `Bearer ${token}` };
+  assert.equal(await health('127.0.0.1:17331', auth), 200);
+  assert.equal(await health('127.0.0.1:17331'), 401);
+  assert.equal(await health('127.0.0.1:17331', { ...auth, Origin: 'http://127.0.0.1:17331' }), 403);
+  assert.equal(await health('localhost:17331', auth), 403);
+  assert.equal(await health('example.test:17331', auth), 403);
 });
 test('unknown tools, incorrect schemas, paths and credential export are refused',async t=>{
   const {connect}=await setup(t);const client=await connect();

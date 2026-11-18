@@ -17,7 +17,24 @@ docker compose -f compose.local.yaml exec -T local \
 
 The repository's `compose.local.yaml` builds `Dockerfile.local` and uses development image names. The repository's plain `compose.yaml` starts the separate Discord engine. Always keep `-f compose.local.yaml` on source-build commands.
 
-The Local source Compose project and downloaded starter kit both use the project name `plompy-local`. Do not start both at once. For an independent development instance, choose a different project name and host port and initialize separate volumes. Do not accidentally reuse production credentials or artifacts.
+The Local source Compose project and downloaded starter kit both default to the project name `plompy-local`. Use a different project name and loopback port for an independent development instance with its own volumes.
+
+## Use a different host port
+
+This requires a source revision or starter kit that supports `PLOMPY_LOCAL_HOST_PORT`; published 0.13.0 and 1.0.0-alpha.1 use a fixed port. Choose an available TCP port from `1024` to `65535` and set it in the local Compose `.env` file. Use a unique Compose project name for a second instance. For example, with a separate checkout of current source, set:
+
+```dotenv
+COMPOSE_PROJECT_NAME=plompy-local-dev
+PLOMPY_LOCAL_HOST_PORT=17331
+```
+
+Build and start with `-f compose.local.yaml` as above. To apply the port to a running installation, run `docker compose -f compose.local.yaml up -d --force-recreate local` using its existing project name. Docker still publishes only on `127.0.0.1`. Private config, the access token and artifacts stay in their volumes. Check the actual port and regenerate your client fragment before reconnecting:
+
+```sh
+sh scripts/check-local-host.sh local -f compose.local.yaml
+docker compose -f compose.local.yaml exec -T local \
+  node scripts/integrations.mjs codex --mode local
+```
 
 ## Build the browser variant
 

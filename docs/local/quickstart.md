@@ -50,9 +50,7 @@ Initialization creates a private configuration and local access token. It preser
 ## Start the gateway
 
 ```sh
-docker compose up -d local
-docker compose exec -T local \
-  node scripts/integrations.mjs status --mode local
+docker compose up -d --wait local
 ```
 
 The default endpoint is `http://127.0.0.1:7331/mcp`. Docker publishes it on host loopback only. The process listens on the container interface so the published port is reachable. A normal browser visit is not a connection test: the endpoint requires MCP and a bearer token.
@@ -64,11 +62,22 @@ docker compose exec -T local \
   node scripts/integrations.mjs test --mode local
 ```
 
-This initializes MCP and calls local status. It deliberately avoids remote tool discovery and does not contact vendors or a model.
+This initializes MCP and calls local status inside the container. It uses no model or vendor account.
+
+## Check the connection from your host
+
+In the terminal that runs Docker, check whether the published gateway responds:
+
+```sh
+curl --disable --noproxy '*' --silent --show-error --output /dev/null \
+  --max-time 10 --write-out 'HTTP %{http_code}\n' http://127.0.0.1:7331/health
+```
+
+`HTTP 401` is expected for this request without a token. It confirms HTTP reachability from the host. Continue to the client check to verify its authorization. If your kit includes `check-local-host.sh`, `sh check-local-host.sh local` verifies host reachability with the local token and prints the MCP URL. See [Troubleshooting](troubleshooting.md) if either check fails.
 
 ## Connect your agent
 
-The gateway is client-neutral. Choose the configuration for your installed client:
+Choose the configuration for the local CLI you launch on the same machine as Docker:
 
 - [Codex](codex.md): Streamable HTTP with a bearer-token environment reference.
 - [Claude Code](claude-code.md): HTTP MCP with an environment-based authorization header.
@@ -90,6 +99,18 @@ Do not search the web yet.
 ```
 
 A configured entry, a connected server and a completed tool call are separate checks. A model-powered tool call may consume your client model allowance.
+
+## Save your first result
+
+Try one known public page with the built-in tools. This example needs no search integration or browser profile:
+
+```text
+Use Plompy's web_fetch to read https://plompy.dev/docs/. Save the page title,
+returned source URL and checked_at as one record in plompy-first-result.json
+with artifacts_export. Read the saved file with artifacts_read and show me the record.
+```
+
+The result stays in the Local artifact volume. Use the copy command under [Retrieve your results](#retrieve-your-results) to open it on your host.
 
 ## Add one search integration
 

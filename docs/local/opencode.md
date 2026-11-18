@@ -10,7 +10,7 @@ opencode --version
 
 OpenCode V1 places entries directly under `mcp` and uses `enabled`. V2 places them under `mcp.servers` and uses `disabled`. Do not combine these schemas. The existing Discord runner is independently pinned to OpenCode `1.19.5`; that does not upgrade your host client.
 
-Generate the matching fragment:
+Generate the matching fragment from the running service. If you use a supported Compose port override, use the returned URL in place of `7331` in the examples.
 
 ```sh
 docker compose exec -T local \
@@ -45,6 +45,7 @@ docker compose exec -T local \
         "type": "remote",
         "url": "http://127.0.0.1:7331/mcp",
         "oauth": false,
+        "disabled": false,
         "headers": {
           "Authorization": "Bearer {env:PLOMPY_LOCAL_TOKEN}"
         }

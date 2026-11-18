@@ -25,7 +25,7 @@ The output is:
 }
 ```
 
-Claude Code expands the environment variable in the header. Preserve the literal `${PLOMPY_LOCAL_TOKEN}` reference when saving JSON; do not expand it into a real token in a shell-generated file. Merge the entry with your existing MCP configuration rather than overwriting it. The generator is print-only.
+Claude Code expands the environment variable in the header. Preserve the literal `${PLOMPY_LOCAL_TOKEN}` reference when saving JSON. Merge the entry with your existing MCP configuration. If you use a supported Compose port override, use the URL from the generated fragment in either setup path.
 
 ## Register with the CLI
 

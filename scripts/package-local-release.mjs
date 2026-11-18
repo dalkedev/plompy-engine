@@ -14,6 +14,7 @@ const sources = {
   'compose.yaml': 'examples/local-release/compose.template.yaml',
   'compose.apparmor.yaml': 'examples/local-release/compose.apparmor.yaml',
   'README.md': 'examples/local-release/README.md',
+  'check-local-host.sh': 'scripts/check-local-host.sh',
   'opencode-v1.json': 'examples/local-release/opencode-v1.json',
   'opencode-v2.json': 'examples/local-release/opencode-v2.json',
   'codex.toml': 'examples/local-release/codex.toml',

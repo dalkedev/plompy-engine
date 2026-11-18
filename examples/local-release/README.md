@@ -14,13 +14,22 @@ From the directory containing this file and `compose.yaml`:
 ```sh
 docker compose pull local
 docker compose run --rm -T local node scripts/integrations.mjs init --mode local
-docker compose up -d local
+docker compose up -d --wait local
 docker compose exec -T local node scripts/integrations.mjs test --mode local
+sh check-local-host.sh local
 ```
 
 The authenticated endpoint is `http://127.0.0.1:7331/mcp`. Only host loopback is
 published. Private configuration, secrets and artifacts persist in named volumes.
-The default diagnostic calls no model or external provider.
+The container check initializes MCP and calls `plompy_status`. The host check uses `curl`
+to verify the authenticated Docker publication and prints the URL to use in the client.
+Both checks run without a model or external provider account.
+
+If port `7331` is occupied, set `PLOMPY_LOCAL_HOST_PORT=17331` (or another free port
+from `1024` to `65535`) in this Compose project's `.env` file before starting it.
+For an existing installation, keep its project name and apply the changed port with
+`docker compose up -d --force-recreate local`. The access token and results remain
+in their volumes. Generate fresh client fragments for the new URL.
 
 ## Connect OpenCode
 
@@ -31,9 +40,9 @@ V2 uses a different configuration shape. Print the matching fragment:
 docker compose exec -T local node scripts/integrations.mjs opencode --client-version v1 --mode local
 ```
 
-Merge `opencode-v1.json` into your current `opencode.json` (or use the V2 file for
-that client). Preserve existing model, provider, MCP and permission settings.
-These files are examples, not a command to overwrite an existing configuration.
+Merge the generated fragment into your current `opencode.json`. Use `--client-version v2`
+if your client uses that schema. The included example files use the default port.
+Preserve existing model, provider, MCP and permission settings.
 In a private terminal with shell tracing disabled, give the token to the client
 without displaying or storing it in the project:
 
@@ -44,6 +53,9 @@ opencode
 ```
 
 Ask OpenCode: "Call plompy_status and report available tools. Do not search yet."
+To save a first result using built-in tools, ask it to use `web_fetch` on
+`https://plompy.dev/docs/`, export the title and returned URL to
+`plompy-first-result.json`, and read the saved file back.
 Then configure one search integration if the task requires discovery. Your
 client's model access and each integration's API allowance remain separate.
 After adding an integration, restart `local` and reconnect your client.
@@ -70,6 +82,7 @@ docker compose --profile browser pull local-browser
 docker compose --profile browser run --rm -T local-browser node scripts/integrations.mjs add playwright --mode local
 docker compose --profile browser up -d local-browser
 docker compose exec -T local-browser node scripts/integrations.mjs test --mode local
+sh check-local-host.sh local-browser --profile browser
 ```
 
 Use `local-browser` in subsequent exec/token commands. Chromium's sandbox stays

@@ -8,6 +8,16 @@ export const integrationIds = ['web', 'playwright', 'github', 'perplexity', 'fir
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 const path = value => typeof value === 'string' && isAbsolute(value) && resolve(value) !== '/' && !/[\x00-\x1f\x7f]/.test(value);
 const require = (ok, message) => { if (!ok) throw new Error(message); };
+
+export function publishedLoopbackPort(env = process.env) {
+  const value = env.PLOMPY_LOCAL_HOST_PORT;
+  if (value === undefined || value === '') return undefined;
+  const port = Number(value);
+  require(/^\d{4,5}$/.test(value) && String(port) === value && port >= 1024 && port <= 65535,
+    'PLOMPY_LOCAL_HOST_PORT must be an integer from 1024 to 65535.');
+  return port;
+}
+
 export function validateConfig(config) {
   require(plain(config) && config.schemaVersion === 1, 'Expected Plompy Local configuration schemaVersion 1.');
   require(Object.keys(config).every(key => ['schemaVersion','server','tokenFile','artifactsDir','integrations'].includes(key)), 'Unknown local configuration field.');
