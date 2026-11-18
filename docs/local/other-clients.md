@@ -18,7 +18,7 @@ The generator commands contain no real token. They do not copy model logins, pro
 
 ## Requirements for another client
 
-A compatible client must support MCP Streamable HTTP, the endpoint `http://127.0.0.1:7331/mcp`, and an `Authorization: Bearer` header supplied through its private credential mechanism. It must support MCP initialization, discovery and tool calls.
+A compatible client must support MCP Streamable HTTP, the gateway's host endpoint (`http://127.0.0.1:7331/mcp` by default), and an `Authorization: Bearer` header supplied through its private credential mechanism. It must support MCP initialization, discovery and tool calls.
 
 Keep the token outside checked-in project configuration. If a client only accepts literal secrets in a shared file or cannot attach an authorization header, do not weaken gateway authentication to make it connect.
 
@@ -30,6 +30,6 @@ Do not publish port 7331 to the internet as a shortcut. Choose a deliberately se
 
 ## Test one layer at a time
 
-First run the [gateway protocol check](quickstart.md#check-the-local-protocol). Then verify the client's connection and ask it to call `plompy_status`. Finally enable and test one integration with a small task.
+Run the [gateway protocol check](quickstart.md#check-the-local-protocol) and the [host reachability check](quickstart.md#check-the-connection-from-your-host). Then verify the client's connection and ask it to call `plompy_status`. Finally enable and test one integration with a small task.
 
 An MCP-compatible label is not evidence that every client version has been tested. Read [Compatibility and verification](compatibility.md) for the exact clients and acceptance limits.

@@ -24,21 +24,31 @@ reproduce. Rebuilding later can pick up newer Debian security packages.
 
 ## First start
 
-Install Docker Engine with the Compose plugin. Clone the public source and copy
-`.env.example` to an absolute private file **outside** the checkout. Replace the token
-and Discord IDs, then restrict the file to your account:
+Install Docker Engine with the Compose plugin. Prepare a bot and private forum in
+a Discord server you own. The [configuration guide](configuration.md) lists the
+required permissions and four Discord IDs.
+
+Use the stable release checkout to get the engine Compose file:
+
+```sh
+git clone --branch v0.13.0 --depth 1 https://github.com/dalkedev/plompy-engine.git
+cd plompy-engine
+```
+
+Copy `.env.example` to an absolute private file **outside** the checkout. Replace
+the token and Discord IDs, then restrict the file to your account:
 
 ```sh
 chmod 600 /absolute/private/plompy.env
 export PLOMPY_ENV_FILE=/absolute/private/plompy.env
 export PLOMPY_IMAGE=ghcr.io/dalkedev/plompy-engine:0.13.0
 docker compose config --quiet
-docker compose pull
+docker compose pull engine
 docker compose run --rm engine init
 docker compose run --rm engine sandbox-check
 docker compose run --rm -it engine login
 docker compose run --rm engine login-status
-docker compose up -d --no-build
+docker compose up -d --no-build engine
 docker compose logs --tail=50 engine
 ```
 

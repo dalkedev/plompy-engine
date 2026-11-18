@@ -11,8 +11,10 @@ import { compileSchema } from './schema.mjs';
 import { version } from './version.mjs';
 
 export const limits = {requestBytes:2_097_152,responseBytes:2_097_152,concurrent:4,requestMs:45_000};
-export async function startServer(config, {token:injectedToken,toolOptions={},port:injectedPort,requestMs=limits.requestMs}={}) {
+export async function startServer(config, {token:injectedToken,toolOptions={},port:injectedPort,publishedPort,requestMs=limits.requestMs}={}) {
   validateConfig(config);
+  const publishedHosts = publishedPort === undefined ? [] :
+    config.server.allowedHosts.map(host => host.replace(/:\d+$/, `:${publishedPort}`));
   const token = injectedToken ?? (await readCredential(config.tokenFile,{excluded:[config.artifactsDir]})).token;
   if (token.length < 32) throw new Error('Access token must contain at least 32 random characters. Run local init.');
   const secrets = new Set([token]);
@@ -39,7 +41,8 @@ export async function startServer(config, {token:injectedToken,toolOptions={},po
   const http=createServer(async(req,res)=>{
     // Check authority before bearer credentials. Reject duplicate sensitive headers.
     const count=name=>req.rawHeaders.filter((part,index)=>index%2===0&&part.toLowerCase()===name).length;
-    if(count('host')!==1||!config.server.allowedHosts.includes(req.headers.host))return json(res,403,{error:'Host not allowed.'});
+    const hostAllowed = config.server.allowedHosts.includes(req.headers.host) || publishedHosts.includes(req.headers.host);
+    if(count('host')!==1||!hostAllowed)return json(res,403,{error:'Host not allowed.'});
     if(count('origin')>1||(req.headers.origin!==undefined&&!config.server.allowedOrigins.includes(req.headers.origin)))return json(res,403,{error:'Origin not allowed.'});
     const supplied=Buffer.from(req.headers.authorization??'');const expected=Buffer.from(`Bearer ${token}`);
     if(count('authorization')!==1||supplied.length!==expected.length||!timingSafeEqual(supplied,expected))return json(res,401,{error:'Valid local bearer token required.'});

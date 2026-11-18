@@ -23,9 +23,11 @@ test('standalone download contains only allowlisted public files, pinned images 
     const compose = await file('compose.yaml');
     assert.match(compose, /^name: plompy-local/m);
     assert.ok(compose.includes(`ghcr.io/dalkedev/plompy-engine:${result.version}-local-browser`));
-    assert.ok(compose.includes('127.0.0.1:7331:7331'));
+    assert.ok(compose.includes('127.0.0.1:${PLOMPY_LOCAL_HOST_PORT:-7331}:7331'));
+    assert.ok(compose.includes('PLOMPY_LOCAL_HOST_PORT: "${PLOMPY_LOCAL_HOST_PORT:-}"'));
     assert.ok(!/\bbuild:|@VERSION@|docker\.sock|privileged:\s*true/.test(compose));
     assert.ok(listing.includes('docker-browser-seccomp.json') && listing.includes('docker-local-apparmor'));
+    assert.ok(listing.includes('check-local-host.sh'));
     const v1 = JSON.parse(await file('opencode-v1.json'));
     assert.equal(v1.mcp.plompy.headers.Authorization, 'Bearer {env:PLOMPY_LOCAL_TOKEN}');
     const v2 = JSON.parse(await file('opencode-v2.json'));
