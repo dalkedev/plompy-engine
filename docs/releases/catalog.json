@@ -1,9 +1,28 @@
 {
   "schema": 1,
   "repository": "dalkedev/plompy-engine",
-  "checkedAt": "2026-11-12T16:54:05.526Z",
+  "checkedAt": "2026-11-18T09:32:36.365Z",
   "latestStableTag": "v0.13.0",
   "releases": [
+    {
+      "tag": "v1.0.0-alpha.1",
+      "title": "Personal assistant preview",
+      "publishedAt": "2026-11-18T09:32:21Z",
+      "prerelease": true,
+      "url": "https://github.com/dalkedev/plompy-engine/releases/tag/v1.0.0-alpha.1",
+      "assets": [
+        {
+          "name": "plompy-local-1.0.0-alpha.1.tar.gz",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v1.0.0-alpha.1/plompy-local-1.0.0-alpha.1.tar.gz",
+          "size": 11925
+        },
+        {
+          "name": "plompy-local-1.0.0-alpha.1.tar.gz.sha256",
+          "url": "https://github.com/dalkedev/plompy-engine/releases/download/v1.0.0-alpha.1/plompy-local-1.0.0-alpha.1.tar.gz.sha256",
+          "size": 100
+        }
+      ]
+    },
     {
       "tag": "v0.13.0",
       "title": "Local MCP, ready-made Docker images",
