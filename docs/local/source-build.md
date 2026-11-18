@@ -5,7 +5,7 @@ The [starter kit](quickstart.md) is the shortest route to a running gateway. Use
 ## Check out the release
 
 ```sh
-git clone --branch v0.13.0 --depth 1 https://github.com/dalkedev/plompy-engine.git
+git clone --branch v0.13.1 --depth 1 https://github.com/dalkedev/plompy-engine.git
 cd plompy-engine
 docker compose -f compose.local.yaml build local
 docker compose -f compose.local.yaml run --rm -T local \
@@ -21,7 +21,7 @@ The Local source Compose project and downloaded starter kit both default to the 
 
 ## Use a different host port
 
-This requires a source revision or starter kit that supports `PLOMPY_LOCAL_HOST_PORT`; published 0.13.0 and 1.0.0-alpha.1 use a fixed port. Choose an available TCP port from `1024` to `65535` and set it in the local Compose `.env` file. Use a unique Compose project name for a second instance. For example, with a separate checkout of current source, set:
+Choose an available TCP port from `1024` to `65535` and set `PLOMPY_LOCAL_HOST_PORT` in the local Compose `.env` file. Use a unique Compose project name for a second instance. For example, with a separate checkout, set:
 
 ```dotenv
 COMPOSE_PROJECT_NAME=plompy-local-dev

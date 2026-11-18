@@ -15,7 +15,7 @@ Use `local-browser` if that is your selected service. The second command should 
 
 ## Port already in use
 
-Core and browser share the same published port and volumes. Stop the variant you are switching away from. The published 0.13.0 and 1.0.0-alpha.1 kits require port `7331` to be free. If you need both an existing application on `7331` and a Plompy gateway, use a [source revision or kit that supports an alternate port](source-build.md#use-a-different-host-port). Keep the loopback binding and regenerate the client fragment after changing the port.
+Core and browser share the same published port and volumes. Stop the variant you are switching away from. In the 0.13.1 kit, select a free port from `1024` to `65535` and add or update `PLOMPY_LOCAL_HOST_PORT=17331` (using your chosen number) in the Compose project's `.env` file. Start the service using the existing project name, run `sh check-local-host.sh local`, and regenerate the client configuration for the printed URL. The 0.13.0 and 1.0.0-alpha.1 kits require port `7331`. See [maintenance](maintenance.md) for upgrading an existing kit.
 
 ## Unauthorized or forbidden
 

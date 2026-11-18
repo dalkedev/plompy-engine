@@ -16,13 +16,13 @@ adds notes, tasks, pending questions and one-time reminders to a dedicated priva
 thread. The [assistant runbook](personal-assistant.md) covers setup, verification,
 delivery after downtime and rollback.
 
-## Plompy Local 0.13.0
+## Plompy Local 0.13.1
 
 [Plompy Local](local/introduction.md) adds selected tools in Docker for a host agent,
 without Discord setup. Start with the [local Docker quickstart](local/quickstart.md),
 then [connect Codex, Claude Code, OpenCode or another MCP client](local/other-clients.md).
 [Ollama](local/ollama.md) is an optional local model provider for a compatible agent.
-The 0.13.0 starter kit pulls ready-made core or browser images for Linux amd64/arm64.
+The 0.13.1 starter kit pulls ready-made core or browser images for Linux amd64/arm64.
 These are separate from the Discord engine image. Read the
 [verification record](local/compatibility.md) for tested boundaries, or
 [build from source](local/source-build.md) for development.

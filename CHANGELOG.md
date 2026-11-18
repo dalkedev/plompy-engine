@@ -9,6 +9,13 @@
 
 [Set up the personal assistant and verify reminder delivery](https://plompy.dev/docs/personal-assistant/).
 
+## 0.13.1 (2026-11-18): Local Docker onboarding
+
+- Set `PLOMPY_LOCAL_HOST_PORT` in the Compose project to choose a free loopback port. Plompy retains its container port, access token, configuration and artifacts.
+- Generate matching MCP URLs for Codex CLI, Claude Code and OpenCode. Run the starter kit's authenticated host check to verify the published port before registering a client.
+- Follow the updated quickstart from gateway status to a saved JSON artifact using the built-in tools.
+- The Discord engine keeps the 0.13.0 runtime behavior, Codex runner and SQLite schema 6.
+
 ## 0.13.0 (2026-11-12): Local tools for your agent
 
 - Add an authenticated local MCP gateway for independently running Codex, Claude Code, OpenCode and compatible clients, without Discord or a second model account in the container.
