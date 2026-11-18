@@ -314,6 +314,7 @@ export interface Incoming {
   content: string;
   attachments: number;
   images?: IncomingImage[];
+  replyToId?: string;
 }
 export function authorized(
   message: Incoming,

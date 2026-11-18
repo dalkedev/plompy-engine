@@ -98,9 +98,10 @@ these operations. No remote credential or push implementation is included.
 
 ## Deliberate limits
 
-One worker; one configured server owner; text and bounded still-image intake; no REST history catch-up; no
-scheduler; no built-in public posting destination or receipt broker. Extending these requires
-explicit authority checks, durable state and regression tests at the new boundary.
+One coding worker, one configured server owner, and text and bounded still-image intake.
+The [personal assistant preview](personal-assistant.md) has its own SQLite database and a
+timer limited to explicit one-time reminders in the configured owner thread. It does not
+read Discord history or schedule runner jobs.
 
 ## Provider-bound sessions
 

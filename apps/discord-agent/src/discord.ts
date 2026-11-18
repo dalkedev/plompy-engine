@@ -4,11 +4,16 @@ import {
   ChannelType,
   PermissionFlagsBits,
   AttachmentBuilder,
+  DiscordAPIError,
   Events,
+  HTTPError,
+  RateLimitError,
+  RequestMethod,
   type Message,
 } from "discord.js";
 import { redact, type Config, type Incoming } from "./config.js";
 import type { Transport } from "./engine.js";
+import type { ReminderSendResult } from "./assistant-delivery.js";
 export function splitMessage(text: string, max = 1800): string[] {
   const chunks: string[] = [];
   let rest = text;
@@ -25,16 +30,28 @@ export function splitMessage(text: string, max = 1800): string[] {
   return chunks.length ? chunks : ["Completed."];
 }
 export class DiscordTransport implements Transport {
-  readonly client = new Client({
-    intents: [
-      GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.MessageContent,
-    ],
-    allowedMentions: { parse: [], repliedUser: false },
-    rest: { retries: 0, timeout: 15000 },
-  });
-  constructor(private config: Config) {}
+  readonly client: Client;
+  constructor(
+    private config: Config,
+    assistantThreadId?: string,
+  ) {
+    this.client = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+      ],
+      allowedMentions: { parse: [], repliedUser: false },
+      rest: {
+        retries: 0,
+        timeout: 15000,
+        rejectOnRateLimit: ({ method, majorParameter, route }) =>
+          method.toUpperCase() === RequestMethod.Post &&
+          route === "/channels/:id/messages" &&
+          majorParameter === assistantThreadId,
+      },
+    });
+  }
   async validate(): Promise<void> {
     if (this.client.user?.id !== this.config.botId)
       throw new Error("Wrong bot identity");
@@ -107,6 +124,44 @@ export class DiscordTransport implements Transport {
     const channel = await this.thread(threadId);
     await channel.sendTyping();
   }
+  async sendReminder(
+    threadId: string,
+    text: string,
+  ): Promise<ReminderSendResult> {
+    let thread: Awaited<ReturnType<DiscordTransport["thread"]>>;
+    try {
+      await this.validate();
+      thread = await this.thread(threadId);
+    } catch (error) {
+      if (error instanceof RateLimitError)
+        return { kind: "retry", retryAfterMs: error.retryAfter };
+      if (
+        ((error instanceof DiscordAPIError || error instanceof HTTPError) &&
+          error.status >= 500) ||
+        error instanceof TypeError ||
+        (error instanceof Error &&
+          ["AbortError", "TimeoutError"].includes(error.name))
+      )
+        return { kind: "retry" };
+      return { kind: "failed" };
+    }
+    try {
+      const message = await thread.send({
+        content: redact(text, this.config.token),
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+      return { kind: "sent", messageId: message.id };
+    } catch (error) {
+      if (error instanceof RateLimitError)
+        return { kind: "retry", retryAfterMs: error.retryAfter };
+      if (error instanceof DiscordAPIError || error instanceof HTTPError) {
+        if (error.status === 429) return { kind: "retry" };
+        if (error.status >= 400 && error.status < 500 && error.status !== 408)
+          return { kind: "failed" };
+      }
+      return { kind: "ambiguous" };
+    }
+  }
   onMessage(handler: (message: Incoming) => Promise<unknown>): void {
     this.client.on(Events.MessageCreate, (message: Message) => {
       const channel = message.channel;
@@ -121,6 +176,9 @@ export class DiscordTransport implements Transport {
         thread: channel.isThread(),
         content: message.content,
         attachments: message.attachments.size,
+        ...(message.reference?.messageId
+          ? { replyToId: message.reference.messageId }
+          : {}),
         images: [...message.attachments.values()].map((attachment) => ({
           id: attachment.id,
           url: attachment.url,

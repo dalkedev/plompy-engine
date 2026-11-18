@@ -6,9 +6,13 @@ import { Store } from "./store.js";
 import { Engine } from "./engine.js";
 import { DiscordTransport } from "./discord.js";
 import { assertSupportedRuntime } from "./node-runtime.js";
+import { loadAssistantSettings, PersonalAssistant } from "./assistant.js";
+import { AssistantStore } from "./assistant-store.js";
+import { ReminderScheduler } from "./assistant-delivery.js";
 async function main(): Promise<void> {
   assertSupportedRuntime();
   const config = loadConfig();
+  const assistantSettings = loadAssistantSettings();
   // The token remains only in the transport's memory and never enters child envs.
   delete process.env.DISCORD_BOT_TOKEN;
   delete process.env.PLOMPY_GIT_SSH_COMMAND;
@@ -25,22 +29,65 @@ async function main(): Promise<void> {
   await realpath(config.workspace);
   await cleanupStaleImages(config.stateDir);
   const store = new Store(join(config.stateDir, "agent.sqlite"));
-  const recovered = store.recoverStartup();
-  const transport = new DiscordTransport(config),
+  const transport = new DiscordTransport(config, assistantSettings?.threadId),
     engine = new Engine(config, store, transport);
   let ready = false;
-  transport.onMessage((message) =>
-    ready ? engine.accept(message) : Promise.resolve(false),
-  );
+  let assistantStore: AssistantStore | undefined;
+  let assistant: PersonalAssistant | undefined;
+  let scheduler: ReminderScheduler | undefined;
+  const reportAssistantFailure = () =>
+    console.error(
+      JSON.stringify({ event: "assistant_delivery", status: "error" }),
+    );
+  transport.onMessage(async (message) => {
+    if (!ready) return false;
+    if (assistant && (await assistant.handle(message))) return true;
+    return engine.accept(message);
+  });
+  let recovered: ReturnType<Store["recoverStartup"]>;
   try {
+    recovered = store.recoverStartup();
     await transport.connect();
+    if (assistantSettings) {
+      await transport.thread(assistantSettings.threadId);
+      assistantStore = new AssistantStore(
+        join(config.stateDir, "assistant.sqlite"),
+        {
+          ownerId: config.ownerId,
+          threadId: assistantSettings.threadId,
+          zone: assistantSettings.zone,
+        },
+      );
+      assistant = new PersonalAssistant(
+        config,
+        assistantSettings,
+        assistantStore,
+        transport,
+      );
+      scheduler = new ReminderScheduler(
+        assistantStore,
+        transport.sendReminder.bind(transport),
+        {
+          ...assistantSettings,
+          onError: reportAssistantFailure,
+        },
+      );
+      scheduler.start();
+    }
   } catch (error) {
     transport.close();
+    assistantStore?.close();
     store.close();
     throw error;
   }
   ready = true;
-  console.log(JSON.stringify({ event: "ready", interruptedJobs: recovered }));
+  console.log(
+    JSON.stringify({
+      event: "ready",
+      interruptedJobs: recovered,
+      assistant: !!assistant,
+    }),
+  );
   void engine.kick();
   const tick = setInterval(() => {
     void engine.kick();
@@ -52,9 +99,11 @@ async function main(): Promise<void> {
     ready = false;
     clearInterval(tick);
     engine.stop();
+    await scheduler?.stop().catch(reportAssistantFailure);
     while (engine.isBusy())
       await new Promise((resolve) => setTimeout(resolve, 100));
     transport.close();
+    assistantStore?.close();
     store.close();
   };
   process.on("SIGTERM", () => {
