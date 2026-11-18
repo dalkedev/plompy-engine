@@ -3,7 +3,7 @@
 ## On your computer
 
 - Docker Engine or Docker Desktop with Docker Compose.
-- The [0.13.0 Local starter kit](quickstart.md), downloaded with `curl` and extracted with `tar` or equivalent tools.
+- The [0.13.1 Local starter kit](quickstart.md), downloaded with `curl` and extracted with `tar` or equivalent tools.
 - A compatible host MCP client, such as Codex, Claude Code or OpenCode, configured with a model you can use.
 - A free host port, `7331` by default.
 
@@ -23,9 +23,9 @@ Each external integration has separate requirements. A model subscription is not
 
 ## Choose the correct image
 
-- `ghcr.io/dalkedev/plompy-engine:0.13.0-local`: core MCP gateway, public web reads, integrations and artifacts.
-- `ghcr.io/dalkedev/plompy-engine:0.13.0-local-browser`: the same gateway plus sandboxed Chromium.
-- `ghcr.io/dalkedev/plompy-engine:0.13.0`: the separate Discord/Codex engine.
+- `ghcr.io/dalkedev/plompy-engine:0.13.1-local`: core MCP gateway, public web reads, integrations and artifacts.
+- `ghcr.io/dalkedev/plompy-engine:0.13.1-local-browser`: the same gateway plus sandboxed Chromium.
+- `ghcr.io/dalkedev/plompy-engine:0.13.1`: the separate Discord/Codex engine.
 
 The starter kit selects the Local images. You do not need Git, Node or a compiler on the host. For development or an inspected source revision, use [Build from source](source-build.md).
 

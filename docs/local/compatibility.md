@@ -1,6 +1,6 @@
 # What has been verified
 
-These pages describe Plompy Local 0.13.0. The release provides separate core and browser images plus a downloadable starter kit. The older `v0.12.0` Discord image does not contain Local mode. A container release does not establish that your model account or third-party API credentials work.
+These pages describe Plompy Local 0.13.1. The release updates Docker setup and keeps the gateway profile and client capabilities introduced in 0.13.0. The acceptance record below identifies the exact versions tested. A container release does not establish that your model account or third-party API credentials work.
 
 ## Version boundaries
 
@@ -8,12 +8,12 @@ These pages describe Plompy Local 0.13.0. The release provides separate core and
 | --- | --- |
 | Local runtime | Node 26.13.0 or newer Node 26 |
 | MCP SDK | Pinned by `packages/local-mcp/package-lock.json` |
-| Docker | `0.13.0-local` and `0.13.0-local-browser`, Linux `amd64` and `arm64` |
+| Docker | `0.13.1-local` and `0.13.1-local-browser`, Linux `amd64` and `arm64` |
 | Host clients | Codex and Claude Code export; explicit OpenCode V1 or V2 config |
 | Local inference | Ollama configuration guide, not tested in this acceptance run |
 | Existing engine OpenCode runner | Independently pinned to 1.19.5 |
 | Browser | Pinned optional Playwright dependency, sandbox enabled |
-| Separate Discord engine image | `0.13.0`, Codex runner inside the engine |
+| Separate Discord engine image | `0.13.1`, Codex runner inside the engine |
 
 ## Verification levels
 

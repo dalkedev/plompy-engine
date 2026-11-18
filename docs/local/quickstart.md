@@ -1,6 +1,6 @@
 # Run locally with Docker
 
-Run Plompy Local 0.13.0 using ready-made container images. No source checkout, Node installation or local build is needed.
+Run Plompy Local 0.13.1 using ready-made container images. No source checkout, Node installation or local build is needed.
 
 ## Before you start
 
@@ -13,28 +13,28 @@ Run these commands in a terminal on macOS or Linux, or a WSL shell with Docker a
 ```sh
 mkdir -m 700 plompy-local
 cd plompy-local
-curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz \
-  -o plompy-local-0.13.0.tar.gz
+curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.1/plompy-local-0.13.1.tar.gz \
+  -o plompy-local-0.13.1.tar.gz
 ```
 
 Optionally verify the downloaded archive against the release checksum before extracting it:
 
 ```sh
-curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz.sha256 \
-  -o plompy-local-0.13.0.tar.gz.sha256
-shasum -a 256 -c plompy-local-0.13.0.tar.gz.sha256
+curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.1/plompy-local-0.13.1.tar.gz.sha256 \
+  -o plompy-local-0.13.1.tar.gz.sha256
+shasum -a 256 -c plompy-local-0.13.1.tar.gz.sha256
 ```
 
-The check must report `OK`. On Linux, `sha256sum -c plompy-local-0.13.0.tar.gz.sha256` is an alternative. If verification fails, stop and obtain a fresh copy of the release assets.
+The check must report `OK`. On Linux, `sha256sum -c plompy-local-0.13.1.tar.gz.sha256` is an alternative. If verification fails, stop and obtain a fresh copy of the release assets.
 
 Extract the kit and pull its core image:
 
 ```sh
-tar -xzf plompy-local-0.13.0.tar.gz
+tar -xzf plompy-local-0.13.1.tar.gz
 docker compose pull local
 ```
 
-The kit includes `compose.yaml`, browser security profiles and example agent instructions. Its core image is `ghcr.io/dalkedev/plompy-engine:0.13.0-local`, available for Linux `amd64` and `arm64`. Keep running the commands below from this directory. Do not replace an existing Discord deployment's Compose file with this one.
+The kit includes `compose.yaml`, browser security profiles and example agent instructions. Its core image is `ghcr.io/dalkedev/plompy-engine:0.13.1-local`, available for Linux `amd64` and `arm64`. Keep running the commands below from this directory. Do not replace an existing Discord deployment's Compose file with this one.
 
 Prefer to build it yourself? Use the separate [source-build guide](source-build.md).
 
@@ -48,6 +48,8 @@ docker compose run --rm -T local \
 Initialization creates a private configuration and local access token. It preserves existing configuration. Secrets are stored separately from artifacts.
 
 ## Start the gateway
+
+The kit uses host port `7331` by default. To use a different port, add `PLOMPY_LOCAL_HOST_PORT=17331` to the Compose project's `.env` before starting. Choose an available port from `1024` to `65535`.
 
 ```sh
 docker compose up -d --wait local
@@ -66,14 +68,11 @@ This initializes MCP and calls local status inside the container. It uses no mod
 
 ## Check the connection from your host
 
-In the terminal that runs Docker, check whether the published gateway responds:
-
 ```sh
-curl --disable --noproxy '*' --silent --show-error --output /dev/null \
-  --max-time 10 --write-out 'HTTP %{http_code}\n' http://127.0.0.1:7331/health
+sh check-local-host.sh local
 ```
 
-`HTTP 401` is expected for this request without a token. It confirms HTTP reachability from the host. Continue to the client check to verify its authorization. If your kit includes `check-local-host.sh`, `sh check-local-host.sh local` verifies host reachability with the local token and prints the MCP URL. See [Troubleshooting](troubleshooting.md) if either check fails.
+The host check uses the local token to verify the Docker publication and prints the exact MCP URL. Continue to the client check to verify its authorization. If port `7331` is occupied, use [the alternate port instructions](troubleshooting.md#port-already-in-use).
 
 ## Connect your agent
 

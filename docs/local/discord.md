@@ -5,7 +5,7 @@ The original engine accepts tasks from private Discord threads, stores work in a
 ## Start the stable Discord engine
 
 1. Prepare a Discord bot and a private forum in a server you own. Enable Message Content Intent and copy your server, owner, bot and forum IDs. See [Discord configuration](https://github.com/dalkedev/plompy-engine/blob/main/docs/configuration.md) for permissions.
-2. Use Git to clone release `v0.13.0` for its Compose file and follow the [Docker engine first start](https://github.com/dalkedev/plompy-engine/blob/v0.13.0/docs/docker.md#first-start). The Docker image uses Codex. For a Linux service using an experimental Claude Code or OpenCode runner, follow [host deployment](https://github.com/dalkedev/plompy-engine/blob/main/docs/deployment.md).
+2. Use Git to clone release `v0.13.1` for its Compose file and follow the [Docker engine first start](https://github.com/dalkedev/plompy-engine/blob/v0.13.1/docs/docker.md#first-start). The Docker image uses Codex. For a Linux service using an experimental Claude Code or OpenCode runner, follow [host deployment](https://github.com/dalkedev/plompy-engine/blob/main/docs/deployment.md).
 3. After the structured `ready` event, run the [first private code goal](https://github.com/dalkedev/plompy-engine/blob/main/docs/first-goal.md#use-the-supplied-acceptance-project).
 
 If you already run the engine, use your existing private environment and volumes. For an upgrade from before 0.12, follow the [migration guide](https://github.com/dalkedev/plompy-engine/blob/main/docs/migration-plompy.md).

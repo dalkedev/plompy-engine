@@ -43,9 +43,9 @@ is required inside the container. The existing Discord mode remains available.
   quality and tool calling depend on the chosen model; hosted integrations still
   receive their requests.
 
-Plompy Local **0.13.0** includes ready-made Linux `amd64` and `arm64` images:
-`ghcr.io/dalkedev/plompy-engine:0.13.0-local` and the optional
-`ghcr.io/dalkedev/plompy-engine:0.13.0-local-browser`. Download the small starter kit;
+Plompy Local **0.13.1** includes ready-made Linux `amd64` and `arm64` images:
+`ghcr.io/dalkedev/plompy-engine:0.13.1-local` and the optional
+`ghcr.io/dalkedev/plompy-engine:0.13.1-local-browser`. Download the small starter kit;
 no source checkout or host Node installation is needed. It does not expose email
 sending or general shell execution tools. Paid provider calls and actual Ollama
 inference have not been tested.
@@ -59,9 +59,9 @@ inference have not been tested.
 ```sh
 mkdir -m 700 plompy-local
 cd plompy-local
-curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz \
-  -o plompy-local-0.13.0.tar.gz
-tar -xzf plompy-local-0.13.0.tar.gz
+curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.1/plompy-local-0.13.1.tar.gz \
+  -o plompy-local-0.13.1.tar.gz
+tar -xzf plompy-local-0.13.1.tar.gz
 docker compose pull local
 docker compose run --rm -T local node scripts/integrations.mjs init --mode local
 docker compose up -d local
@@ -100,7 +100,7 @@ coding worker. These operations run without a model call.
 
 ## Quick start
 
-The stable quick start below uses **0.13.0**.
+The stable quick start below uses **0.13.1**.
 
 You need Linux, **Node.js 26.13.0+ (26.x LTS)**, Git, `flock`, your own Discord bot and an authenticated runner.
 The default path below uses Codex CLI **0.166.0**.
@@ -109,7 +109,7 @@ For containers, start with the [Docker guide](docs/docker.md).
 ### 1. Install and try the offline demo
 
 ```sh
-git clone --branch v0.13.0 --depth 1 https://github.com/dalkedev/plompy-engine.git
+git clone --branch v0.13.1 --depth 1 https://github.com/dalkedev/plompy-engine.git
 cd plompy-engine
 npm --prefix apps/discord-agent ci --ignore-scripts
 npm run build
@@ -372,7 +372,7 @@ The engine commits selected Markdown locally; **it does not push memory**. Keep 
 remote separate from this public repository. Treat transcripts, credentials, browser profiles
 and artifacts as private data. Alternative runners have their own private directories.
 
-Version **0.13.0 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
+Version **0.13.1 uses SQLite schema 6**, retaining owner-bound repositories and durable code-diff
 evidence. Take a [verified pre-upgrade snapshot](docs/state-backups.md);
 rollback requires compatible state and reconciliation of later actions. Do not point older code
 at a migrated database.
