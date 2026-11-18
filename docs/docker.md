@@ -2,8 +2,8 @@
 
 This page covers the existing Discord engine container. For the separate local
 integration server used by Codex CLI, Claude Code, OpenCode and other MCP clients,
-see [Plompy Local Docker quickstart](local/quickstart.md). The 0.13.0 starter kit
-pulls `0.13.0-local` or `0.13.0-local-browser` for Linux amd64/arm64 and starts
+see [Plompy Local Docker quickstart](local/quickstart.md). The 0.13.1 starter kit
+pulls `0.13.1-local` or `0.13.1-local-browser` for Linux amd64/arm64 and starts
 without Discord or a model account inside the container. Keep the Local kit in a
 separate directory; its `compose.yaml` is different from this engine setup.
 
@@ -31,7 +31,7 @@ and Discord IDs, then restrict the file to your account:
 ```sh
 chmod 600 /absolute/private/plompy.env
 export PLOMPY_ENV_FILE=/absolute/private/plompy.env
-export PLOMPY_IMAGE=ghcr.io/dalkedev/plompy-engine:0.13.0
+export PLOMPY_IMAGE=ghcr.io/dalkedev/plompy-engine:0.13.1
 docker compose config --quiet
 docker compose pull
 docker compose run --rm engine init

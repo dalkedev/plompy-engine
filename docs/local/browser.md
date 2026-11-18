@@ -14,7 +14,7 @@ docker compose --profile browser run --rm -T local-browser \
 docker compose --profile browser up -d local-browser
 ```
 
-The selected image is `ghcr.io/dalkedev/plompy-engine:0.13.0-local-browser`. Check it before reconnecting the client:
+The selected image is `ghcr.io/dalkedev/plompy-engine:0.13.1-local-browser`. Check it before reconnecting the client:
 
 ```sh
 docker compose --profile browser exec -T local-browser \
