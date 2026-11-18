@@ -1,6 +1,6 @@
 # Run locally with Docker
 
-Run Plompy Local 0.13.0 using ready-made container images. No source checkout, Node installation or local build is needed.
+Run Plompy Local 0.13.1 using ready-made container images. No source checkout, Node installation or local build is needed.
 
 ## Before you start
 
@@ -13,28 +13,28 @@ Run these commands in a terminal on macOS or Linux, or a WSL shell with Docker a
 ```sh
 mkdir -m 700 plompy-local
 cd plompy-local
-curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz \
-  -o plompy-local-0.13.0.tar.gz
+curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.1/plompy-local-0.13.1.tar.gz \
+  -o plompy-local-0.13.1.tar.gz
 ```
 
 Optionally verify the downloaded archive against the release checksum before extracting it:
 
 ```sh
-curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz.sha256 \
-  -o plompy-local-0.13.0.tar.gz.sha256
-shasum -a 256 -c plompy-local-0.13.0.tar.gz.sha256
+curl -fL https://github.com/dalkedev/plompy-engine/releases/download/v0.13.1/plompy-local-0.13.1.tar.gz.sha256 \
+  -o plompy-local-0.13.1.tar.gz.sha256
+shasum -a 256 -c plompy-local-0.13.1.tar.gz.sha256
 ```
 
-The check must report `OK`. On Linux, `sha256sum -c plompy-local-0.13.0.tar.gz.sha256` is an alternative. If verification fails, stop and obtain a fresh copy of the release assets.
+The check must report `OK`. On Linux, `sha256sum -c plompy-local-0.13.1.tar.gz.sha256` is an alternative. If verification fails, stop and obtain a fresh copy of the release assets.
 
 Extract the kit and pull its core image:
 
 ```sh
-tar -xzf plompy-local-0.13.0.tar.gz
+tar -xzf plompy-local-0.13.1.tar.gz
 docker compose pull local
 ```
 
-The kit includes `compose.yaml`, browser security profiles and example agent instructions. Its core image is `ghcr.io/dalkedev/plompy-engine:0.13.0-local`, available for Linux `amd64` and `arm64`. Keep running the commands below from this directory. Do not replace an existing Discord deployment's Compose file with this one.
+The kit includes `compose.yaml`, browser security profiles and example agent instructions. Its core image is `ghcr.io/dalkedev/plompy-engine:0.13.1-local`, available for Linux `amd64` and `arm64`. Keep running the commands below from this directory. Do not replace an existing Discord deployment's Compose file with this one.
 
 Prefer to build it yourself? Use the separate [source-build guide](source-build.md).
 
@@ -50,9 +50,7 @@ Initialization creates a private configuration and local access token. It preser
 ## Start the gateway
 
 ```sh
-docker compose up -d local
-docker compose exec -T local \
-  node scripts/integrations.mjs status --mode local
+docker compose up -d --wait local
 ```
 
 The default endpoint is `http://127.0.0.1:7331/mcp`. Docker publishes it on host loopback only. The process listens on the container interface so the published port is reachable. A normal browser visit is not a connection test: the endpoint requires MCP and a bearer token.
@@ -64,11 +62,19 @@ docker compose exec -T local \
   node scripts/integrations.mjs test --mode local
 ```
 
-This initializes MCP and calls local status. It deliberately avoids remote tool discovery and does not contact vendors or a model.
+This initializes MCP and calls local status inside the container. It uses no model or vendor account.
+
+## Check the connection from your host
+
+```sh
+sh check-local-host.sh local
+```
+
+The host check uses the local token to verify the Docker publication and prints the exact MCP URL. Continue to the client check to verify its authorization. If port `7331` is occupied, use [the alternate port instructions](troubleshooting.md#port-already-in-use).
 
 ## Connect your agent
 
-The gateway is client-neutral. Choose the configuration for your installed client:
+Choose the configuration for the local CLI you launch on the same machine as Docker:
 
 - [Codex](codex.md): Streamable HTTP with a bearer-token environment reference.
 - [Claude Code](claude-code.md): HTTP MCP with an environment-based authorization header.
@@ -90,6 +96,18 @@ Do not search the web yet.
 ```
 
 A configured entry, a connected server and a completed tool call are separate checks. A model-powered tool call may consume your client model allowance.
+
+## Save your first result
+
+Try one known public page with the built-in tools. This example needs no search integration or browser profile:
+
+```text
+Use Plompy's web_fetch to read https://plompy.dev/docs/. Save the page title,
+returned source URL and checked_at as one record in plompy-first-result.json
+with artifacts_export. Read the saved file with artifacts_read and show me the record.
+```
+
+The result stays in the Local artifact volume. Use the copy command under [Retrieve your results](#retrieve-your-results) to open it on your host.
 
 ## Add one search integration
 

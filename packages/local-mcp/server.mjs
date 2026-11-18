@@ -1,10 +1,10 @@
-import { loadConfig } from './src/config.mjs';
+import { loadConfig, publishedLoopbackPort } from './src/config.mjs';
 import { startServer } from './src/server.mjs';
 
 let instance;
 try {
   const config=await loadConfig();
-  instance=await startServer(config);
+  instance=await startServer(config, { publishedPort: publishedLoopbackPort() });
   console.log(`Plompy Local listening on port ${config.server.port}. Research tools only; no Discord or model account required.`);
 } catch {
   console.error('Plompy Local could not start. Run the local init/status commands and check private config, credential permissions and port availability.');

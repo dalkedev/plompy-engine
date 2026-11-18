@@ -2,7 +2,7 @@
 
 Plompy Local connects an agent on your computer to selected tools running behind a local MCP endpoint. Your host client, such as Codex, Claude Code or OpenCode, plans the task and writes the response. Plompy handles the enabled integrations and local artifacts.
 
-Plompy Local 0.13.0 ships as ready-made Docker images and a small starter kit. Download it, connect your preferred agent, and choose its tools. The Local images are separate from the Discord engine image. Check [Compatibility and verification](compatibility.md) for what has actually been tested.
+Plompy Local 0.13.1 ships as ready-made Docker images and a small starter kit. Download it, connect your preferred agent, and choose its tools. The Local images are separate from the Discord engine image. Check [Compatibility and verification](compatibility.md) for what has actually been tested.
 
 ## Pick your starting point
 

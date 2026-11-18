@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { DEFAULT_CONFIG, integrationIds, loadConfig, validateConfig } from "../packages/local-mcp/src/config.mjs";
+import { DEFAULT_CONFIG, integrationIds, loadConfig, publishedLoopbackPort, validateConfig } from "../packages/local-mcp/src/config.mjs";
 import { version } from "../packages/local-mcp/src/version.mjs";
 
 const publicRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -133,9 +133,9 @@ async function stdinSecret() {
   return secretText(value);
 }
 
-function configFragment(config, version) {
+function configFragment(url, version) {
   if (!["v1", "v2"].includes(version)) fail("Choose --client-version v1 or v2 explicitly; configuration schemas differ.");
-  const server = { type: "remote", url: `http://127.0.0.1:${config.server.port}/mcp`, oauth: false,
+  const server = { type: "remote", url, oauth: false,
     headers: { Authorization: "Bearer {env:PLOMPY_LOCAL_TOKEN}" },
     ...(version === "v1" ? { enabled: true } : { disabled: false }) };
   return version === "v1" ? { mcp: { plompy: server } } : { mcp: { servers: { plompy: server } } };
@@ -231,6 +231,7 @@ export async function runLocalIntegrations(argv, { env = process.env, print = (v
   if (!action || flags.help) { print(help); return; }
   if (id && !integrationIds.includes(id)) fail("Unknown integration. Use status to see the registered catalog.");
   if (!["init", "status", "add", "remove", "credential", "opencode", "codex", "claude-code", "sample", "test"].includes(action)) fail("Unknown local command. Use --help.");
+  const hostPort = publishedLoopbackPort(env);
   const configPath = resolve(flags.config || (flags.root ? join(flags.root, "config", "config.json") : (env.PLOMPY_LOCAL_CONFIG || DEFAULT_CONFIG)));
   if ((flags.config && !isAbsolute(flags.config)) || (flags.root && !isAbsolute(flags.root))) fail("Configuration paths must be absolute.");
   if (action === "sample") {
@@ -271,16 +272,16 @@ export async function runLocalIntegrations(argv, { env = process.env, print = (v
   }
   const before = await privateFile(configPath);
   const config = await loadConfig(configPath);
+  const clientUrl = `http://127.0.0.1:${hostPort ?? config.server.port}/mcp`;
   if (action === "status") { print(encode(await offlineStatus(config, id))); return; }
   if (action === "codex" || action === "claude-code") {
     if (flags.write || flags.replace) fail("This client export is print-only. Merge the fragment into your existing configuration; no file was changed.");
-    const url = `http://127.0.0.1:${config.server.port}/mcp`;
-    if (action === "codex") print(`[mcp_servers.plompy]\nurl = "${url}"\nbearer_token_env_var = "PLOMPY_LOCAL_TOKEN"\n`);
-    else print(encode({ mcpServers: { plompy: { type: "http", url, headers: { Authorization: "Bearer ${PLOMPY_LOCAL_TOKEN}" } } } }));
+    if (action === "codex") print(`[mcp_servers.plompy]\nurl = "${clientUrl}"\nbearer_token_env_var = "PLOMPY_LOCAL_TOKEN"\n`);
+    else print(encode({ mcpServers: { plompy: { type: "http", url: clientUrl, headers: { Authorization: "Bearer ${PLOMPY_LOCAL_TOKEN}" } } } }));
     return;
   }
   if (action === "opencode") {
-    const fragment = configFragment(config, flags["client-version"]);
+    const fragment = configFragment(clientUrl, flags["client-version"]);
     if (flags.write) await writeOpenCode(flags.write, fragment, flags["client-version"], flags.replace, print);
     else print(encode(fragment));
     return;

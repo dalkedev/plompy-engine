@@ -95,6 +95,26 @@ test("Codex and Claude Code exports use their native schemas without revealing s
   assert.equal(await readFile(target, "utf8"), original);
 });
 
+test("client exports use the Compose host port without changing initialized state", async (t) => {
+  const { invoke, logs, configPath } = await fixture(t);
+  const before = await readFile(configPath, "utf8");
+  const config = JSON.parse(before);
+  const token = await readFile(config.tokenFile, "utf8");
+  const port = { env: { PLOMPY_LOCAL_HOST_PORT: "17331" } };
+  await invoke(["init"], port);
+  for (const args of [["codex"], ["claude-code"], ["opencode", "--client-version", "v1"], ["opencode", "--client-version", "v2"]]) {
+    await invoke(args, port);
+    assert.ok(logs.at(-1).includes("http://127.0.0.1:17331/mcp"));
+    assert.ok(!logs.at(-1).includes(token.trim()));
+  }
+  await invoke(["codex"]);
+  assert.ok(logs.at(-1).includes("http://127.0.0.1:7331/mcp"));
+  assert.equal(await readFile(configPath, "utf8"), before);
+  assert.equal(await readFile(config.tokenFile, "utf8"), token);
+  for (const value of ["80", "65536", "07331", "1e4", "0.0.0.0:7331"])
+    await assert.rejects(invoke(["codex"], { env: { PLOMPY_LOCAL_HOST_PORT: value } }), /PLOMPY_LOCAL_HOST_PORT/);
+});
+
 test("explicit OpenCode write preserves unrelated keys and private backup, refuses JSONC and schema conflicts", async (t) => {
   const { root, invoke, logs } = await fixture(t);
   const target = join(root, "opencode.json");
@@ -139,7 +159,7 @@ test("local diagnostic calls real authenticated MCP status without discovering r
   config.server.port = service.address.port;
   config.server.allowedHosts = [`127.0.0.1:${service.address.port}`];
   await writeFile(configPath, JSON.stringify(config), { mode: 0o600 });
-  await invoke(["test"]);
+  await invoke(["test"], { env: { PLOMPY_LOCAL_HOST_PORT: "17331" } });
   const status = JSON.parse(logs.at(-1));
   assert.equal(status.state, "available");
   assert.deepEqual(status.checks, ["authenticated MCP initialization", "local status tool"]);

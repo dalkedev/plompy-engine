@@ -4,9 +4,18 @@ Check container startup, MCP authentication, tool discovery and actual tool exec
 
 ## Connection refused
 
-Check `docker compose ps` and confirm the selected service is running. Core and browser services share port `7331`; do not start both at once. Confirm that the container listener is reachable through the loopback publication.
+Run these on the Docker host from the kit directory:
 
-The host client URL is `http://127.0.0.1:7331/mcp`. Inside a different container, `127.0.0.1` means that other container. This quickstart places the MCP client on the host.
+```sh
+docker compose ps
+docker compose port local 7331
+```
+
+Use `local-browser` if that is your selected service. The second command should print a `127.0.0.1` address. Use that host port in your MCP URL. See the [host connection check](quickstart.md#check-the-connection-from-your-host) to test it over HTTP. A client inside another container or on another machine has its own loopback interface.
+
+## Port already in use
+
+Core and browser share the same published port and volumes. Stop the variant you are switching away from. In the 0.13.1 kit, select a free port from `1024` to `65535` and add or update `PLOMPY_LOCAL_HOST_PORT=17331` (using your chosen number) in the Compose project's `.env` file. Start the service using the existing project name, run `sh check-local-host.sh local`, and regenerate the client configuration for the printed URL. The 0.13.0 kit requires port `7331`. See [maintenance](maintenance.md) for upgrading an existing kit.
 
 ## Unauthorized or forbidden
 

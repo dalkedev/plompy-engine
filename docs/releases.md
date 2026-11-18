@@ -4,30 +4,32 @@ A release is a versioned public source snapshot and a set of container images. I
 
 ## Choose an image
 
-Version 0.13.0 publishes three separate variants, each for Linux `amd64` and `arm64`:
+Version 0.13.1 publishes three separate variants, each for Linux `amd64` and `arm64`:
 
 | Image | Purpose |
 | --- | --- |
-| `ghcr.io/dalkedev/plompy-engine:0.13.0` | Existing Discord engine with its Codex runner |
-| `ghcr.io/dalkedev/plompy-engine:0.13.0-local` | Local MCP tools for an independently running host agent |
-| `ghcr.io/dalkedev/plompy-engine:0.13.0-local-browser` | Local MCP tools plus sandboxed, read-only Chromium |
+| `ghcr.io/dalkedev/plompy-engine:0.13.1` | Existing Discord engine with its Codex runner |
+| `ghcr.io/dalkedev/plompy-engine:0.13.1-local` | Local MCP tools for an independently running host agent |
+| `ghcr.io/dalkedev/plompy-engine:0.13.1-local-browser` | Local MCP tools plus sandboxed, read-only Chromium |
 
-For Local mode, download [plompy-local-0.13.0.tar.gz](https://github.com/dalkedev/plompy-engine/releases/download/v0.13.0/plompy-local-0.13.0.tar.gz) and follow the [Docker quickstart](local/quickstart.md). The kit includes pinned Compose configuration, browser security profiles and client examples. It needs no source checkout or host Node installation. Local mode does not include a model or agent login.
+For Local mode, download [plompy-local-0.13.1.tar.gz](https://github.com/dalkedev/plompy-engine/releases/download/v0.13.1/plompy-local-0.13.1.tar.gz) and follow the [Docker quickstart](local/quickstart.md). The kit includes pinned Compose configuration, browser security profiles and client examples. It needs no source checkout or host Node installation. Local mode does not include a model or agent login.
+
+The 0.13.1 patch adds a configurable Local loopback port, matching client URLs and a host connection check. The Discord image keeps the runtime behavior, runner and state schema from 0.13.0.
 
 ## Pull the Discord engine
 
 ```sh
-docker pull ghcr.io/dalkedev/plompy-engine:0.13.0
-docker buildx imagetools inspect ghcr.io/dalkedev/plompy-engine:0.13.0
+docker pull ghcr.io/dalkedev/plompy-engine:0.13.1
+docker buildx imagetools inspect ghcr.io/dalkedev/plompy-engine:0.13.1
 ```
 
 The release workflow publishes Linux `amd64` and `arm64` variants. A stable release publishes an exact version tag, a minor-series tag, `latest`, and `sha-<first 12 characters of commit>`. For example, `v0.6.1` produces `0.6.1`, `0.6`, `latest`, and its revision tag. A prerelease such as `v0.7.0-rc.1` publishes only its exact prerelease and revision tags; it cannot move `latest` or a stable minor-series tag.
 
-Local variants use matching suffixed tags such as `0.13.0-local`, `0.13-local`, `latest-local` and `sha-<revision>-local`. Browser tags end in `-local-browser`. They never move the unsuffixed Discord engine aliases.
+Local variants use matching suffixed tags such as `0.13.1-local`, `0.13-local`, `latest-local` and `sha-<revision>-local`. Browser tags end in `-local-browser`. They never move the unsuffixed Discord engine aliases.
 
 Tags are convenient aliases. For repeatable deployments, copy the full `ghcr.io/dalkedev/plompy-engine@sha256:...` reference from the successful workflow summary or manifest inspection and pin that digest in your deployment. The OCI labels identify the source repository, exact revision, version, and MIT license. The published image also includes BuildKit provenance and an SBOM.
 
-The unsuffixed Discord engine image contains no browser profile or real account session. Version 0.13.0 packages and verifies **Codex only** inside that engine; it rejects `PLOMPY_RUNNER=claude` and `opencode` before initialization writes. Claude Code and OpenCode are [experimental host adapters](runners.md), requiring their own installed CLI, private authentication, permissions and acceptance checks. The optional Camoufox desktop/browser service is outside this image. A release does not supply model access or account allowances.
+The unsuffixed Discord engine image contains no browser profile or real account session. Version 0.13.1 packages and verifies **Codex only** inside that engine; it rejects `PLOMPY_RUNNER=claude` and `opencode` before initialization writes. Claude Code and OpenCode are [experimental host adapters](runners.md), requiring their own installed CLI, private authentication, permissions and acceptance checks. The optional Camoufox desktop/browser service is outside this image. A release does not supply model access or account allowances.
 
 Version 0.5.0 introduced [private Discord image input](image-input.md) for Codex, including
 resumed turns. The other host adapters explicitly reject images. SQLite snapshots
@@ -49,8 +51,8 @@ moves backwards. It does not introduce another worker or a state migration.
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.13.0 -m 'Plompy Engine 0.13.0'
-git push origin refs/tags/v0.13.0
+git tag -a v0.13.1 -m 'Plompy Engine 0.13.1'
+git push origin refs/tags/v0.13.1
 ```
 
 The [release workflow](../.github/workflows/release.yml) runs only on `v*` tag pushes. It first requires the tagged commit to be reachable from `main`, validates all package and project-lock versions, checks the public tree, and runs the locked engine and browser suites. Each engine, Local core and Local browser variant is built and checked on native amd64/arm64 runners. Each runner builds its OCI archive once, including provenance and an SBOM, and loads that archive's runtime for the offline smoke test. A configuration-digest check binds the loaded runtime (including its filesystem layer identities) to the OCI archive. Runtime state is created in throwaway volumes and is never included in the archive.
@@ -71,7 +73,7 @@ Official references: [Docker OCI exports](https://docs.docker.com/build/exporter
 
 Record the current image digest and stop the engine before taking a coordinated backup of its private state and workspace. Keep runner authentication and browser-profile backups private and separate. Start the desired pinned image with the same configured volumes, then inspect its logs and queue status before sending a synthetic owner task. A successful image build or offline smoke test does not establish Discord connectivity, account validity or live model access.
 
-Do not run two engine instances against the same SQLite state at once. Version 0.13.0 uses **schema 6** and migrates public schemas 0–5 to that schema, retaining saved candidates, reviews and code-diff evidence. Existing provider bindings and sessions are preserved; pre-schema-3 jobs and conversations retain Codex bindings, including conversations whose session has not started; changing `PLOMPY_RUNNER` never converts them to another provider. New threads use the configured default. Session reset retains the thread's provider, and recovery retains the original job's provider.
+Do not run two engine instances against the same SQLite state at once. Version 0.13.1 uses **schema 6** and migrates public schemas 0–5 to that schema, retaining saved candidates, reviews and code-diff evidence. Existing provider bindings and sessions are preserved; pre-schema-3 jobs and conversations retain Codex bindings, including conversations whose session has not started; changing `PLOMPY_RUNNER` never converts them to another provider. New threads use the configured default. Session reset retains the thread's provider, and recovery retains the original job's provider.
 
 | Engine version | Public SQLite schema |
 | -------------- | -------------------- |

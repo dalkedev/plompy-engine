@@ -1,6 +1,6 @@
 # Connect Codex
 
-Run the [Docker quickstart](quickstart.md) first. Codex stays on your host and uses its own model login. Plompy provides selected tools over the local HTTP endpoint.
+Run the [Docker quickstart](quickstart.md) first. This guide covers Codex CLI running on the same machine as Docker. Codex uses its own model login and reaches Plompy tools over the local HTTP endpoint.
 
 ## Add the MCP server
 
@@ -30,7 +30,7 @@ url = "http://127.0.0.1:7331/mcp"
 bearer_token_env_var = "PLOMPY_LOCAL_TOKEN"
 ```
 
-Merge it into your private Codex configuration. The generator is print-only; it does not replace a host file or your other servers.
+Merge it into your private Codex configuration. The generator prints the endpoint and token reference. For a supported Compose port override, use the URL it prints in either setup path.
 
 ## Provide the token privately
 

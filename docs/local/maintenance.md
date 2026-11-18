@@ -8,7 +8,7 @@ Read the target release notes and download its Local starter kit. Keep a copy of
 
 Use the new kit in the same deployment directory, preserving your deliberate configuration changes. The kit uses the fixed Compose project name `plompy-local` and named volumes for config, secrets and artifacts. Preserve that name, or your explicit `-p` project name, when updating. Do not run two services against the same volumes and port.
 
-For the current 0.13.0 kit, the core image is pinned to `ghcr.io/dalkedev/plompy-engine:0.13.0-local`. After installing the intended kit:
+For the current 0.13.1 kit, the core image is pinned to `ghcr.io/dalkedev/plompy-engine:0.13.1-local`. After installing the intended kit:
 
 ```sh
 docker compose pull local
