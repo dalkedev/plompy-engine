@@ -82,9 +82,12 @@ integrations, and print the appropriate client configuration without embedding s
 - **Delivery and maintenance:** result receipts, transcript exports and scoped local Git commits have separate durable state.
 - **Deployment checks:** owner/forum authorization, local diagnostics, versioned migrations and verified state snapshots.
 
-The public edition has **one global worker**. Work sessions yield between verified steps;
-they do not interrupt a running step. Still-image input and supervised goals use Codex.
-There is no built-in scheduler, publication broker or message-history catch-up after an outage.
+The public edition has **one global worker** for coding agents. Work sessions yield between verified steps.
+Still-image input and supervised goals use Codex.
+
+The [personal assistant preview](docs/personal-assistant.md) adds notes, tasks, follow-up
+questions and one-time reminders in a dedicated private Discord thread. The reminder
+scheduler runs independently of the coding worker.
 
 ## Quick start
 

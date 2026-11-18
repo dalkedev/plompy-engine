@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-alpha.1
+
+- Add the optional [personal assistant preview](docs/personal-assistant.md) with private notes, open tasks, and reminder questions that survive restart.
+- Schedule, move and cancel one-time reminders in a dedicated owner thread. A separate delivery loop runs while the coding worker is busy.
+- Record confirmed, failed, overdue and uncertain delivery attempts. The owner chooses a lateness window before enabling the assistant.
+- Keep assistant data in its own versioned SQLite file. The coding engine continues to use schema 6.
+
 ## 0.13.0 (2026-11-12): Local tools for your agent
 
 - Add an authenticated local MCP gateway for independently running Codex, Claude Code, OpenCode and compatible clients, without Discord or a second model account in the container.

@@ -33,9 +33,26 @@ test('invalid versions and workflow output injection are rejected', () => {
 test('the browser lock version participates in release consistency checks', () => {
   const project = '[project]\nname = "plompy-browser"\nversion = "0.2.0"\n';
   const lock = 'version = 1\n\n[[package]]\nname = "dependency"\nversion = "5.0.0"\n\n[[package]]\nname = "plompy-browser"\nversion = "0.2.0"\n';
-  assert.deepEqual(browserVersions({ project, lock }), ['0.2.0', '0.2.0']);
-  assert.throws(() => metadata({ versions: browserVersions({ project, lock: lock.replace('version = "0.2.0"', 'version = "0.1.0"') }) }), /must agree/);
+  const initializer = '__version__ = "0.2.0"\n';
+  const browser = browserVersions({ project, lock, initializer });
+  assert.deepEqual(browser, ['0.2.0', '0.2.0', '0.2.0']);
+  assert.equal(metadata({ browser }).version, '0.2.0');
+  assert.throws(() => metadata({ browser: browserVersions({ project, lock: lock.replace('version = "0.2.0"', 'version = "0.1.0"'), initializer }) }), /must agree/);
+  assert.throws(() => metadata({ browser: browserVersions({ project, lock, initializer: initializer.replace('0.2.0', '0.1.0') }) }), /must agree/);
   assert.throws(() => browserVersions({ project, lock: '' }), /exactly one/);
+});
+
+test('SemVer prereleases and canonical Python versions agree without moving stable tags', () => {
+  for (const [stage, pythonStage] of [['alpha', 'a'], ['beta', 'b'], ['rc', 'rc']]) {
+    const version = '1.0.0-' + stage + '.1';
+    const pythonVersion = '1.0.0' + pythonStage + '1';
+    const result = metadata({ tag: 'v' + version, versions: [version], browser: [pythonVersion, pythonVersion] });
+    assert.equal(result.version, version);
+    assert.equal(result.prerelease, true);
+    assert.equal(result.tags, 'ghcr.io/owner/engine:' + version + ',ghcr.io/owner/engine:sha-aaaaaaaaaaaa');
+    assert.throws(() => metadata({ tag: 'v' + version, versions: [version], browser: [pythonVersion, version] }), /canonical PEP 440/);
+  }
+  assert.throws(() => metadata({ tag: 'v1.0.0-preview.1', versions: ['1.0.0-preview.1'], browser: ['1.0.0a1', '1.0.0a1'] }), /Browser prereleases require/);
 });
 
 
